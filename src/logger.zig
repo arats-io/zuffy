@@ -3,7 +3,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
-const StringBuilder = @import("bytes/types.zig").StringBuilder;
+const StringBuilder = @import("bytes/mod.zig").StringBuilder;
 const Time = @import("time.zig").Time;
 const Measure = @import("time.zig").Measure;
 

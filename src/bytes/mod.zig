@@ -8,5 +8,3 @@ pub const Utf8Buffer = @import("utf8_buffer.zig").Utf8Buffer;
 pub const Utf8BufferManaged = @import("utf8_buffer.zig").Utf8BufferManaged;
 pub const Utf8BufferPool = @import("utf8_buffer.zig").Utf8BufferPool;
 pub const Utf8BufferPoolManaged = @import("utf8_buffer.zig").Utf8BufferPoolManaged;
-
-pub const types = @import("types.zig");

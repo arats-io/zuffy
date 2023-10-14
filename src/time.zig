@@ -1,5 +1,5 @@
 const std = @import("std");
-const StringBuilder = @import("bytes/types.zig").StringBuilder;
+const StringBuilder = @import("bytes/mod.zig").StringBuilder;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
