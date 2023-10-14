@@ -15,6 +15,13 @@ pub fn build(b: *std.Build) !void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    // create a module to be used internally.
+    var xstd_module = b.createModule(.{
+        .source_file = .{ .path = "src/lib.zig" },
+    });
+
+    try b.modules.put(b.dupe("xstd"), xstd_module);
+
     const lib = b.addStaticLibrary(.{
         .name = "xstd",
         // In this case the main source file is merely a path, however, in more
