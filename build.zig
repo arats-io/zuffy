@@ -16,11 +16,9 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     // create a module to be used internally.
-    var xstd_module = b.createModule(.{
+    _ = b.addModule("xstd", .{
         .source_file = .{ .path = "src/lib.zig" },
     });
-
-    try b.modules.put(b.dupe("xstd"), xstd_module);
 
     const lib = b.addStaticLibrary(.{
         .name = "xstd",
