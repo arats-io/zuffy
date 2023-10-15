@@ -1,58 +1,12 @@
 const std = @import("std");
-const mem = std.mem;
-const Allocator = mem.Allocator;
-const StringHashMap = std.StringHashMap;
 
-const StringBuilder = @import("bytes/mod.zig").StringBuilder;
-const Time = @import("time/mod.zig").Time;
-const Measure = @import("time/mod.zig").Measure;
+const StringBuilder = @import("../bytes/mod.zig").StringBuilder;
 
-pub const Format = enum(u4) {
-    simple = 0,
-    json = 1,
-};
+const Time = @import("../time/mod.zig").Time;
+const Measure = @import("../time/mod.zig").Measure;
 
-pub const Level = enum(u4) {
-    Trace = 0x0,
-    Debug = 0x1,
-    Info = 0x2,
-    Warn = 0x3,
-    Error = 0x4,
-    Fatal = 0x5,
-    Disabled = 0xF,
-
-    pub fn String(self: Level) []const u8 {
-        return switch (self) {
-            .Trace => "TRACE",
-            .Debug => "DEBUG",
-            .Info => "INFO",
-            .Warn => "WARN",
-            .Error => "ERROR",
-            .Fatal => "FATAL",
-            .Disabled => "DISABLED",
-        };
-    }
-    pub fn ParseString(val: []const u8) !Level {
-        var buffer: [8]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buffer);
-
-        var sb = StringBuilder.init(fba.allocator());
-        defer sb.deinit();
-
-        try sb.append(val);
-        sb.toUppercase();
-
-        const lVal = sb.bytes();
-        if (std.mem.eql(u8, "TRACE", lVal)) return .Trace;
-        if (std.mem.eql(u8, "DEBUG", lVal)) return .Debug;
-        if (std.mem.eql(u8, "INFO", lVal)) return .Info;
-        if (std.mem.eql(u8, "WARN", lVal)) return .Warn;
-        if (std.mem.eql(u8, "ERROR", lVal)) return .Error;
-        if (std.mem.eql(u8, "FATAL", lVal)) return .Fatal;
-        if (std.mem.eql(u8, "DISABLED", lVal)) return .Disabled;
-        return .Disabled;
-    }
-};
+const Format = @import("common.zig").Format;
+const Level = @import("common.zig").Level;
 
 pub fn Logger(comptime format: Format, comptime timemeasure: Measure, comptime pattern: []const u8) type {
     return struct {
@@ -126,7 +80,7 @@ pub fn Entry(comptime format: Format, comptime timemeasure: Measure, comptime pa
         logger: ?Logger(format, timemeasure, pattern) = null,
         opLevel: Level = .Disabled,
 
-        elems: ?StringHashMap([]const u8) = null,
+        elems: ?std.StringHashMap([]const u8) = null,
 
         fn initEmpty() Self {
             return Self{};
@@ -136,7 +90,7 @@ pub fn Entry(comptime format: Format, comptime timemeasure: Measure, comptime pa
             logger: Logger(format, timemeasure, pattern),
             opLevel: Level,
         ) Self {
-            return Self{ .logger = logger, .opLevel = opLevel, .elems = StringHashMap([]const u8).init(logger.allocator) };
+            return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(logger.allocator) };
         }
 
         pub fn deinit(self: *Self) void {

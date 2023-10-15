@@ -3,9 +3,9 @@ const xstd = @import("xstd");
 
 const StringBuilder = xstd.bytes.StringBuilder;
 
-const Logger = xstd.log.Logger(.simple, .nanos, "YYYY MMM Do dddd HH:mm:ss.SSS - Qo");
-const Level = xstd.log.Level;
-const Format = xstd.log.Format;
+const Logger = xstd.logger.Logger(.simple, .nanos, "YYYY MMM Do dddd HH:mm:ss.SSS - Qo");
+const Level = xstd.logger.Level;
+const Format = xstd.logger.Format;
 
 const Time = xstd.time.Time;
 
