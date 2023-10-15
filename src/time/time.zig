@@ -1,5 +1,5 @@
 const std = @import("std");
-const StringBuilder = @import("bytes/mod.zig").StringBuilder;
+const StringBuilder = @import("../bytes/mod.zig").StringBuilder;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
@@ -48,22 +48,6 @@ pub const Weekday = enum(u3) {
         return string(self)[0..2];
     }
 };
-
-pub fn now() Time {
-    return Time(.seconds).now();
-}
-
-pub fn unixMilli() Time {
-    return Time(.millis).now();
-}
-
-pub fn unixMicros() Time {
-    return Time(.micros).now();
-}
-
-pub fn unixNanos() Time {
-    return Time(.nanos).now();
-}
 
 pub fn Time(comptime measure: Measure) type {
     return struct {

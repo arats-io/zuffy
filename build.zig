@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     // create a module to be used internally.
-    _ = b.addModule("xstd", .{
+    const xstd_m = b.addModule("xstd", .{
         .source_file = .{ .path = "src/lib.zig" },
     });
 
@@ -17,6 +17,57 @@ pub fn build(b: *std.Build) !void {
     });
 
     b.installArtifact(lib);
+
+    // examples
+    const examples_step = b.step("examples", "build all examples");
+
+    inline for ([_]struct {
+        name: []const u8,
+        src: []const u8,
+    }{
+        .{ .name = "list-circular", .src = "examples/list/circular.zig" },
+        .{ .name = "logger", .src = "examples/log/logger.zig" },
+        .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
+    }) |excfg| {
+        const ex_name = excfg.name;
+        const ex_src = excfg.src;
+        const ex_build_desc = try std.fmt.allocPrint(
+            b.allocator,
+            "build the {s} example",
+            .{ex_name},
+        );
+        const ex_run_stepname = try std.fmt.allocPrint(
+            b.allocator,
+            "run-{s}",
+            .{ex_name},
+        );
+        const ex_run_stepdesc = try std.fmt.allocPrint(
+            b.allocator,
+            "run the {s} example",
+            .{ex_name},
+        );
+        const example_run_step = b.step(ex_run_stepname, ex_run_stepdesc);
+        const example_step = b.step(ex_name, ex_build_desc);
+
+        var example = b.addExecutable(.{
+            .name = ex_name,
+            .root_source_file = .{ .path = ex_src },
+            .target = target,
+            .optimize = optimize,
+        });
+
+        example.linkLibrary(lib);
+        example.addModule("xstd", xstd_m);
+
+        // const example_run = example.run();
+        const example_run = b.addRunArtifact(example);
+        example_run_step.dependOn(&example_run.step);
+
+        // install the artifact - depending on the "example"
+        const example_build_step = b.addInstallArtifact(example, .{});
+        example_step.dependOn(&example_build_step.step);
+        examples_step.dependOn(&example_build_step.step);
+    }
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
