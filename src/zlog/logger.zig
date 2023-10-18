@@ -153,7 +153,7 @@ pub fn Entry(comptime format: Format, comptime timemeasure: Measure, comptime pa
 
                 str.append("{") catch {};
 
-                const t = Time(timemeasure).now();
+                const t = Time(timemeasure).new();
 
                 var buffer: [512]u8 = undefined;
                 const len = t.format(pattern, buffer[0..]) catch pattern.len;
@@ -189,7 +189,7 @@ pub fn Entry(comptime format: Format, comptime timemeasure: Measure, comptime pa
                 var str = StringBuilder.init(self.logger.?.allocator);
                 defer str.deinit();
 
-                const t = Time(timemeasure).now();
+                const t = Time(timemeasure).new();
 
                 var buffer: [512]u8 = undefined;
                 const len = t.format(pattern, buffer[0..]) catch pattern.len;

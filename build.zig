@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) !void {
         .{ .name = "list-circular", .src = "examples/list/circular.zig" },
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
+        .{ .name = "time-zoneinfo", .src = "examples/time/zoneinfo.zig" },
     }) |excfg| {
         const ex_name = excfg.name;
         const ex_src = excfg.src;
@@ -54,6 +55,7 @@ pub fn build(b: *std.Build) !void {
             .root_source_file = .{ .path = ex_src },
             .target = target,
             .optimize = optimize,
+            .single_threaded = false,
         });
 
         example.linkLibrary(lib);

@@ -295,5 +295,34 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 return try self.write(m);
             }
         };
+
+        // Iterator support
+        pub usingnamespace struct {
+            pub const Iterator = struct {
+                sb: *Self,
+                index: usize,
+
+                pub fn next(it: *Iterator) ?[]const u8 {
+                    if (it.index >= it.sb.len) return null;
+                    var i = it.index;
+                    return it.sb.ptr[i..it.index];
+                }
+
+                pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
+                    if ((it.index + size) >= it.sb.len) return null;
+
+                    var i = it.index;
+                    it.index += size;
+                    return it.sb.ptr[i..it.index];
+                }
+            };
+
+            pub fn iterator(self: *Self) Iterator {
+                return Iterator{
+                    .sb = self,
+                    .index = 0,
+                };
+            }
+        };
     };
 }

@@ -623,6 +623,14 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                     it.index += utf8Size(it.sb.buffer.ptr[i]);
                     return it.sb.buffer.ptr[i..it.index];
                 }
+
+                pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
+                    if ((it.index + size) >= it.sb.buffer.len) return null;
+
+                    var i = it.index;
+                    it.index += size;
+                    return it.sb.buffer.ptr[i..it.index];
+                }
             };
 
             pub fn iterator(self: *Self) Iterator {
