@@ -69,17 +69,17 @@ pub fn Time(comptime measure: Measure) type {
         micro: u10 = 0,
         nano: u10 = 0,
 
-        pub fn now() Self {
+        pub fn new() Self {
             const t = @constCast(&Self{ .value = switch (measure) {
                 inline .seconds => std.time.timestamp(),
                 inline .millis => std.time.milliTimestamp(),
                 inline .micros => std.time.microTimestamp(),
                 inline .nanos => std.time.nanoTimestamp(),
-            } }).parse();
+            } }).pupulate();
             return t.*;
         }
 
-        fn parse(self: *Self) *Self {
+        fn pupulate(self: *Self) *Self {
             var seconds = switch (measure) {
                 inline .seconds => self.value,
                 inline .millis => blk: {
@@ -113,8 +113,13 @@ pub fn Time(comptime measure: Measure) type {
                     break :blk @divTrunc(self.value, std.time.ns_per_s);
                 },
             };
-            seconds += offset();
 
+            _ = self.absDate(seconds + offset());
+
+            return self;
+        }
+
+        pub fn absDate(self: *Self, seconds: i128) *Self {
             // Split into time and day.
             var d = @divFloor(seconds, std.time.s_per_day);
 
@@ -496,20 +501,28 @@ pub fn Time(comptime measure: Measure) type {
     };
 }
 
-inline fn isLeap(year: i128) bool {
+pub inline fn isLeap(year: i128) bool {
     return @rem(year, 4) == 0 and (@rem(year, 100) != 0 or @rem(year, 400) == 0);
 }
 
-const absolute_zero_year = 1970;
-const days_per_year = 365;
-const days_per_400_years = days_per_year * 400 + 97;
-const days_per_100_years = days_per_year * 100 + 24;
-const days_per_4_years = days_per_year * 4 + 1;
+pub inline fn daysIn(m: i32, year: i32) u32 {
+    if (m == 2 and isLeap(year)) {
+        return 29;
+    }
+    const idx = @as(usize, @intCast(m));
+    return daysBefore[idx] - daysBefore[idx - 1];
+}
+
+pub const absolute_zero_year = 1970;
+pub const days_per_year = 365;
+pub const days_per_400_years = days_per_year * 400 + 97;
+pub const days_per_100_years = days_per_year * 100 + 24;
+pub const days_per_4_years = days_per_year * 4 + 1;
 
 // daysBefore[m] counts the number of days in a non-leap year
 // before month m begins. There is an entry for m=12, counting
 // the number of days before January of next year (365).
-const daysBefore = [13]u32{
+pub const daysBefore = [13]u32{
     0,
     31,
     31 + 28,
@@ -566,4 +579,29 @@ fn weekday(y: u16, m: u5, d: u5) u16 {
 
     const i = @as(usize, @intCast(m));
     return @rem((sy + t1 - t2 + t3 + weekday_t[i - 1] + d - 1), 7) + 1;
+}
+
+pub fn daysSinceEpoch(year: i32) i64 {
+    var y = year - absolute_zero_year;
+
+    // Add in days from 400-year cycles.
+    var n = @divFloor(y, 400);
+    y -= 400 * n;
+    var d = days_per_400_years * n;
+
+    // Add in 100-year cycles.
+    n = @divFloor(y, 100);
+    y -= 100 * n;
+    d += days_per_100_years * n;
+
+    // Add in 4-year cycles.
+    n = @divFloor(y, 4);
+    y -= 4 * n;
+    d += days_per_4_years * n;
+
+    // Add in non-leap years.
+    n = y;
+    d += 365 * n;
+
+    return @as(i64, @intCast(d));
 }
