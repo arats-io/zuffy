@@ -1,52 +1,40 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const time = @import("time.zig");
-
 pub const Error = error{
+    BadData,
     UnknownTimeZone,
+    NotImplemented,
 };
 
-pub fn GetLocation() Location {
-    // const Impl = if (builtin.single_threaded)
-    //     SingleThreadedImpl
-    // else if (builtin.os.tag == .windows)
-    //     WindowsImpl
-    // else if (builtin.os.tag.isDarwin())
-    //     DarwinImpl
-    // else if (builtin.os.tag == .linux)
-    //     LinuxImpl
-    // else if (builtin.os.tag == .freebsd)
-    //     FreebsdImpl
-    // else if (builtin.os.tag == .openbsd)
-    //     OpenbsdImpl
-    // else if (builtin.os.tag == .dragonfly)
-    //     DragonflyImpl
-    // else if (builtin.target.isWasm())
-    //     WasmImpl
-    // else if (std.Thread.use_pthreads)
-    //     PosixImpl
-    // else
-    //     UnsupportedImpl;
-
-    const empty = Location{
-        .name = "",
-        .zone = &[0]zone{},
-        .tx = &[0]zoneTrans{},
-        .extend = "",
-        .cacheStart = 0,
-        .cacheEnd = 0,
-        .cacheZone = zone{ .name = "", .offset = 0, .isDST = false },
-    };
-
-    if (builtin.os.tag.isDarwin()) {
-        return unix() catch empty;
-    } else {
-        return empty;
-    }
+pub fn GetLocation() !Location {
+    return if (builtin.os.tag == .windows)
+        Error.NotImplemented
+    else if (builtin.os.tag.isDarwin())
+        try unix()
+    else if (builtin.os.tag == .linux)
+        try unix()
+    else if (builtin.os.tag == .freebsd)
+        try unix()
+    else if (builtin.os.tag == .openbsd)
+        try unix()
+    else if (builtin.os.tag == .dragonfly)
+        try unix()
+    else
+        return Error.NotImplemented;
 }
 
+pub const LookupResult = struct {
+    name: []const u8,
+    offset: i32,
+    start: i64,
+    end: i64,
+    isDST: bool,
+};
+
 pub const Location = struct {
+    const Self = @This();
+
     name: []const u8,
     zone: []zone,
     tx: []zoneTrans,
@@ -71,11 +59,111 @@ pub const Location = struct {
     cacheEnd: i64,
     cacheZone: zone,
 
-    pub fn Name(self: Location) []const u8 {
+    pub fn Name(self: Self) []const u8 {
         return self.name;
     }
-    pub fn Extend(self: Location) []const u8 {
+    pub fn Extend(self: Self) []const u8 {
         return self.extend;
+    }
+
+    pub fn Lookup(self: Self) LookupResult {
+        const sec = std.time.timestamp();
+
+        if (self.zone.len == 0) {
+            return LookupResult{ .name = self.name, .offset = 0, .start = std.math.minInt(i64), .end = std.math.maxInt(i64), .isDST = false };
+        }
+
+        if (self.cacheStart <= sec and sec < self.cacheEnd) {
+            return LookupResult{ .name = self.cacheZone.name, .offset = self.cacheZone.offset, .start = self.cacheStart, .end = self.cacheEnd, .isDST = self.cacheZone.isDST };
+        }
+
+        if (self.tx.len == 0 or sec < self.tx[0].when) {
+            const zoneLocal = self.zone[self.lookupFirstZone()];
+            return LookupResult{ .name = zoneLocal.name, .offset = zoneLocal.offset, .start = std.math.minInt(i64), .end = if (self.tx.len > 0) self.tx[0].when else std.math.maxInt(i64), .isDST = zoneLocal.isDST };
+        }
+
+        // Binary search for entry with largest time <= sec.
+        // Not using sort.Search to avoid dependencies.
+        const tx = self.tx;
+        var end: i64 = std.math.maxInt(i64);
+        var lo: usize = 0;
+        var hi = tx.len;
+        while (hi - lo > 1) {
+            const m = lo + @divTrunc(hi - lo, 2);
+            const lim = tx[m].when;
+            if (sec < lim) {
+                end = lim;
+                hi = m;
+            } else {
+                lo = m;
+            }
+        }
+        const zoneLocal = self.zone[tx[lo].index];
+        const start = tx[lo].when;
+
+        // If we're at the end of the known zone transitions,
+        // try the extend string.
+        if (lo == tx.len - 1 and !std.mem.eql(u8, self.extend, "")) {
+            const r = tzset(self.extend, start, sec);
+            if (r.ok) {
+                return LookupResult{ .name = r.name, .offset = r.offset, .start = r.start, .end = r.end, .isDST = r.isDST };
+            }
+        }
+
+        return LookupResult{ .name = zoneLocal.name, .offset = zoneLocal.offset, .start = start, .end = end, .isDST = zoneLocal.isDST };
+    }
+
+    // lookupFirstZone returns the index of the time zone to use for times
+    // before the first transition time, or when there are no transition
+    // times.
+    //
+    // The reference implementation in localtime.c from
+    // https://www.iana.org/time-zones/repository/releases/tzcode2013g.tar.gz
+    // implements the following algorithm for these cases:
+    //  1. If the first zone is unused by the transitions, use it.
+    //  2. Otherwise, if there are transition times, and the first
+    //     transition is to a zone in daylight time, find the first
+    //     non-daylight-time zone before and closest to the first transition
+    //     zone.
+    //  3. Otherwise, use the first zone that is not daylight time, if
+    //     there is one.
+    //  4. Otherwise, use the first zone.
+    fn lookupFirstZone(self: Self) usize {
+        // Case 1.
+        if (!self.firstZoneUsed()) {
+            return 0;
+        }
+
+        // Case 2.
+        if (self.tx.len > 0 and self.zone[self.tx[0].index].isDST) {
+            var zi = @as(usize, @intCast(self.tx[0].index - 1));
+            while (zi >= 0) : (zi -= 1) {
+                if (!self.zone[zi].isDST) {
+                    return zi;
+                }
+            }
+        }
+
+        // Case 3.
+        for (0..self.zone.len) |idx| {
+            if (!self.zone[idx].isDST) {
+                return idx;
+            }
+        }
+
+        // Case 4.
+        return 0;
+    }
+
+    // firstZoneUsed reports whether the first zone is used by some
+    // transition.
+    fn firstZoneUsed(self: Self) bool {
+        for (0..self.tx.len) |idx| {
+            if (self.tx[idx].index == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 };
 
@@ -124,25 +212,40 @@ fn unix() !Location {
             try sources.append("/etc/zoneinfo");
 
             return try loadLocation(allocator, tzTmp, sources);
+        } else {
+            const emptyZone: []zone = undefined;
+            const emptyZoneTrans: []zoneTrans = undefined;
+            return Location{
+                .zone = emptyZone,
+                .tx = emptyZoneTrans,
+                .name = "UTC",
+                .extend = "",
+                .cacheStart = 0,
+                .cacheEnd = 0,
+                .cacheZone = zone{
+                    .name = "",
+                    .offset = 0,
+                    .isDST = false,
+                },
+            };
         }
+    } else {
+        var sources = std.ArrayList([]const u8).init(allocator);
+        try sources.append("/etc");
+        const z = try loadLocation(allocator, "localtime", sources);
+        var buff = [_]u8{undefined} ** 100;
+        const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
+        return Location{
+            .zone = z.zone,
+            .tx = z.tx,
+            .name = "Local",
+            .extend = extend[0..],
+            .cacheStart = z.cacheStart,
+            .cacheEnd = z.cacheEnd,
+            .cacheZone = z.cacheZone,
+        };
     }
-
-    var sources = std.ArrayList([]const u8).init(allocator);
-    try sources.append("/etc");
-    const z = try loadLocation(allocator, "localtime", sources);
-    var buff: [100]u8 = undefined;
-    const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
-    return Location{
-        .zone = z.zone,
-        .tx = z.tx,
-        .name = "Local",
-        .extend = extend[0..],
-        .cacheStart = z.cacheStart,
-        .cacheEnd = z.cacheEnd,
-        .cacheZone = z.cacheZone,
-    };
 }
-
 // loadLocation returns the Location with the given name from one of
 // the specified sources. See loadTzinfo for a list of supported sources.
 // The first timezone data matching the given name that is successfully loaded
@@ -200,28 +303,24 @@ fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8
     return loadTzinfoFromDirOrZip(allocator, source, name);
 }
 
-const LocationError = error{
-    BadData,
-};
-
 // LoadLocationFromTZData returns a Location with the given name
 // initialized from the IANA Time Zone database-formatted data.
 // The data should be in the format of a standard IANA time zone file
 // (for example, the content of /etc/localtime on Unix systems).
-fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Location {
+fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     // 4-byte magic "TZif"
     var dataIdx: i32 = 0;
     var i = @as(usize, @intCast(dataIdx));
-    if (data.len < i + 4) return LocationError.BadData;
+    if (data.len < i + 4) return Error.BadData;
 
     if (!std.mem.eql(u8, data[i..(i + 4)], "TZif")) {
-        return LocationError.BadData;
+        return Error.BadData;
     }
     dataIdx += 4;
 
     // 1-byte version, then 15 bytes of padding
     i = @as(usize, @intCast(dataIdx));
-    if (data.len < i + 16) return LocationError.BadData;
+    if (data.len < i + 16) return Error.BadData;
 
     const p = data[i..(i + 16)];
     dataIdx += 16;
@@ -236,7 +335,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
     }
 
     if (version == -1) {
-        return LocationError.BadData;
+        return Error.BadData;
     }
 
     // six big-endian 32-bit integers:
@@ -251,12 +350,12 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
         i = @as(usize, @intCast(dataIdx));
         const nn = big4(data, i);
         if (!nn.ok) {
-            return LocationError.BadData;
+            return Error.BadData;
         }
         dataIdx += 4;
 
         if (@as(i32, @intCast(nn.val)) != nn.val) {
-            return LocationError.BadData;
+            return Error.BadData;
         }
         n[idx] = @as(i32, @intCast(nn.val));
     }
@@ -294,12 +393,12 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
             i = @as(usize, @intCast(dataIdx));
             const nn = big4(data, i);
             if (!nn.ok) {
-                return LocationError.BadData;
+                return Error.BadData;
             }
             dataIdx += 4;
 
             if (@as(i32, @intCast(nn.val)) != nn.val) {
-                return LocationError.BadData;
+                return Error.BadData;
             }
             n[idx] = @as(i32, @intCast(nn.val));
         }
@@ -362,7 +461,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
     if (nzone == 0) {
         // Reject tzdata files with no zones. There's nothing useful in them.
         // This also avoids a panic later when we add and then use a fake transition (golang.org/issue/29437).
-        return LocationError.BadData;
+        return Error.BadData;
     }
 
     var zonesBuff = [_]zone{undefined} ** 10000;
@@ -371,7 +470,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
         i = @as(usize, @intCast(dataZoneIdx));
         var bign = big4(zonedata, i);
         if (!bign.ok) {
-            return LocationError.BadData;
+            return Error.BadData;
         }
         dataZoneIdx += 4;
 
@@ -388,7 +487,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
         dataZoneIdx += 1;
 
         if (@as(usize, @intCast(b)) >= abbrev.len) {
-            return LocationError.BadData;
+            return Error.BadData;
         }
 
         const zname = abbrev[b..];
@@ -417,7 +516,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
             dataZoneTransIdx += 4;
 
             if (!n4.ok) {
-                return LocationError.BadData;
+                return Error.BadData;
             } else {
                 when = @as(i64, @intCast(n4.val));
             }
@@ -427,14 +526,14 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) LocationError!Loca
             dataZoneTransIdx += 8;
 
             if (!n8.ok) {
-                return LocationError.BadData;
+                return Error.BadData;
             } else {
                 when = @as(i64, @bitCast(n8.val));
             }
         }
 
         if (txzones[idx] >= zones.len) {
-            return LocationError.BadData;
+            return Error.BadData;
         }
 
         const index = txzones[idx];
@@ -587,8 +686,9 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     }
     const endRule = ru.rule;
 
+    const lptime = @import("time.zig");
     const seconds = sec + unixToInternal + internalToAbsolute;
-    const t = @constCast(&time.Time(.seconds).new()).absDate(seconds);
+    const t = @constCast(&lptime.Time(.seconds).new()).absDate(seconds);
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));
@@ -596,7 +696,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const ysec = yday * std.time.s_per_day + @rem(sec, std.time.s_per_day);
 
     // Compute start of year in seconds since Unix epoch.
-    const d = time.daysSinceEpoch(year);
+    const d = lptime.daysSinceEpoch(year);
     var abs = d * std.time.s_per_day;
     abs += absoluteToInternal + internalToUnix;
 
@@ -861,11 +961,12 @@ fn tzsetRule(source: []const u8) tzsetRuleResult {
 // and returns the number of seconds since the start of the year
 // that the rule takes effect.
 fn tzruleTime(year: i32, r: rule, off: i32) i64 {
+    const ltime = @import("time.zig");
     var s: i64 = 0;
     switch (r.kind) {
         .Julian => {
             s = (r.day - 1) * std.time.s_per_day;
-            if (time.isLeap(year) and r.day >= 60) {
+            if (ltime.isLeap(year) and r.day >= 60) {
                 s += std.time.s_per_day;
             }
         },
@@ -892,15 +993,15 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
             }
 
             for (1..@as(usize, @intCast(r.week))) |_| {
-                if (d + 7 >= time.daysIn(r.mon, year)) {
+                if (d + 7 >= ltime.daysIn(r.mon, year)) {
                     break;
                 }
                 d += 7;
             }
 
             const idx = @as(usize, @intCast(r.mon));
-            d += @as(i32, @intCast(time.daysBefore[idx - 1]));
-            if (time.isLeap(year) and r.mon > 2) {
+            d += @as(i32, @intCast(ltime.daysBefore[idx - 1]));
+            if (ltime.isLeap(year) and r.mon > 2) {
                 d += 1;
             }
             s = d * std.time.s_per_day;

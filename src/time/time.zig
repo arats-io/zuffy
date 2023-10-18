@@ -214,9 +214,9 @@ pub fn Time(comptime measure: Measure) type {
             return self;
         }
 
-        // TODO: returns time zone UTC offset in seconds.
         fn offset() u32 {
-            return 0;
+            const loc = @import("zoneinfo.zig").GetLocation() catch null;
+            return if (loc) |l| @as(u32, @intCast(l.Lookup().offset)) else 0;
         }
 
         // format returns a date with custom format

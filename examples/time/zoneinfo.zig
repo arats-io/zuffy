@@ -2,11 +2,14 @@ const std = @import("std");
 const xstd = @import("xstd");
 
 pub fn main() !void {
-    var z = xstd.time.zoneinfo.GetLocation();
+    const startTime = std.time.nanoTimestamp();
+    _ = try xstd.time.zoneinfo.GetLocation();
+    std.debug.print("Time spent to call GetLocation: {d} nano\n", .{std.time.nanoTimestamp() - startTime});
 
-    std.debug.print("{s}\n", .{z.extend});
+    const z = try xstd.time.zoneinfo.GetLocation();
+    const o = z.Lookup();
 
-    z = xstd.time.zoneinfo.GetLocation();
-
-    std.debug.print("{s}\n", .{z.extend});
+    var buff = [_]u8{undefined} ** 100;
+    const name = try std.fmt.bufPrint(&buff, "{s}", .{o.name});
+    std.debug.print("Zone: {s}\n", .{name});
 }
