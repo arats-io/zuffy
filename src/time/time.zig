@@ -3,7 +3,6 @@ const StringBuilder = @import("../bytes/mod.zig").StringBuilder;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
-const month_strs = [_][]const u8{ "", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
 pub const Month = enum(u4) {
     January = 1,
     February,
@@ -19,15 +18,14 @@ pub const Month = enum(u4) {
     December,
 
     pub fn string(self: Month) []const u8 {
-        return month_strs[@intFromEnum(self)];
+        return @tagName(self);
     }
 
     pub fn shortString(self: Month) []const u8 {
-        return string(self)[0..3];
+        return @tagName(self)[0..3];
     }
 };
 
-const weekday_strs = [_][]const u8{ "", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 pub const Weekday = enum(u3) {
     Monday = 1,
     Tuesday,
@@ -38,14 +36,14 @@ pub const Weekday = enum(u3) {
     Sunday,
 
     pub fn string(self: Weekday) []const u8 {
-        return weekday_strs[@intFromEnum(self)];
+        return @tagName(self);
     }
     pub fn shortString(self: Weekday) []const u8 {
-        return string(self)[0..3];
+        return @tagName(self)[0..3];
     }
 
     pub fn shorterString(self: Weekday) []const u8 {
-        return string(self)[0..2];
+        return @tagName(self)[0..2];
     }
 };
 

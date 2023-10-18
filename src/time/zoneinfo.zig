@@ -70,16 +70,34 @@ pub const Location = struct {
         const sec = std.time.timestamp();
 
         if (self.zone.len == 0) {
-            return LookupResult{ .name = self.name, .offset = 0, .start = std.math.minInt(i64), .end = std.math.maxInt(i64), .isDST = false };
+            return LookupResult{
+                .name = self.name,
+                .offset = 0,
+                .start = std.math.minInt(i64),
+                .end = std.math.maxInt(i64),
+                .isDST = false,
+            };
         }
 
         if (self.cacheStart <= sec and sec < self.cacheEnd) {
-            return LookupResult{ .name = self.cacheZone.name, .offset = self.cacheZone.offset, .start = self.cacheStart, .end = self.cacheEnd, .isDST = self.cacheZone.isDST };
+            return LookupResult{
+                .name = self.cacheZone.name,
+                .offset = self.cacheZone.offset,
+                .start = self.cacheStart,
+                .end = self.cacheEnd,
+                .isDST = self.cacheZone.isDST,
+            };
         }
 
         if (self.tx.len == 0 or sec < self.tx[0].when) {
             const zoneLocal = self.zone[self.lookupFirstZone()];
-            return LookupResult{ .name = zoneLocal.name, .offset = zoneLocal.offset, .start = std.math.minInt(i64), .end = if (self.tx.len > 0) self.tx[0].when else std.math.maxInt(i64), .isDST = zoneLocal.isDST };
+            return LookupResult{
+                .name = zoneLocal.name,
+                .offset = zoneLocal.offset,
+                .start = std.math.minInt(i64),
+                .end = if (self.tx.len > 0) self.tx[0].when else std.math.maxInt(i64),
+                .isDST = zoneLocal.isDST,
+            };
         }
 
         // Binary search for entry with largest time <= sec.
@@ -106,11 +124,23 @@ pub const Location = struct {
         if (lo == tx.len - 1 and !std.mem.eql(u8, self.extend, "")) {
             const r = tzset(self.extend, start, sec);
             if (r.ok) {
-                return LookupResult{ .name = r.name, .offset = r.offset, .start = r.start, .end = r.end, .isDST = r.isDST };
+                return LookupResult{
+                    .name = r.name,
+                    .offset = r.offset,
+                    .start = r.start,
+                    .end = r.end,
+                    .isDST = r.isDST,
+                };
             }
         }
 
-        return LookupResult{ .name = zoneLocal.name, .offset = zoneLocal.offset, .start = start, .end = end, .isDST = zoneLocal.isDST };
+        return LookupResult{
+            .name = zoneLocal.name,
+            .offset = zoneLocal.offset,
+            .start = start,
+            .end = end,
+            .isDST = zoneLocal.isDST,
+        };
     }
 
     // lookupFirstZone returns the index of the time zone to use for times
@@ -599,7 +629,15 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
         }
     }
 
-    return Location{ .zone = zones, .tx = tx, .name = name, .extend = extend, .cacheStart = cacheStart, .cacheEnd = cacheEnd, .cacheZone = cacheZone.? };
+    return Location{
+        .zone = zones,
+        .tx = tx,
+        .name = name,
+        .extend = extend,
+        .cacheStart = cacheStart,
+        .cacheEnd = cacheEnd,
+        .cacheZone = cacheZone.?,
+    };
 }
 
 // tzset takes a timezone string like the one found in the TZ environment
@@ -637,12 +675,26 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
         stdOffset = -offRes.offset;
 
         if (!offRes.ok) {
-            return tzsetResult{ .name = "", .offset = 0, .start = 0, .end = 0, .isDST = false, .ok = false };
+            return tzsetResult{
+                .name = "",
+                .offset = 0,
+                .start = 0,
+                .end = 0,
+                .isDST = false,
+                .ok = false,
+            };
         }
     }
     if (s.len == 0 or s[0] == ',') {
         // No daylight savings time.
-        return tzsetResult{ .name = stdName, .offset = stdOffset, .start = lastTxSec, .end = std.math.maxInt(i64), .isDST = false, .ok = true };
+        return tzsetResult{
+            .name = stdName,
+            .offset = stdOffset,
+            .start = lastTxSec,
+            .end = std.math.maxInt(i64),
+            .isDST = false,
+            .ok = true,
+        };
     }
 
     r = tzsetName(s);
@@ -654,7 +706,14 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
         } else {
             const offRes = tzsetOffset(s);
             if (!offRes.ok) {
-                return tzsetResult{ .name = "", .offset = 0, .start = 0, .end = 0, .isDST = false, .ok = false };
+                return tzsetResult{
+                    .name = "",
+                    .offset = 0,
+                    .start = 0,
+                    .end = 0,
+                    .isDST = false,
+                    .ok = false,
+                };
             }
             s = offRes.rest;
             dstOffset = -offRes.offset;
@@ -667,14 +726,28 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     }
     // The TZ definition does not mention ';' here but tzcode accepts it.
     if (s[0] != ',' and s[0] != ';') {
-        return tzsetResult{ .name = "", .offset = 0, .start = 0, .end = 0, .isDST = false, .ok = false };
+        return tzsetResult{
+            .name = "",
+            .offset = 0,
+            .start = 0,
+            .end = 0,
+            .isDST = false,
+            .ok = false,
+        };
     }
     s = s[1..];
 
     var ru = tzsetRule(s);
     s = ru.rest;
     if (!ru.ok or s.len == 0 or s[0] != ',') {
-        return tzsetResult{ .name = "", .offset = 0, .start = 0, .end = 0, .isDST = false, .ok = false };
+        return tzsetResult{
+            .name = "",
+            .offset = 0,
+            .start = 0,
+            .end = 0,
+            .isDST = false,
+            .ok = false,
+        };
     }
     const startRule = ru.rule;
 
@@ -682,7 +755,14 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     ru = tzsetRule(s);
     s = ru.rest;
     if (!ru.ok or s.len > 0) {
-        return tzsetResult{ .name = "", .offset = 0, .start = 0, .end = 0, .isDST = false, .ok = false };
+        return tzsetResult{
+            .name = "",
+            .offset = 0,
+            .start = 0,
+            .end = 0,
+            .isDST = false,
+            .ok = false,
+        };
     }
     const endRule = ru.rule;
 
@@ -721,11 +801,32 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     // just the start and end of the year. That suffices for
     // the only caller that cares, which is Date.
     if (ysec < startSec) {
-        return tzsetResult{ .name = stdName, .offset = stdOffset, .start = abs, .end = startSec + abs, .isDST = stdIsDST, .ok = true };
+        return tzsetResult{
+            .name = stdName,
+            .offset = stdOffset,
+            .start = abs,
+            .end = startSec + abs,
+            .isDST = stdIsDST,
+            .ok = true,
+        };
     } else if (ysec >= endSec) {
-        return tzsetResult{ .name = stdName, .offset = stdOffset, .start = endSec + abs, .end = @as(i64, @intCast(abs + 365 * std.time.s_per_day)), .isDST = stdIsDST, .ok = true };
+        return tzsetResult{
+            .name = stdName,
+            .offset = stdOffset,
+            .start = endSec + abs,
+            .end = @as(i64, @intCast(abs + 365 * std.time.s_per_day)),
+            .isDST = stdIsDST,
+            .ok = true,
+        };
     } else {
-        return tzsetResult{ .name = stdName, .offset = stdOffset, .start = endSec + abs, .end = @as(i64, @intCast(endSec + abs)), .isDST = stdIsDST, .ok = true };
+        return tzsetResult{
+            .name = stdName,
+            .offset = stdOffset,
+            .start = endSec + abs,
+            .end = @as(i64, @intCast(endSec + abs)),
+            .isDST = stdIsDST,
+            .ok = true,
+        };
     }
 }
 
@@ -947,14 +1048,22 @@ fn tzsetRule(source: []const u8) tzsetRuleResult {
     if (s.len == 0 or s[0] != '/') {
         ltime = 2 * std.time.s_per_hour; // 2am is the default
 
-        return tzsetRuleResult{ .rule = rule{ .kind = kind, .day = day, .week = week, .mon = mon, .time = ltime }, .rest = s, .ok = true };
+        return tzsetRuleResult{
+            .rule = rule{ .kind = kind, .day = day, .week = week, .mon = mon, .time = ltime },
+            .rest = s,
+            .ok = true,
+        };
     }
 
     const r = tzsetOffset(s[1..]);
     if (!r.ok) {
         return tzsetRuleResult{ .rule = rule.empty(), .rest = "", .ok = false };
     }
-    return tzsetRuleResult{ .rule = rule{ .kind = kind, .day = day, .week = week, .mon = mon, .time = r.offset }, .rest = r.rest, .ok = true };
+    return tzsetRuleResult{
+        .rule = rule{ .kind = kind, .day = day, .week = week, .mon = mon, .time = r.offset },
+        .rest = r.rest,
+        .ok = true,
+    };
 }
 
 // tzruleTime takes a year, a rule, and a timezone offset,

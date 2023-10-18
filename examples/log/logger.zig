@@ -3,7 +3,7 @@ const xstd = @import("xstd");
 
 const StringBuilder = xstd.bytes.StringBuilder;
 
-const Logger = xstd.zlog.Logger(.simple, .nanos, "YYYY MMM Do dddd HH:mm:ss.SSS - Qo");
+const Logger = xstd.zlog.Logger(.simple, .nanos, "YYYY MMM Do ddd HH:mm:ss.SSS - Qo");
 const Level = xstd.zlog.Level;
 const Format = xstd.zlog.Format;
 
