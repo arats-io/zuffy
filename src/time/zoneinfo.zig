@@ -7,22 +7,50 @@ pub const Error = error{
     NotImplemented,
 };
 
-pub fn GetLocation() !Location {
-    return if (builtin.os.tag == .windows)
-        Error.NotImplemented
-    else if (builtin.os.tag.isDarwin())
-        try unix()
-    else if (builtin.os.tag == .linux)
-        try unix()
-    else if (builtin.os.tag == .freebsd)
-        try unix()
-    else if (builtin.os.tag == .openbsd)
-        try unix()
-    else if (builtin.os.tag == .dragonfly)
-        try unix()
-    else
-        return Error.NotImplemented;
-}
+pub const Local = LocalImpl{};
+
+const LocalImpl = struct {
+    const Self = @This();
+
+    var instance: ?Location = null;
+
+    mu: std.Thread.Mutex = .{},
+
+    pub fn Get(self: Self) !Location {
+        if (instance) |loc| {
+            return loc;
+        }
+
+        if (!builtin.single_threaded) {
+            const m = @constCast(&self.mu);
+
+            m.lock();
+            defer m.unlock();
+        }
+
+        if (instance) |loc| {
+            return loc;
+        } else {
+            if (builtin.os.tag == .windows) {
+                return Error.NotImplemented;
+            } else if (builtin.os.tag.isDarwin()) {
+                instance = try unix();
+            } else if (builtin.os.tag == .linux) {
+                instance = try unix();
+            } else if (builtin.os.tag == .freebsd) {
+                instance = try unix();
+            } else if (builtin.os.tag == .openbsd) {
+                instance = try unix();
+            } else if (builtin.os.tag == .dragonfly) {
+                instance = try unix();
+            } else {
+                return Error.NotImplemented;
+            }
+        }
+
+        return instance.?;
+    }
+};
 
 pub const LookupResult = struct {
     name: []const u8,

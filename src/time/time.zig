@@ -213,7 +213,7 @@ pub fn Time(comptime measure: Measure) type {
         }
 
         fn offset() u32 {
-            const loc = @import("zoneinfo.zig").GetLocation() catch null;
+            const loc = @import("zoneinfo.zig").Local.Get() catch null;
             return if (loc) |l| @as(u32, @intCast(l.Lookup().offset)) else 0;
         }
 

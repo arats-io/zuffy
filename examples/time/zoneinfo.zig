@@ -3,13 +3,14 @@ const xstd = @import("xstd");
 
 pub fn main() !void {
     const startTime = std.time.nanoTimestamp();
-    _ = try xstd.time.zoneinfo.GetLocation();
+    const z = try xstd.time.zoneinfo.Local.Get();
+    const o = z.Lookup();
+    std.debug.print("Zone: {}\n", .{o.offset});
+
     std.debug.print("Time spent to call GetLocation: {d} nano\n", .{std.time.nanoTimestamp() - startTime});
 
-    const z = try xstd.time.zoneinfo.GetLocation();
-    const o = z.Lookup();
+    const z1 = try xstd.time.zoneinfo.Local.Get();
+    const o1 = z1.Lookup();
 
-    var buff = [_]u8{undefined} ** 100;
-    const name = try std.fmt.bufPrint(&buff, "{s}", .{o.name});
-    std.debug.print("Zone: {s}\n", .{name});
+    std.debug.print("Zone: {}\n", .{o1.offset});
 }

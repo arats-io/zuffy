@@ -55,7 +55,6 @@ pub fn build(b: *std.Build) !void {
             .root_source_file = .{ .path = ex_src },
             .target = target,
             .optimize = optimize,
-            .single_threaded = false,
         });
 
         example.linkLibrary(lib);
