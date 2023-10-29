@@ -2,14 +2,44 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "zig-debug",
+            "name": "time-zoneinfo-debug",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/time-zoneinfo",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "TZ",
+                    "value": "New_York"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "zig-debug-build",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "zip-debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/zip",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "TZ",
+                    "value": "America/New_York"
+                },
+            ],
             "externalConsole": false,
             "MIMode": "lldb",
             "preLaunchTask": "zig-debug-build",

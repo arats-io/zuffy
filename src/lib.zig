@@ -1,3 +1,4 @@
+pub const archive = @import("archive/mod.zig");
 pub const time = @import("time/mod.zig");
 
 pub const bytes = @import("bytes/mod.zig");

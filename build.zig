@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) !void {
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
         .{ .name = "time-zoneinfo", .src = "examples/time/zoneinfo.zig" },
+        .{ .name = "zip", .src = "examples/archive/zip.zig" },
     }) |excfg| {
         const ex_name = excfg.name;
         const ex_src = excfg.src;

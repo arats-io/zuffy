@@ -5,6 +5,7 @@ pub const Error = error{
     BadData,
     UnknownTimeZone,
     NotImplemented,
+    TooManyTimeZones,
 };
 
 pub const Local = LocalImpl{};
@@ -249,19 +250,21 @@ fn unix() !Location {
         if (tzTmp[0] == ':') {
             tzTmp = tzTmp[1..];
         }
-        if (!std.mem.eql(u8, tzTmp, "") and tzTmp[0] == '/') {
-            const sources = std.ArrayList([]const u8).init(allocator);
+        if (!std.mem.eql(u8, tzTmp, "") and !std.mem.eql(u8, tzTmp, "UTC")) {
+            var sources = std.ArrayList([]const u8).init(allocator);
+            try sources.append("zoneinfo.zip");
+
             const z = try loadLocation(allocator, tzTmp, sources);
             return Location{
                 .zone = z.zone,
                 .tx = z.tx,
-                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else tz,
+                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else tzTmp,
                 .extend = z.extend,
                 .cacheStart = z.cacheStart,
                 .cacheEnd = z.cacheEnd,
                 .cacheZone = z.cacheZone,
             };
-        } else if (!std.mem.eql(u8, tzTmp, "") and !std.mem.eql(u8, tzTmp, "UTC")) {
+        } else {
             var sources = std.ArrayList([]const u8).init(allocator);
             try sources.append("/etc");
             try sources.append("/usr/share/zoneinfo/");
@@ -270,22 +273,6 @@ fn unix() !Location {
             try sources.append("/etc/zoneinfo");
 
             return try loadLocation(allocator, tzTmp, sources);
-        } else {
-            const emptyZone: []zone = undefined;
-            const emptyZoneTrans: []zoneTrans = undefined;
-            return Location{
-                .zone = emptyZone,
-                .tx = emptyZoneTrans,
-                .name = "UTC",
-                .extend = "",
-                .cacheStart = 0,
-                .cacheEnd = 0,
-                .cacheZone = zone{
-                    .name = "",
-                    .offset = 0,
-                    .isDST = false,
-                },
-            };
         }
     } else {
         var sources = std.ArrayList([]const u8).init(allocator);
@@ -309,45 +296,70 @@ fn unix() !Location {
 // The first timezone data matching the given name that is successfully loaded
 // and parsed is returned as a Location.
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
-    var arr = sources;
-    while (arr.popOrNull()) |source| {
-        const zoneData = try loadTzinfo(allocator, name, source);
+    for (sources.items) |item| {
+        const zoneData = try loadTzinfo(allocator, name, item);
         return try LoadLocationFromTZData(name, zoneData);
     }
+
     return Error.UnknownTimeZone;
 }
 
-// loadFromEmbeddedTZData is used to load a specific tzdata file
-// from tzdata information embedded in the binary itself.
-// This is set when the time/tzdata package is imported,
-// via registerLoadFromEmbeddedTzdata.
-fn loadFromEmbeddedTZData(zipname: []const u8) ![]const u8 {
-    _ = zipname;
-}
+fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
+    var filters = std.ArrayList([]const u8).init(allocator);
+    try filters.append(name);
 
-// loadTzinfoFromTzdata returns the time zone information of the time zone
-// with the given name, from a tzdata database file as they are typically
-// found on android.
-fn loadTzinfoFromTzdata(file: []const u8, name: []const u8) ![]const u8 {
-    _ = name;
-    _ = file;
-    return "";
-}
+    defer filters.deinit();
 
-// loadTzinfoFromDirOrZip returns the contents of the file with the given name
-// in dir. dir can either be an uncompressed zip file, or a directory.
-fn loadTzinfoFromDirOrZip(allocator: std.mem.Allocator, dir: []const u8, name: []const u8) ![]const u8 {
-    if (dir.len >= 6 and std.mem.eql(u8, dir[dir.len - 4 ..], ".zip")) {
-        // return loadTzinfoFromZip(dir, name);
-        return "";
+    const zip = @import("../archive/mod.zig").zip;
+
+    const data = @embedFile("zoneinfo.zip");
+    var entries = try zip.reader.Entries(allocator, std.io.fixedBufferStream(data));
+    defer entries.deinit();
+
+    const Collector = struct {
+        const Self = @This();
+
+        pub const CollectorError = error{OutOfMemory};
+        pub const Provider = zip.reader.GenericProvider(*Self, CollectorError, receive);
+
+        arr: std.ArrayList([]const u8),
+
+        pub fn init(all: std.mem.Allocator) Self {
+            return Self{ .arr = std.ArrayList([]const u8).init(all) };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.arr.deinit();
+        }
+
+        pub fn receive(self: *Self, filename: []const u8, content: []const u8) CollectorError!void {
+            _ = filename;
+            var buffer: [10 * 1024]u8 = undefined;
+            std.mem.copy(u8, &buffer, content);
+            try self.arr.append(buffer[0..content.len]);
+        }
+
+        pub fn provider(self: *Self) Provider {
+            return .{ .context = self };
+        }
+    };
+
+    var collector = Collector.init(allocator);
+    defer collector.deinit();
+    _ = try entries.readWithFilters(filters, collector.provider());
+
+    if (collector.arr.items.len < 1) {
+        return Error.UnknownTimeZone;
     }
-    if (!std.mem.eql(u8, dir, "")) {
-        var buf: [512]u8 = undefined;
-        const res = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ dir, name });
-        return try std.fs.cwd().readFileAlloc(allocator, res, 1 * 1024 * 1024);
+
+    if (collector.arr.items.len > 1) {
+        return Error.TooManyTimeZones;
     }
 
-    return try std.fs.cwd().readFileAlloc(allocator, name, 1 * 1024 * 1024);
+    var buffer: [500 * 1024]u8 = undefined;
+    std.mem.copy(u8, &buffer, collector.arr.items[0]);
+
+    return buffer[0..];
 }
 
 // loadTzinfo returns the time zone information of the time zone
@@ -355,10 +367,16 @@ fn loadTzinfoFromDirOrZip(allocator: std.mem.Allocator, dir: []const u8, name: [
 // timezone database directory, tzdata database file or an uncompressed
 // zip file, containing the contents of such a directory.
 fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8) ![]const u8 {
-    if (source.len >= 6 and std.mem.eql(u8, source[source.len - 6 ..], "tzdata")) {
-        return loadTzinfoFromTzdata(source, name);
+    if (source.len >= 6 and std.mem.eql(u8, source[source.len - 4 ..], ".zip")) {
+        return loadTzinfoFromZip(allocator, name);
     }
-    return loadTzinfoFromDirOrZip(allocator, source, name);
+    if (!std.mem.eql(u8, source, "")) {
+        var buf: [512]u8 = undefined;
+        const res = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ source, name });
+        return try std.fs.cwd().readFileAlloc(allocator, res, 1 * 1024 * 1024);
+    }
+
+    return try std.fs.cwd().readFileAlloc(allocator, name, 1 * 1024 * 1024);
 }
 
 // LoadLocationFromTZData returns a Location with the given name
@@ -532,7 +550,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
         }
         dataZoneIdx += 4;
 
-        const offset = @as(i32, @intCast(bign.val));
+        const offset = @as(i32, @bitCast(bign.val));
 
         i = @as(usize, @intCast(dataZoneIdx));
         var b = zonedata[i];

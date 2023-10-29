@@ -94,6 +94,21 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             try self.resize(self.len);
         }
 
+        pub fn writeByte(self: *Self, byte: u8) !void {
+            if (threadsafe) {
+                self.mu.lock();
+                defer self.mu.unlock();
+            }
+
+            if (self.len + 1 > self.cap) {
+                try self.resize((self.len + 1) * self.factor);
+            }
+
+            self.ptr[self.len] = byte;
+
+            self.len += 1;
+        }
+
         pub fn write(self: *Self, array: []const u8) !usize {
             if (threadsafe) {
                 self.mu.lock();
@@ -277,7 +292,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
         // Reader and Writer functionality.
         pub usingnamespace struct {
             pub const Writer = std.io.Writer(*Self, Error, appendWrite);
-            pub const Reader = std.io.Reader(*Self, Error, readFn);
+            pub const Reader = std.io.AnyReader(*Self, Error, readFn);
 
             pub fn reader(self: *Self) Reader {
                 return .{ .context = self };

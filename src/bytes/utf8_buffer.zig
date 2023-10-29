@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const Stack = std.atomic.Stack;
 
 const Error = @import("buffer.zig").Error;
+const Buffer = @import("buffer.zig").Buffer;
 const BufferManaged = @import("buffer.zig").BufferManaged;
 
 pub const Utf8BufferPool = Utf8BufferPoolManaged(!builtin.single_threaded);
@@ -42,6 +43,10 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         const Self = @This();
 
         buffer: BufferManaged(threadsafe),
+
+        pub fn initWithBuffer(buffer: BufferManaged(threadsafe)) Self {
+            return Self{ .buffer = buffer };
+        }
 
         pub fn init(allocator: std.mem.Allocator) Self {
             return Self{ .buffer = BufferManaged(threadsafe).init(allocator) };
