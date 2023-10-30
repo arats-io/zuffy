@@ -356,6 +356,10 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
 
         pub fn readWithFilters(self: *Self, filters: std.ArrayList([]const u8), provider: anytype) !void {
             for (self.central_directory.file_headers.items) |item| {
+                const entry_name = @constCast(&item.filename.?).bytes();
+
+                if (!matches(item.filename.?, filters)) continue;
+
                 try self.source.seekableStream().seekTo(item.offset_local_header);
                 const in_reader = self.source.reader();
 
@@ -424,8 +428,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                     .uncompressed_size = try in_reader.readIntLittle(u32),
                 };
 
-                const entry_name = @constCast(&header.filename.?).bytes();
-                if (content_size > 0 and matches(header.filename.?, filters)) {
+                if (content_size > 0) {
                     switch (header.compression_method) {
                         NO_COMPRESSION => {
                             try provider.uncompressed(entry_name, content.bytes());

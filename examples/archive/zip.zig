@@ -17,6 +17,7 @@ pub fn main() !void {
     defer filters.deinit();
 
     try filters.append("New_York");
+    try filters.append("Berlin");
 
     const Collector = struct {
         const Self = @This();
@@ -47,6 +48,7 @@ pub fn main() !void {
     _ = try entries.readWithFilters(filters, collector.provider().any());
 
     for (collector.arr.items) |item| {
-        std.debug.print("{s}\n", .{item});
+        std.debug.print("\n-----------------------------------------\n", .{});
+        std.debug.print("\n{s}\n", .{item});
     }
 }
