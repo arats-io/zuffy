@@ -354,7 +354,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
             try self.readWithFilters(filters, provider);
         }
 
-        pub fn readWithFilters(self: *Self, filters: std.ArrayList([]const u8), provider: anytype) !void {
+        pub fn readWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
             for (self.central_directory.file_headers.items) |item| {
                 const entry_name = @constCast(&item.filename.?).bytes();
 
@@ -431,7 +431,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 if (content_size > 0) {
                     switch (header.compression_method) {
                         NO_COMPRESSION => {
-                            try provider.uncompressed(entry_name, content.bytes());
+                            try receiver.entryContent(entry_name, content.bytes());
                         },
                         DEFLATE => {
                             var in_stream = std.io.fixedBufferStream(content.bytes());
@@ -448,7 +448,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                                     break;
                                 }
                             }
-                            try provider.uncompressed(entry_name, decoded_content.bytes());
+                            try receiver.entryContent(entry_name, decoded_content.bytes());
                         },
 
                         else => {

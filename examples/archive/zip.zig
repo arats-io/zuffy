@@ -29,8 +29,7 @@ pub fn main() !void {
     const Collector = struct {
         const Self = @This();
 
-        pub const Error = error{OutOfMemory};
-        pub const Receiver = xstd.archive.GenericReceiver(*Self, Error, receive);
+        pub const Receiver = xstd.archive.GenericReceiver(*Self, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -38,7 +37,7 @@ pub fn main() !void {
             return Self{ .arr = std.ArrayList([]const u8).init(all) };
         }
 
-        pub fn receive(self: *Self, filename: []const u8, content: []const u8) Error!void {
+        pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
             _ = filename;
             var buffer: [500 * 1024]u8 = undefined;
             std.mem.copy(u8, &buffer, content);
@@ -52,7 +51,7 @@ pub fn main() !void {
 
     var collector = Collector.init(allocator);
 
-    _ = try entries.readWithFilters(filters, collector.receiver());
+    _ = try entries.readWithFilters(filters, collector.receiver().contentReceiver());
 
     for (collector.arr.items) |item| {
         std.debug.print("\n-----------------------------------------\n", .{});

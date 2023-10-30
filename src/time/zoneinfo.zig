@@ -327,8 +327,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     const Collector = struct {
         const Self = @This();
 
-        pub const CollectorError = error{OutOfMemory};
-        pub const Receiver = archive.GenericReceiver(*Self, CollectorError, receive);
+        pub const Receiver = archive.GenericReceiver(*Self, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -340,7 +339,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
             self.arr.deinit();
         }
 
-        pub fn receive(self: *Self, filename: []const u8, content: []const u8) CollectorError!void {
+        pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
             _ = filename;
             var buffer: [10 * 1024]u8 = undefined;
             std.mem.copy(u8, &buffer, content);
@@ -354,7 +353,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     var collector = Collector.init(allocator);
     defer collector.deinit();
-    _ = try entries.readWithFilters(filters, collector.receiver());
+    _ = try entries.readWithFilters(filters, collector.receiver().contentReceiver());
 
     if (collector.arr.items.len < 1) {
         return Error.UnknownTimeZone;
