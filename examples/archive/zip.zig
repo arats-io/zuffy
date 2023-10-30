@@ -30,7 +30,7 @@ pub fn main() !void {
         const Self = @This();
 
         pub const Error = error{OutOfMemory};
-        pub const Provider = xstd.archive.GenericProvider(*Self, Error, receive);
+        pub const Receiver = xstd.archive.GenericReceiver(*Self, Error, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -45,14 +45,14 @@ pub fn main() !void {
             try self.arr.append(buffer[0..content.len]);
         }
 
-        pub fn provider(self: *Self) Provider {
+        pub fn receiver(self: *Self) Receiver {
             return .{ .context = self };
         }
     };
 
     var collector = Collector.init(allocator);
 
-    _ = try entries.readWithFilters(filters, collector.provider().any());
+    _ = try entries.readWithFilters(filters, collector.receiver());
 
     for (collector.arr.items) |item| {
         std.debug.print("\n-----------------------------------------\n", .{});

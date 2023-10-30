@@ -32,17 +32,8 @@ pub const Local = struct {
         if (instance) |loc| {
             return loc;
         } else {
-            if (builtin.os.tag == .windows) {
-                return Error.NotImplemented;
-            } else if (builtin.os.tag.isDarwin()) {
-                instance = try unix();
-            } else if (builtin.os.tag == .linux) {
-                instance = try unix();
-            } else if (builtin.os.tag == .freebsd) {
-                instance = try unix();
-            } else if (builtin.os.tag == .openbsd) {
-                instance = try unix();
-            } else if (builtin.os.tag == .dragonfly) {
+            const isUnix = builtin.os.tag.isDarwin() or builtin.os.tag.isBSD() or builtin.os.tag == .linux;
+            if (isUnix) {
                 instance = try unix();
             } else {
                 return Error.NotImplemented;
@@ -252,6 +243,8 @@ fn unix() !Location {
         }
         if (tzTmp.len > 4 and std.mem.eql(u8, tzTmp[tzTmp.len - 4 ..], ".zip")) {
             var sources = std.ArrayList([]const u8).init(allocator);
+            defer sources.deinit();
+
             try sources.append("zoneinfo.zip");
 
             const z = try loadLocation(allocator, tzTmp[0 .. tzTmp.len - 4], sources);
@@ -266,6 +259,8 @@ fn unix() !Location {
             };
         } else if (!std.mem.eql(u8, tzTmp, "") and !std.mem.eql(u8, tzTmp, "UTC")) {
             var sources = std.ArrayList([]const u8).init(allocator);
+            defer sources.deinit();
+
             try sources.append("/etc");
             try sources.append("/usr/share/zoneinfo");
             try sources.append("/usr/share/lib/zoneinfo");
@@ -277,6 +272,8 @@ fn unix() !Location {
     }
 
     var sources = std.ArrayList([]const u8).init(allocator);
+    defer sources.deinit();
+
     try sources.append("/etc");
 
     const z = try loadLocation(allocator, "localtime", sources);
@@ -331,7 +328,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
         const Self = @This();
 
         pub const CollectorError = error{OutOfMemory};
-        pub const Provider = archive.GenericProvider(*Self, CollectorError, receive);
+        pub const Receiver = archive.GenericReceiver(*Self, CollectorError, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -350,14 +347,14 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
             try self.arr.append(buffer[0..content.len]);
         }
 
-        pub fn provider(self: *Self) Provider {
+        pub fn receiver(self: *Self) Receiver {
             return .{ .context = self };
         }
     };
 
     var collector = Collector.init(allocator);
     defer collector.deinit();
-    _ = try entries.readWithFilters(filters, collector.provider());
+    _ = try entries.readWithFilters(filters, collector.receiver());
 
     if (collector.arr.items.len < 1) {
         return Error.UnknownTimeZone;
@@ -367,7 +364,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
         return Error.TooManyTimeZones;
     }
 
-    var buffer: [500 * 1024]u8 = undefined;
+    var buffer: [10 * 1024]u8 = undefined;
     std.mem.copy(u8, &buffer, collector.arr.items[0]);
     return buffer[0..collector.arr.items[0].len];
 }

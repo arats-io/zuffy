@@ -6,10 +6,6 @@ const deflate = std.compress.deflate;
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
 
-pub fn Entries(allocator: mem.Allocator, reader: anytype) !ReaderEntries(@TypeOf(reader)) {
-    return ReaderEntries(@TypeOf(reader)).init(allocator, reader);
-}
-
 const CentralDirectory = struct {
     file_headers: std.ArrayList(CDFileHeader),
     digital_signature: ?DigitalSignature,
@@ -120,6 +116,10 @@ const DataDescriptor = struct {
 
 const NO_COMPRESSION = 0;
 const DEFLATE = 8;
+
+pub fn Entries(allocator: mem.Allocator, reader: anytype) !ReaderEntries(@TypeOf(reader)) {
+    return ReaderEntries(@TypeOf(reader)).init(allocator, reader);
+}
 
 pub fn ReaderEntries(comptime ParseSource: type) type {
     return struct {
