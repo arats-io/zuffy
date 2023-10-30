@@ -8,9 +8,16 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    const data = @embedFile("zoneinfo.zip");
+    const data = @embedFile("zoneinfo.zip.gz");
 
-    var entries = try zip.reader.Entries(allocator, std.io.fixedBufferStream(data));
+    var in_stream = std.io.fixedBufferStream(data);
+
+    var gzip_stream = try std.compress.gzip.decompress(allocator, in_stream.reader());
+    defer gzip_stream.deinit();
+
+    const buf = try gzip_stream.reader().readAllAlloc(allocator, std.math.maxInt(usize));
+
+    var entries = try zip.reader.Entries(allocator, std.io.fixedBufferStream(buf));
     defer entries.deinit();
 
     var filters = std.ArrayList([]const u8).init(allocator);
