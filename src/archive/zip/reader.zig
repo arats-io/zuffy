@@ -121,38 +121,6 @@ const DataDescriptor = struct {
 const NO_COMPRESSION = 0;
 const DEFLATE = 8;
 
-const AnyProvider = @import("provider.zig");
-
-pub fn GenericProvider(
-    comptime Context: type,
-    comptime ReadError: type,
-    comptime provideFn: fn (context: Context, filename: []const u8, content: []const u8) ReadError!void,
-) type {
-    return struct {
-        context: Context,
-
-        pub const Error = ReadError;
-
-        pub inline fn provide(self: Self, filename: []const u8, content: []const u8) Error!void {
-            return provideFn(self.context, filename, content);
-        }
-
-        pub inline fn any(self: *const Self) AnyProvider {
-            return .{
-                .context = @ptrCast(&self.context),
-                .readFn = typeErasedProviderFn,
-            };
-        }
-
-        const Self = @This();
-
-        fn typeErasedProviderFn(context: *const anyopaque, filename: []const u8, content: []const u8) anyerror!void {
-            const ptr: *const Context = @alignCast(@ptrCast(context));
-            return provideFn(ptr.*, filename, content);
-        }
-    };
-}
-
 pub fn ReaderEntries(comptime ParseSource: type) type {
     return struct {
         const Self = @This();
@@ -460,7 +428,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 if (content_size > 0 and matches(header.filename.?, filters)) {
                     switch (header.compression_method) {
                         NO_COMPRESSION => {
-                            try provider.provide(entry_name, content.bytes());
+                            try provider.uncompressed(entry_name, content.bytes());
                         },
                         DEFLATE => {
                             var in_stream = std.io.fixedBufferStream(content.bytes());
@@ -477,7 +445,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                                     break;
                                 }
                             }
-                            try provider.provide(entry_name, decoded_content.bytes());
+                            try provider.uncompressed(entry_name, decoded_content.bytes());
                         },
 
                         else => {

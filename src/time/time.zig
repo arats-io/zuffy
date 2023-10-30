@@ -73,11 +73,21 @@ pub fn Time(comptime measure: Measure) type {
                 inline .millis => std.time.milliTimestamp(),
                 inline .micros => std.time.microTimestamp(),
                 inline .nanos => std.time.nanoTimestamp(),
-            } }).pupulate();
+            } }).pupulate(true);
             return t.*;
         }
 
-        fn pupulate(self: *Self) *Self {
+        pub fn newNoOffset() Self {
+            const t = @constCast(&Self{ .value = switch (measure) {
+                inline .seconds => std.time.timestamp(),
+                inline .millis => std.time.milliTimestamp(),
+                inline .micros => std.time.microTimestamp(),
+                inline .nanos => std.time.nanoTimestamp(),
+            } }).pupulate(false);
+            return t.*;
+        }
+
+        fn pupulate(self: *Self, includeOffset: bool) *Self {
             var seconds = switch (measure) {
                 inline .seconds => self.value,
                 inline .millis => blk: {
@@ -112,7 +122,8 @@ pub fn Time(comptime measure: Measure) type {
                 },
             };
 
-            _ = self.absDate(seconds + offset());
+            const os = if (includeOffset) offset() else 0;
+            _ = self.absDate(seconds + os);
 
             return self;
         }
@@ -212,9 +223,9 @@ pub fn Time(comptime measure: Measure) type {
             return self;
         }
 
-        fn offset() u32 {
+        fn offset() i32 {
             const loc = @import("zoneinfo.zig").Local.Get() catch null;
-            return if (loc) |l| @as(u32, @intCast(l.Lookup().offset)) else 0;
+            return if (loc) |l| @as(i32, @bitCast(l.Lookup().offset)) else 0;
         }
 
         // format returns a date with custom format

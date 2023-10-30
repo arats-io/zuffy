@@ -8,9 +8,7 @@ pub const Error = error{
     TooManyTimeZones,
 };
 
-pub const Local = LocalImpl{};
-
-const LocalImpl = struct {
+pub const Local = struct {
     const Self = @This();
 
     var instance: ?Location = null;
@@ -51,7 +49,7 @@ const LocalImpl = struct {
 
         return instance.?;
     }
-};
+}{};
 
 pub const LookupResult = struct {
     name: []const u8,
@@ -277,6 +275,7 @@ fn unix() !Location {
     } else {
         var sources = std.ArrayList([]const u8).init(allocator);
         try sources.append("/etc");
+
         const z = try loadLocation(allocator, "localtime", sources);
         var buff = [_]u8{undefined} ** 100;
         const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
@@ -296,7 +295,8 @@ fn unix() !Location {
 // The first timezone data matching the given name that is successfully loaded
 // and parsed is returned as a Location.
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
-    for (sources.items) |item| {
+    var arr = sources;
+    while (arr.popOrNull()) |item| {
         const zoneData = try loadTzinfo(allocator, name, item);
         return try LoadLocationFromTZData(name, zoneData);
     }
@@ -310,17 +310,17 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     defer filters.deinit();
 
-    const zip = @import("../archive/mod.zig").zip;
+    const archive = @import("../archive/mod.zig");
 
     const data = @embedFile("zoneinfo.zip");
-    var entries = try zip.reader.Entries(allocator, std.io.fixedBufferStream(data));
+    var entries = try archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(data));
     defer entries.deinit();
 
     const Collector = struct {
         const Self = @This();
 
         pub const CollectorError = error{OutOfMemory};
-        pub const Provider = zip.reader.GenericProvider(*Self, CollectorError, receive);
+        pub const Provider = archive.GenericProvider(*Self, CollectorError, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -358,8 +358,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     var buffer: [500 * 1024]u8 = undefined;
     std.mem.copy(u8, &buffer, collector.arr.items[0]);
-
-    return buffer[0..];
+    return buffer[0..collector.arr.items[0].len];
 }
 
 // loadTzinfo returns the time zone information of the time zone
@@ -814,7 +813,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
 
     const lptime = @import("time.zig");
     const seconds = sec + unixToInternal + internalToAbsolute;
-    const t = @constCast(&lptime.Time(.seconds).new()).absDate(seconds);
+    const t = @constCast(&lptime.Time(.seconds).newNoOffset()).absDate(seconds);
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));

@@ -22,7 +22,7 @@ pub fn main() !void {
         const Self = @This();
 
         pub const Error = error{OutOfMemory};
-        pub const Provider = zip.reader.GenericProvider(*Self, Error, receive);
+        pub const Provider = xstd.archive.GenericProvider(*Self, Error, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -44,7 +44,7 @@ pub fn main() !void {
 
     var collector = Collector.init(allocator);
 
-    _ = try entries.readWithFilters(filters, collector.provider());
+    _ = try entries.readWithFilters(filters, collector.provider().any());
 
     for (collector.arr.items) |item| {
         std.debug.print("{s}\n", .{item});
