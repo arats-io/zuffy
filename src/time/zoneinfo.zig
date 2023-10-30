@@ -867,7 +867,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
             .name = stdName,
             .offset = stdOffset,
             .start = endSec + abs,
-            .end = @as(i64, @intCast(abs + 365 * std.time.s_per_day)),
+            .end = abs + 365 * std.time.s_per_day,
             .isDST = stdIsDST,
             .ok = true,
         };
@@ -875,8 +875,8 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
         return tzsetResult{
             .name = stdName,
             .offset = stdOffset,
-            .start = endSec + abs,
-            .end = @as(i64, @intCast(endSec + abs)),
+            .start = startSec + abs,
+            .end = endSec + abs,
             .isDST = stdIsDST,
             .ok = true,
         };
