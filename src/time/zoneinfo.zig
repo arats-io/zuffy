@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const Buffer = @import("../bytes/mod.zig").Buffer;
+
 pub const Error = error{
     BadData,
     UnknownTimeZone,
@@ -245,14 +247,14 @@ fn unix() !Location {
     const val: ?[]const u8 = std.process.getEnvVarOwned(allocator, "TZ") catch null;
     if (val) |tz| {
         var tzTmp = tz;
-        if (tzTmp[0] == ':') {
+        if (tzTmp.len > 0 and tzTmp[0] == ':') {
             tzTmp = tzTmp[1..];
         }
-        if (!std.mem.eql(u8, tzTmp, "") and !std.mem.eql(u8, tzTmp, "UTC")) {
+        if (tzTmp.len > 4 and std.mem.eql(u8, tzTmp[tzTmp.len - 4 ..], ".zip")) {
             var sources = std.ArrayList([]const u8).init(allocator);
             try sources.append("zoneinfo.zip");
 
-            const z = try loadLocation(allocator, tzTmp, sources);
+            const z = try loadLocation(allocator, tzTmp[0 .. tzTmp.len - 4], sources);
             return Location{
                 .zone = z.zone,
                 .tx = z.tx,
@@ -262,33 +264,33 @@ fn unix() !Location {
                 .cacheEnd = z.cacheEnd,
                 .cacheZone = z.cacheZone,
             };
-        } else {
+        } else if (!std.mem.eql(u8, tzTmp, "") and !std.mem.eql(u8, tzTmp, "UTC")) {
             var sources = std.ArrayList([]const u8).init(allocator);
             try sources.append("/etc");
-            try sources.append("/usr/share/zoneinfo/");
-            try sources.append("/usr/share/lib/zoneinfo/");
-            try sources.append("/usr/lib/locale/TZ/");
+            try sources.append("/usr/share/zoneinfo");
+            try sources.append("/usr/share/lib/zoneinfo");
+            try sources.append("/usr/lib/locale/TZ");
             try sources.append("/etc/zoneinfo");
 
             return try loadLocation(allocator, tzTmp, sources);
         }
-    } else {
-        var sources = std.ArrayList([]const u8).init(allocator);
-        try sources.append("/etc");
-
-        const z = try loadLocation(allocator, "localtime", sources);
-        var buff = [_]u8{undefined} ** 100;
-        const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
-        return Location{
-            .zone = z.zone,
-            .tx = z.tx,
-            .name = "Local",
-            .extend = extend[0..],
-            .cacheStart = z.cacheStart,
-            .cacheEnd = z.cacheEnd,
-            .cacheZone = z.cacheZone,
-        };
     }
+
+    var sources = std.ArrayList([]const u8).init(allocator);
+    try sources.append("/etc");
+
+    const z = try loadLocation(allocator, "localtime", sources);
+    var buff = [_]u8{undefined} ** 100;
+    const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
+    return Location{
+        .zone = z.zone,
+        .tx = z.tx,
+        .name = "Local",
+        .extend = extend[0..],
+        .cacheStart = z.cacheStart,
+        .cacheEnd = z.cacheEnd,
+        .cacheZone = z.cacheZone,
+    };
 }
 // loadLocation returns the Location with the given name from one of
 // the specified sources. See loadTzinfo for a list of supported sources.
@@ -297,7 +299,9 @@ fn unix() !Location {
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
     var arr = sources;
     while (arr.popOrNull()) |item| {
-        const zoneData = try loadTzinfo(allocator, name, item);
+        const zoneData = loadTzinfo(allocator, name, item) catch "";
+        if (zoneData.len == 0) continue;
+
         return try LoadLocationFromTZData(name, zoneData);
     }
 
@@ -370,9 +374,13 @@ fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8
         return loadTzinfoFromZip(allocator, name);
     }
     if (!std.mem.eql(u8, source, "")) {
-        var buf: [512]u8 = undefined;
-        const res = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ source, name });
-        return try std.fs.cwd().readFileAlloc(allocator, res, 1 * 1024 * 1024);
+        var buf = Buffer.init(allocator);
+        defer buf.deinit();
+        _ = try buf.write(source);
+        _ = try buf.write("/");
+        _ = try buf.write(name);
+        const res = buf.bytes();
+        return try std.fs.cwd().readFileAlloc(allocator, res[0..], 50 * 1024);
     }
 
     return try std.fs.cwd().readFileAlloc(allocator, name, 1 * 1024 * 1024);
@@ -813,7 +821,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
 
     const lptime = @import("time.zig");
     const seconds = sec + unixToInternal + internalToAbsolute;
-    const t = @constCast(&lptime.Time(.seconds).newNoOffset()).absDate(seconds);
+    const t = lptime.absDate(seconds);
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));

@@ -47,6 +47,112 @@ pub const Weekday = enum(u3) {
     }
 };
 
+pub const DateTime = struct {
+    year: u16,
+    month: u5,
+    yday: u9,
+    wday: u3,
+    day: u5,
+    hour: u6,
+    min: u6,
+    sec: u6,
+};
+
+pub fn absDate(seconds: i128) DateTime {
+    // Split into time and day.
+    var d = @divFloor(seconds, std.time.s_per_day);
+
+    // Account for 400 year cycles.
+    var n = @divFloor(d, days_per_400_years);
+    var y = 400 * n;
+    d -= days_per_400_years * n;
+
+    // Cut off 100-year cycles.
+    // The last cycle has one extra leap year, so on the last day
+    // of that year, day / daysPer100Years will be 4 instead of 3.
+    // Cut it back down to 3 by subtracting n>>2.
+    n = @divFloor(d, days_per_100_years);
+    n -= n >> 2;
+    y += 100 * n;
+    d -= days_per_100_years * n;
+
+    // Cut off 4-year cycles.
+    // The last cycle has a missing leap year, which does not
+    // affect the computation.
+    n = @divFloor(d, days_per_4_years);
+    y += 4 * n;
+    d -= days_per_4_years * n;
+
+    // Cut off years within a 4-year cycle.
+    // The last year is a leap year, so on the last day of that year,
+    // day / 365 will be 4 instead of 3. Cut it back down to 3
+    // by subtracting n>>2.
+    n = @divFloor(d, days_per_year);
+    n -= n >> 2;
+    y += n;
+    d -= days_per_year * n;
+
+    var sec = @rem(seconds, std.time.s_per_day);
+    var hour = @divFloor(sec, std.time.s_per_hour);
+    sec -= hour * std.time.s_per_hour;
+    var min = @divFloor(sec, std.time.s_per_min);
+    sec -= min * std.time.s_per_min;
+
+    var year = y + absolute_zero_year;
+
+    var day = d;
+
+    // Estimate month on assumption that every month has 31 days.
+    // The estimate may be too low by at most one month, so adjust.
+    var month = @divFloor(day, 31);
+    if (isLeap(year)) {
+        // Leap year
+        if (day > 31 + 29 - 1) {
+            day -= 1;
+        }
+        if (day == 31 + 29 - 1) {
+            day -= 1;
+            // Leap day.
+            month = 2; // February
+            day = 29;
+
+            return DateTime{
+                .year = @as(u16, @intCast(year)),
+                .month = @as(u5, @intCast(month)),
+                .yday = @as(u9, @intCast(d)),
+                .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
+                .day = @as(u5, @intCast(day)),
+                .hour = @as(u6, @intCast(hour)),
+                .min = @as(u6, @intCast(min)),
+                .sec = @as(u6, @intCast(sec)),
+            };
+        }
+    }
+
+    const i = @as(usize, @intCast(month));
+    var begin = daysBefore[i];
+    var end = daysBefore[i + 1];
+
+    if (day >= end) {
+        month += 1;
+        begin = end;
+    }
+
+    month += 1; // because January is 1
+    day = day - begin + 1;
+
+    return DateTime{
+        .year = @as(u16, @intCast(year)),
+        .month = @as(u5, @intCast(month)),
+        .yday = @as(u9, @intCast(d)),
+        .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
+        .day = @as(u5, @intCast(day)),
+        .hour = @as(u6, @intCast(hour)),
+        .min = @as(u6, @intCast(min)),
+        .sec = @as(u6, @intCast(sec)),
+    };
+}
+
 pub fn Time(comptime measure: Measure) type {
     return struct {
         const Self = @This();
@@ -54,14 +160,7 @@ pub fn Time(comptime measure: Measure) type {
         measure: Measure = measure,
         value: i128,
 
-        year: u16 = 0,
-        month: u5 = 0,
-        yday: u9 = 0,
-        wday: u3 = 0,
-        day: u5 = 0,
-        hour: u6 = 0,
-        min: u6 = 0,
-        sec: u6 = 0,
+        date_time: ?DateTime = null,
 
         milli: u10 = 0,
         micro: u10 = 0,
@@ -73,21 +172,15 @@ pub fn Time(comptime measure: Measure) type {
                 inline .millis => std.time.milliTimestamp(),
                 inline .micros => std.time.microTimestamp(),
                 inline .nanos => std.time.nanoTimestamp(),
-            } }).pupulate(true);
+            } }).pupulate();
             return t.*;
         }
 
-        pub fn newNoOffset() Self {
-            const t = @constCast(&Self{ .value = switch (measure) {
-                inline .seconds => std.time.timestamp(),
-                inline .millis => std.time.milliTimestamp(),
-                inline .micros => std.time.microTimestamp(),
-                inline .nanos => std.time.nanoTimestamp(),
-            } }).pupulate(false);
-            return t.*;
+        fn dateTime(self: Self) DateTime {
+            return self.date_time.?;
         }
 
-        fn pupulate(self: *Self, includeOffset: bool) *Self {
+        fn pupulate(self: *Self) *Self {
             var seconds = switch (measure) {
                 inline .seconds => self.value,
                 inline .millis => blk: {
@@ -122,103 +215,7 @@ pub fn Time(comptime measure: Measure) type {
                 },
             };
 
-            const os = if (includeOffset) offset() else 0;
-            _ = self.absDate(seconds + os);
-
-            return self;
-        }
-
-        pub fn absDate(self: *Self, seconds: i128) *Self {
-            // Split into time and day.
-            var d = @divFloor(seconds, std.time.s_per_day);
-
-            // Account for 400 year cycles.
-            var n = @divFloor(d, days_per_400_years);
-            var y = 400 * n;
-            d -= days_per_400_years * n;
-
-            // Cut off 100-year cycles.
-            // The last cycle has one extra leap year, so on the last day
-            // of that year, day / daysPer100Years will be 4 instead of 3.
-            // Cut it back down to 3 by subtracting n>>2.
-            n = @divFloor(d, days_per_100_years);
-            n -= n >> 2;
-            y += 100 * n;
-            d -= days_per_100_years * n;
-
-            // Cut off 4-year cycles.
-            // The last cycle has a missing leap year, which does not
-            // affect the computation.
-            n = @divFloor(d, days_per_4_years);
-            y += 4 * n;
-            d -= days_per_4_years * n;
-
-            // Cut off years within a 4-year cycle.
-            // The last year is a leap year, so on the last day of that year,
-            // day / 365 will be 4 instead of 3. Cut it back down to 3
-            // by subtracting n>>2.
-            n = @divFloor(d, days_per_year);
-            n -= n >> 2;
-            y += n;
-            d -= days_per_year * n;
-
-            var sec = @rem(seconds, std.time.s_per_day);
-            var hour = @divFloor(sec, std.time.s_per_hour);
-            sec -= hour * std.time.s_per_hour;
-            var min = @divFloor(sec, std.time.s_per_min);
-            sec -= min * std.time.s_per_min;
-
-            var year = y + absolute_zero_year;
-
-            var day = d;
-
-            // Estimate month on assumption that every month has 31 days.
-            // The estimate may be too low by at most one month, so adjust.
-            var month = @divFloor(day, 31);
-            if (isLeap(year)) {
-                // Leap year
-                if (day > 31 + 29 - 1) {
-                    day -= 1;
-                }
-                if (day == 31 + 29 - 1) {
-                    day -= 1;
-                    // Leap day.
-                    month = 2; // February
-                    day = 29;
-
-                    @atomicStore(u16, @constCast(&self.year), @as(u16, @intCast(year)), .Monotonic);
-                    @atomicStore(u5, @constCast(&self.month), @as(u5, @intCast(month)), .Monotonic);
-                    @atomicStore(u9, @constCast(&self.yday), @as(u9, @intCast(d)), .Monotonic);
-                    @atomicStore(u5, @constCast(&self.day), @as(u5, @intCast(day)), .Monotonic);
-                    @atomicStore(u6, @constCast(&self.hour), @as(u6, @intCast(hour)), .Monotonic);
-                    @atomicStore(u6, @constCast(&self.min), @as(u6, @intCast(min)), .Monotonic);
-                    @atomicStore(u6, @constCast(&self.sec), @as(u6, @intCast(sec)), .Monotonic);
-                    @atomicStore(u3, @constCast(&self.wday), @as(u3, @intCast(weekday(self.year, self.month, self.day))), .Monotonic);
-
-                    return self;
-                }
-            }
-
-            const i = @as(usize, @intCast(month));
-            var begin = daysBefore[i];
-            var end = daysBefore[i + 1];
-
-            if (day >= end) {
-                month += 1;
-                begin = end;
-            }
-
-            month += 1; // because January is 1
-            day = day - begin + 1;
-
-            @atomicStore(u16, @constCast(&self.year), @as(u16, @intCast(year)), .Monotonic);
-            @atomicStore(u5, @constCast(&self.month), @as(u5, @intCast(month)), .Monotonic);
-            @atomicStore(u9, @constCast(&self.yday), @as(u9, @intCast(d)), .Monotonic);
-            @atomicStore(u5, @constCast(&self.day), @as(u5, @intCast(day)), .Monotonic);
-            @atomicStore(u6, @constCast(&self.hour), @as(u6, @intCast(hour)), .Monotonic);
-            @atomicStore(u6, @constCast(&self.min), @as(u6, @intCast(min)), .Monotonic);
-            @atomicStore(u6, @constCast(&self.sec), @as(u6, @intCast(sec)), .Monotonic);
-            @atomicStore(u3, @constCast(&self.wday), @as(u3, @intCast(weekday(self.year, self.month, self.day))), .Monotonic);
+            self.date_time = absDate(seconds + offset());
 
             return self;
         }
@@ -321,82 +318,84 @@ pub fn Time(comptime measure: Measure) type {
             var sb = try StringBuilder.initWithCapacity(arena.allocator(), pattern.len);
             defer sb.deinit();
 
+            const date_time = self.dateTime();
+
             while (tokens.readItem()) |token| {
                 if (std.mem.eql(u8, token, "YYYY")) {
-                    try sb.appendf("{d}", .{self.year});
+                    try sb.appendf("{d}", .{date_time.year});
                 } else if (std.mem.eql(u8, token, "MMMM")) {
                     try sb.appendf("{s}", .{self.getMonth().string()});
                 } else if (std.mem.eql(u8, token, "MMM")) {
                     try sb.appendf("{s}", .{self.getMonth().shortString()});
                 } else if (std.mem.eql(u8, token, "MM")) {
-                    if (self.month < 10) {
+                    if (date_time.month < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.month});
+                    try sb.appendf("{d}", .{date_time.month});
                 } else if (std.mem.eql(u8, token, "M")) {
-                    try sb.appendf("{d}", .{self.month});
+                    try sb.appendf("{d}", .{date_time.month});
                 } else if (std.mem.eql(u8, token, "Mo")) {
-                    const suffix = switch (self.month) {
+                    const suffix = switch (date_time.month) {
                         1 => "st",
                         2 => "nd",
                         3 => "rd",
                         else => "th",
                     };
-                    try sb.appendf("{d}{s}", .{ self.month, suffix });
+                    try sb.appendf("{d}{s}", .{ date_time.month, suffix });
                 } else if (std.mem.eql(u8, token, "DD")) {
-                    if (self.day < 10) {
+                    if (date_time.day < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.day});
+                    try sb.appendf("{d}", .{date_time.day});
                 } else if (std.mem.eql(u8, token, "D")) {
-                    try sb.appendf("{d}", .{self.day});
+                    try sb.appendf("{d}", .{date_time.day});
                 } else if (std.mem.eql(u8, token, "Do")) {
-                    const rem = @rem(self.day, 30);
+                    const rem = @rem(date_time.day, 30);
                     const suffix = switch (rem) {
                         1 => "st",
                         2 => "nd",
                         3 => "rd",
                         else => "th",
                     };
-                    try sb.appendf("{d}{s}", .{ self.day, suffix });
+                    try sb.appendf("{d}{s}", .{ date_time.day, suffix });
                 } else if (std.mem.eql(u8, token, "DDDD")) {
-                    if (self.yday < 10) {
-                        try sb.appendf("00{d}", .{self.yday});
-                    } else if (self.yday < 100) {
-                        try sb.appendf("0{d}", .{self.yday});
+                    if (date_time.yday < 10) {
+                        try sb.appendf("00{d}", .{date_time.yday});
+                    } else if (date_time.yday < 100) {
+                        try sb.appendf("0{d}", .{date_time.yday});
                     } else {
-                        try sb.appendf("{d}", .{self.yday});
+                        try sb.appendf("{d}", .{date_time.yday});
                     }
                 } else if (std.mem.eql(u8, token, "DDD")) {
-                    try sb.appendf("{d}", .{self.yday});
+                    try sb.appendf("{d}", .{date_time.yday});
                 } else if (std.mem.eql(u8, token, "DDDo")) {
-                    const rem = @rem(self.yday, daysBefore[self.month]);
+                    const rem = @rem(date_time.yday, daysBefore[date_time.month]);
                     const suffix = switch (rem) {
                         1 => "st",
                         2 => "nd",
                         3 => "rd",
                         else => "th",
                     };
-                    try sb.appendf("{d}{s}", .{ self.yday, suffix });
+                    try sb.appendf("{d}{s}", .{ date_time.yday, suffix });
                 } else if (std.mem.eql(u8, token, "HH")) {
-                    if (self.hour < 10) {
+                    if (date_time.hour < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.hour});
+                    try sb.appendf("{d}", .{date_time.hour});
                 } else if (std.mem.eql(u8, token, "H")) {
-                    try sb.appendf("{d}", .{self.hour});
+                    try sb.appendf("{d}", .{date_time.hour});
                 } else if (std.mem.eql(u8, token, "kk")) {
-                    if (self.hour < 10) {
+                    if (date_time.hour < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.hour});
+                    try sb.appendf("{d}", .{date_time.hour});
                 } else if (std.mem.eql(u8, token, "k")) {
-                    try sb.appendf("{d}", .{self.hour});
+                    try sb.appendf("{d}", .{date_time.hour});
                 } else if (std.mem.eql(u8, token, "hh")) {
-                    const h = @rem(self.hour, 12);
+                    const h = @rem(date_time.hour, 12);
                     try sb.appendf("{d}", .{h});
                 } else if (std.mem.eql(u8, token, "h")) {
-                    const h = @rem(self.hour, 12);
+                    const h = @rem(date_time.hour, 12);
                     if (h < 10) {
                         try sb.append("0");
                         try sb.appendf("0{d}", .{h});
@@ -404,19 +403,19 @@ pub fn Time(comptime measure: Measure) type {
                         try sb.appendf("{d}", .{h});
                     }
                 } else if (std.mem.eql(u8, token, "mm")) {
-                    if (self.min < 10) {
+                    if (date_time.min < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.min});
+                    try sb.appendf("{d}", .{date_time.min});
                 } else if (std.mem.eql(u8, token, "m")) {
-                    try sb.appendf("{d}", .{self.min});
+                    try sb.appendf("{d}", .{date_time.min});
                 } else if (std.mem.eql(u8, token, "ss")) {
-                    if (self.sec < 10) {
+                    if (date_time.sec < 10) {
                         try sb.append("0");
                     }
-                    try sb.appendf("{d}", .{self.sec});
+                    try sb.appendf("{d}", .{date_time.sec});
                 } else if (std.mem.eql(u8, token, "s")) {
-                    try sb.appendf("{d}", .{self.sec});
+                    try sb.appendf("{d}", .{date_time.sec});
                 } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
                     const items = [_]u10{ self.milli, self.micro, self.nano };
                     for (items) |item| {
@@ -433,13 +432,13 @@ pub fn Time(comptime measure: Measure) type {
                         }
                     }
                 } else if (std.mem.eql(u8, token, "a") or std.mem.eql(u8, token, "A")) {
-                    if (self.hour <= 11) {
+                    if (date_time.hour <= 11) {
                         try sb.append("AM");
                     } else {
                         try sb.append("PM");
                     }
                 } else if (std.mem.eql(u8, token, "c") or std.mem.eql(u8, token, "d")) {
-                    try sb.appendf("{d}", .{self.wday});
+                    try sb.appendf("{d}", .{date_time.wday});
                 } else if (std.mem.eql(u8, token, "dd")) {
                     try sb.appendf("{s}", .{self.getWeekday().shorterString()});
                 } else if (std.mem.eql(u8, token, "ddd")) {
@@ -457,12 +456,12 @@ pub fn Time(comptime measure: Measure) type {
                 } else if (std.mem.eql(u8, token, "N")) {
                     try sb.append("Before Christ");
                 } else if (std.mem.eql(u8, token, "w")) {
-                    const l: u32 = if (isLeap(self.year)) 1 else 0;
-                    const wy = @divTrunc(mceil(self.day + daysBefore[self.month - 1] + l), 7);
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
                     try sb.appendf("{d}", .{wy});
                 } else if (std.mem.eql(u8, token, "wo")) {
-                    const l: u32 = if (isLeap(self.year)) 1 else 0;
-                    const wy = @divTrunc(mceil(self.day + daysBefore[self.month - 1] + l), 7);
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
                     const suffix = switch (wy) {
                         1 => "st",
                         2 => "nd",
@@ -471,21 +470,21 @@ pub fn Time(comptime measure: Measure) type {
                     };
                     try sb.appendf("{d}{s}", .{ wy, suffix });
                 } else if (std.mem.eql(u8, token, "ww")) {
-                    const l: u32 = if (isLeap(self.year)) 1 else 0;
-                    const wy = @divTrunc(mceil(self.day + daysBefore[self.month - 1] + l), 7);
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
                     if (wy < 10) {
                         try sb.appendf("0{d}", .{wy});
                     } else {
                         try sb.appendf("{d}", .{wy});
                     }
                 } else if (std.mem.eql(u8, token, "QQ")) {
-                    const q = @divTrunc(self.month - 1, 3) + 1;
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
                     try sb.appendf("0{d}", .{q});
                 } else if (std.mem.eql(u8, token, "Q")) {
-                    const q = @divTrunc(self.month - 1, 3) + 1;
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
                     try sb.appendf("0{d}", .{q});
                 } else if (std.mem.eql(u8, token, "Qo")) {
-                    const q = @divTrunc(self.month - 1, 3) + 1;
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
                     const suffix = switch (q) {
                         1 => "st",
                         2 => "nd",
@@ -502,10 +501,10 @@ pub fn Time(comptime measure: Measure) type {
         }
 
         pub fn getWeekday(self: Self) Weekday {
-            return @as(Weekday, @enumFromInt(self.wday));
+            return @as(Weekday, @enumFromInt(self.dateTime().wday));
         }
         pub fn getMonth(self: Self) Month {
-            return @as(Month, @enumFromInt(self.month));
+            return @as(Month, @enumFromInt(self.dateTime().month));
         }
     };
 }
