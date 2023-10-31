@@ -418,7 +418,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     }
 
     // 1-byte version, then 15 bytes of padding
-    const p = (try in_data.readBoundedBytes(4)).slice();
+    const p = (try in_data.readBoundedBytes(16)).slice();
     var version: i8 = -1;
     if (p[0] == '0') {
         version = 1;
@@ -441,8 +441,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     //	number of characters of time zone abbrev strings
     var n: [6]i32 = undefined;
     for (0..6) |idx| {
-        const val = try big4(in_data);
-        n[idx] = @as(i32, @intCast(val));
+        n[idx] = try in_data.readIntBig(i32);
     }
 
     // If we have version 2 or 3, then the data is first written out
@@ -459,23 +458,16 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var is64 = false;
     if (version > 1) {
         // Skip the 32-bit data.
-        const skip = n[NTime] * 4 +
-            n[NTime] +
-            n[NZone] * 6 +
-            n[NChar] +
-            n[NLeap] * 8 +
-            n[NStdWall] +
-            n[NUTCLocal];
+        const skip: u64 = @as(u64, @intCast(n[NTime] * 4 + n[NTime] + n[NZone] * 6 + n[NChar] + n[NLeap] * 8 + n[NStdWall] + n[NUTCLocal]));
 
         // Skip the version 2 header that we just read.
-        try in_data.skipBytes(@as(u64, @intCast(skip + 20)), .{});
+        try in_data.skipBytes(skip + 20, .{});
 
         is64 = true;
 
         // Read the counts again, they can differ.
         for (0..6) |idx| {
-            const val = try big4(in_data);
-            n[idx] = @as(i32, @intCast(val));
+            n[idx] = try in_data.readIntBig(i32);
         }
     }
 
@@ -484,21 +476,25 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // Transition times.
     var t = @as(usize, @intCast(n[NTime] * size));
     var txtimes = Buffer.initWithFactor(allocator, 10);
+    defer txtimes.deinit();
     try txtimes.writeBytes(in_data, t);
 
     // Time zone indices for transition times.
     t = @as(usize, @intCast(n[NTime]));
     var txzones = Buffer.initWithFactor(allocator, 10);
+    defer txzones.deinit();
     try txzones.writeBytes(in_data, t);
 
     // Zone info structures
     t = @as(usize, @intCast(n[NZone] * 6));
     var zonedata = Buffer.initWithFactor(allocator, 10);
+    defer zonedata.deinit();
     try zonedata.writeBytes(in_data, t);
 
     // Time zone abbreviations.
     t = @as(usize, @intCast(n[NChar]));
     var abbrev = Buffer.initWithFactor(allocator, 10);
+    defer abbrev.deinit();
     try abbrev.writeBytes(in_data, t);
 
     // Leap-second time pairs
@@ -509,12 +505,14 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // are specified as standard time or wall time.
     t = @as(usize, @intCast(n[NStdWall]));
     var isstd = Buffer.initWithFactor(allocator, 10);
+    defer isstd.deinit();
     try isstd.writeBytes(in_data, t);
 
     // Whether tx times associated with local time types
     // are specified as UTC or local time.
     t = @as(usize, @intCast(n[NUTCLocal]));
     var isutc = Buffer.initWithFactor(allocator, 10);
+    defer isutc.deinit();
     try isutc.writeBytes(in_data, t);
 
     var extend = try in_data.readAllAlloc(allocator, std.math.maxInt(u16));
@@ -533,16 +531,17 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     }
 
     var zonesBuff = [_]zone{undefined} ** 10000;
-    var in_zonedata = zonedata.reader();
+
+    var zonedataBuffTReam = std.io.fixedBufferStream(zonedata.bytes());
+    var in_zonedata = zonedataBuffTReam.reader();
 
     for (0..nzone) |idx| {
-        const val = try in_zonedata.readIntBig(u32);
-        const offset = @as(i32, @bitCast(val));
+        const offset = try in_zonedata.readIntBig(i32);
 
-        var b = try in_zonedata.readIntBig(u8);
+        var b = try in_zonedata.readByte();
         const isDST = b != 0;
 
-        b = try in_zonedata.readIntBig(u8);
+        b = try in_zonedata.readByte();
         if (b >= abbrev.len) {
             return Error.BadData;
         }
@@ -564,7 +563,10 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // Now the transition time info.
     const nzonerx = @as(usize, @intCast(n[NTime]));
     var txBuff = [_]zoneTrans{undefined} ** 10000;
-    var in_txtimes = txtimes.reader();
+
+    var txtimesBuffTReam = std.io.fixedBufferStream(txtimes.bytes());
+    var in_txtimes = txtimesBuffTReam.reader();
+
     for (0..nzonerx) |idx| {
         var when: i64 = 0;
         if (!is64) {
@@ -1136,22 +1138,4 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
     }
 
     return s + r.time - off;
-}
-
-fn big4(reader: anytype) !u32 {
-    const b24 = @as(u32, @intCast(try reader.readByte())) << 24;
-    const b16 = @as(u32, @intCast(try reader.readByte())) << 16;
-    const b8 = @as(u32, @intCast(try reader.readByte())) << 8;
-    const b0 = @as(u32, @intCast(try reader.readByte()));
-
-    return b0 | b8 | b16 | b24;
-}
-
-fn big8(reader: anytype) !u64 {
-    const n1 = big4(reader);
-    const n2 = big4(reader);
-    const b16 = @as(u64, @intCast(n1)) << 32;
-    const b32 = @as(u64, @intCast(n2));
-
-    return b16 | b32;
 }
