@@ -221,8 +221,10 @@ pub fn Time(comptime measure: Measure) type {
         }
 
         fn offset() i32 {
-            const loc = @import("zoneinfo.zig").Local.Get() catch null;
-            return if (loc) |l| @as(i32, @bitCast(l.Lookup().offset)) else 0;
+            const loc = @import("zoneinfo.zig").Local.Get() catch |err| {
+                std.debug.panic("{any}", .{err});
+            };
+            return @as(i32, @bitCast(loc.Lookup().offset));
         }
 
         // format returns a date with custom format
