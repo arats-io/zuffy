@@ -109,6 +109,18 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             self.len += 1;
         }
 
+        pub fn writeBytes(self: *Self, reader: anytype, max_num: usize) !void {
+            if (threadsafe) {
+                self.mu.lock();
+                defer self.mu.unlock();
+            }
+
+            for (0..max_num) |_| {
+                const byte = try reader.readByte();
+                try self.writeByte(byte);
+            }
+        }
+
         pub fn write(self: *Self, array: []const u8) !usize {
             if (threadsafe) {
                 self.mu.lock();
@@ -158,28 +170,52 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             return self.ptr[0..self.len];
         }
 
-        pub fn byteAt(self: *Self, index: usize) ?u8 {
+        pub fn byteAt(self: *Self, index: usize) !u8 {
             if (threadsafe) {
-                self.buffer.mu.lock();
-                defer self.buffer.mu.unlock();
+                self.mu.lock();
+                defer self.mu.unlock();
             }
 
             if (index < self.len) {
-                return self.buffer.ptr[index];
+                return self.ptr[index];
             }
-            return null;
+            return Error.InvalidRange;
         }
 
-        pub fn rangeBytes(self: *Self, start: usize, end: usize) ?u8 {
+        pub fn rangeBytes(self: *Self, start: usize, end: usize) ![]const u8 {
             if (threadsafe) {
-                self.buffer.mu.lock();
-                defer self.buffer.mu.unlock();
+                self.mu.lock();
+                defer self.mu.unlock();
             }
 
             if (start < self.len and end < self.len and start < end) {
-                return self.buffer.ptr[start..end];
+                return self.ptr[start..end];
             }
-            return null;
+            return Error.InvalidRange;
+        }
+
+        pub fn fromBytes(self: *Self, start: usize) ![]const u8 {
+            if (threadsafe) {
+                self.mu.lock();
+                defer self.mu.unlock();
+            }
+
+            if (start < self.len) {
+                return self.ptr[start..self.len];
+            }
+            return Error.InvalidRange;
+        }
+
+        pub fn uptoBytes(self: *Self, end: usize) ![]const u8 {
+            if (threadsafe) {
+                self.mu.lock();
+                defer self.mu.unlock();
+            }
+
+            if (end < self.len) {
+                return self.ptr[0..end];
+            }
+            return Error.InvalidRange;
         }
 
         pub fn clone(self: *Self) !Self {
@@ -292,7 +328,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
         // Reader and Writer functionality.
         pub usingnamespace struct {
             pub const Writer = std.io.Writer(*Self, Error, appendWrite);
-            pub const Reader = std.io.AnyReader(*Self, Error, readFn);
+            pub const Reader = std.io.GenericReader(*Self, Error, readFn);
 
             pub fn reader(self: *Self) Reader {
                 return .{ .context = self };
