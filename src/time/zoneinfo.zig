@@ -299,8 +299,6 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
         const zoneData = loadTzinfo(allocator, name, item) catch "";
         if (zoneData.len == 0) continue;
 
-        std.debug.print("-------\n{s}\n-------\n", .{zoneData});
-
         return try LoadLocationFromTZData(name, zoneData);
     }
 
