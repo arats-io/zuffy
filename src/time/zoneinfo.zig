@@ -32,15 +32,35 @@ pub const Local = struct {
         if (instance) |loc| {
             return loc;
         } else {
+            var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer arena.deinit();
+
+            const allocator = arena.allocator();
+
             const isUnix = builtin.os.tag.isDarwin() or builtin.os.tag.isBSD() or builtin.os.tag == .linux;
             if (isUnix) {
-                instance = try unix();
+                const tz_val: ?[]const u8 = std.process.getEnvVarOwned(allocator, "TZ") catch null;
+                instance = try unix(allocator, tz_val);
             } else {
                 return Error.NotImplemented;
             }
         }
 
         return instance.?;
+    }
+
+    pub fn timezoneLocation(timezone: []const u8) !Location {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+
+        const allocator = arena.allocator();
+
+        const isUnix = builtin.os.tag.isDarwin() or builtin.os.tag.isBSD() or builtin.os.tag == .linux;
+        if (isUnix) {
+            return try unix(allocator, timezone);
+        } else {
+            return Error.NotImplemented;
+        }
     }
 }{};
 
@@ -229,14 +249,8 @@ const zoneTrans = struct {
     isutc: bool, // ignored - no idea what these mean
 };
 
-fn unix() !Location {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    const allocator = arena.allocator();
-
-    const val: ?[]const u8 = std.process.getEnvVarOwned(allocator, "TZ") catch null;
-    if (val) |tz| {
+fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
+    if (timezone) |tz| {
         var tzTmp = tz;
         if (tzTmp.len > 0 and tzTmp[0] == ':') {
             tzTmp = tzTmp[1..];
