@@ -8,7 +8,6 @@ pub const Error = error{
     BadData,
     UnknownTimeZone,
     NotImplemented,
-    TooManyTimeZones,
     EndOfStream,
     StreamTooLong,
     InvalidRange,
@@ -374,15 +373,11 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     defer collector.deinit();
     _ = try entries.readWithFilters(filters, collector.receiver().contentReceiver());
 
-    if (collector.arr.items.len < 1) {
-        return Error.UnknownTimeZone;
+    if (collector.arr.getLastOrNull()) |item| {
+        return item;
     }
 
-    if (collector.arr.items.len > 1) {
-        return Error.TooManyTimeZones;
-    }
-
-    return collector.arr.items[0];
+    return Error.UnknownTimeZone;
 }
 
 // loadTzinfo returns the time zone information of the time zone
