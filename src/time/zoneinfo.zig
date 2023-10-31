@@ -299,6 +299,8 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
         const zoneData = loadTzinfo(allocator, name, item) catch "";
         if (zoneData.len == 0) continue;
 
+        std.debug.print("-------\n{s}\n-------\n", .{zoneData});
+
         return try LoadLocationFromTZData(name, zoneData);
     }
 
@@ -341,8 +343,8 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
         pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
             _ = filename;
-            var buffer: [10 * 1024]u8 = undefined;
-            std.mem.copy(u8, &buffer, content);
+            var buffer: [500 * 1024:0]u8 = undefined;
+            std.mem.copyBackwards(u8, &buffer, content[0..content.len]);
             try self.arr.append(buffer[0..content.len]);
         }
 
@@ -363,9 +365,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
         return Error.TooManyTimeZones;
     }
 
-    var buffer: [10 * 1024]u8 = undefined;
-    std.mem.copy(u8, &buffer, collector.arr.items[0]);
-    return buffer[0..collector.arr.items[0].len];
+    return collector.arr.items[0];
 }
 
 // loadTzinfo returns the time zone information of the time zone
@@ -399,7 +399,8 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     var i = @as(usize, @intCast(dataIdx));
     if (data.len < i + 4) return Error.BadData;
 
-    if (!std.mem.eql(u8, data[i..(i + 4)], "TZif")) {
+    const header = data[i..(i + 4)];
+    if (!std.mem.eql(u8, header, "TZif")) {
         return Error.BadData;
     }
     dataIdx += 4;
