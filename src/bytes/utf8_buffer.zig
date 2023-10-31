@@ -475,8 +475,36 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                 self.buffer.mu.lock();
                 defer self.buffer.mu.unlock();
             }
+            if (array.len == 0) return false;
+
             if (self.find(array)) |_| {
                 return true;
+            }
+            return false;
+        }
+
+        pub fn startWith(self: *Self, array: []const u8) bool {
+            if (threadsafe) {
+                self.buffer.mu.lock();
+                defer self.buffer.mu.unlock();
+            }
+            if (array.len == 0) return false;
+
+            if (self.find(array)) |pos| {
+                return pos == 0;
+            }
+            return false;
+        }
+
+        pub fn endWith(self: *Self, array: []const u8) bool {
+            if (threadsafe) {
+                self.buffer.mu.lock();
+                defer self.buffer.mu.unlock();
+            }
+            if (array.len == 0) return false;
+
+            if (self.find(array)) |pos| {
+                return pos == self.buffer.len - array.len;
             }
             return false;
         }

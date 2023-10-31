@@ -4,10 +4,13 @@ const builtin = @import("builtin");
 const Buffer = @import("../bytes/mod.zig").Buffer;
 
 pub const Error = error{
+    OutOfMemory,
     BadData,
     UnknownTimeZone,
     NotImplemented,
-    TooManyTimeZones,
+    EndOfStream,
+    StreamTooLong,
+    InvalidRange,
 };
 
 pub const Local = struct {
@@ -313,7 +316,8 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
         const zoneData = loadTzinfo(allocator, name, item) catch "";
         if (zoneData.len == 0) continue;
 
-        return try LoadLocationFromTZData(name, zoneData);
+        var buff = std.io.fixedBufferStream(zoneData);
+        return try LoadLocationFromTZData(allocator, name, buff.reader());
     }
 
     return Error.UnknownTimeZone;
@@ -369,15 +373,11 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     defer collector.deinit();
     _ = try entries.readWithFilters(filters, collector.receiver().contentReceiver());
 
-    if (collector.arr.items.len < 1) {
-        return Error.UnknownTimeZone;
+    if (collector.arr.getLastOrNull()) |item| {
+        return item;
     }
 
-    if (collector.arr.items.len > 1) {
-        return Error.TooManyTimeZones;
-    }
-
-    return collector.arr.items[0];
+    return Error.UnknownTimeZone;
 }
 
 // loadTzinfo returns the time zone information of the time zone
@@ -405,25 +405,15 @@ fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8
 // initialized from the IANA Time Zone database-formatted data.
 // The data should be in the format of a standard IANA time zone file
 // (for example, the content of /etc/localtime on Unix systems).
-fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
+fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_data: anytype) Error!Location {
     // 4-byte magic "TZif"
-    var dataIdx: i32 = 0;
-    var i = @as(usize, @intCast(dataIdx));
-    if (data.len < i + 4) return Error.BadData;
-
-    const header = data[i..(i + 4)];
+    const header = (try in_data.readBoundedBytes(4)).slice();
     if (!std.mem.eql(u8, header, "TZif")) {
         return Error.BadData;
     }
-    dataIdx += 4;
 
     // 1-byte version, then 15 bytes of padding
-    i = @as(usize, @intCast(dataIdx));
-    if (data.len < i + 16) return Error.BadData;
-
-    const p = data[i..(i + 16)];
-    dataIdx += 16;
-
+    const p = (try in_data.readBoundedBytes(16)).slice();
     var version: i8 = -1;
     if (p[0] == '0') {
         version = 1;
@@ -446,17 +436,7 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     //	number of characters of time zone abbrev strings
     var n: [6]i32 = undefined;
     for (0..6) |idx| {
-        i = @as(usize, @intCast(dataIdx));
-        const nn = big4(data, i);
-        if (!nn.ok) {
-            return Error.BadData;
-        }
-        dataIdx += 4;
-
-        if (@as(i32, @intCast(nn.val)) != nn.val) {
-            return Error.BadData;
-        }
-        n[idx] = @as(i32, @intCast(nn.val));
+        n[idx] = try in_data.readIntBig(i32);
     }
 
     // If we have version 2 or 3, then the data is first written out
@@ -473,33 +453,16 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     var is64 = false;
     if (version > 1) {
         // Skip the 32-bit data.
-        const skip = n[NTime] * 4 +
-            n[NTime] +
-            n[NZone] * 6 +
-            n[NChar] +
-            n[NLeap] * 8 +
-            n[NStdWall] +
-            n[NUTCLocal];
+        const skip: u64 = @as(u64, @intCast(n[NTime] * 4 + n[NTime] + n[NZone] * 6 + n[NChar] + n[NLeap] * 8 + n[NStdWall] + n[NUTCLocal]));
 
         // Skip the version 2 header that we just read.
-        dataIdx += skip;
-        dataIdx += 20;
+        try in_data.skipBytes(skip + 20, .{});
 
         is64 = true;
 
         // Read the counts again, they can differ.
         for (0..6) |idx| {
-            i = @as(usize, @intCast(dataIdx));
-            const nn = big4(data, i);
-            if (!nn.ok) {
-                return Error.BadData;
-            }
-            dataIdx += 4;
-
-            if (@as(i32, @intCast(nn.val)) != nn.val) {
-                return Error.BadData;
-            }
-            n[idx] = @as(i32, @intCast(nn.val));
+            n[idx] = try in_data.readIntBig(i32);
         }
     }
 
@@ -507,48 +470,47 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
 
     // Transition times.
     var t = @as(usize, @intCast(n[NTime] * size));
-    i = @as(usize, @intCast(dataIdx));
-    const txtimes = data[i..(i + t)];
-    dataIdx += n[NTime] * size;
+    var txtimes = Buffer.initWithFactor(allocator, 10);
+    defer txtimes.deinit();
+    try txtimes.writeBytes(in_data, t);
 
     // Time zone indices for transition times.
     t = @as(usize, @intCast(n[NTime]));
-    i = @as(usize, @intCast(dataIdx));
-    const txzones = data[i..(i + t)];
-    dataIdx += n[NTime];
+    var txzones = Buffer.initWithFactor(allocator, 10);
+    defer txzones.deinit();
+    try txzones.writeBytes(in_data, t);
 
     // Zone info structures
     t = @as(usize, @intCast(n[NZone] * 6));
-    i = @as(usize, @intCast(dataIdx));
-    const zonedata = data[i..(i + t)];
-    dataIdx += n[NZone] * 6;
+    var zonedata = Buffer.initWithFactor(allocator, 10);
+    defer zonedata.deinit();
+    try zonedata.writeBytes(in_data, t);
 
     // Time zone abbreviations.
     t = @as(usize, @intCast(n[NChar]));
-    i = @as(usize, @intCast(dataIdx));
-    const abbrev = data[i..(i + t)];
-    dataIdx += n[NChar];
+    var abbrev = Buffer.initWithFactor(allocator, 10);
+    defer abbrev.deinit();
+    try abbrev.writeBytes(in_data, t);
 
     // Leap-second time pairs
     t = @as(usize, @intCast(n[NLeap] * (size + 4)));
-    dataIdx += n[NLeap] * (size + 4);
+    try in_data.skipBytes(t, .{});
 
     // Whether tx times associated with local time types
     // are specified as standard time or wall time.
     t = @as(usize, @intCast(n[NStdWall]));
-    i = @as(usize, @intCast(dataIdx));
-    const isstd = data[i..(i + t)];
-    dataIdx += n[NStdWall];
+    var isstd = Buffer.initWithFactor(allocator, 10);
+    defer isstd.deinit();
+    try isstd.writeBytes(in_data, t);
 
     // Whether tx times associated with local time types
     // are specified as UTC or local time.
     t = @as(usize, @intCast(n[NUTCLocal]));
-    i = @as(usize, @intCast(dataIdx));
-    const isutc = data[i..(i + t)];
-    dataIdx += n[NUTCLocal];
+    var isutc = Buffer.initWithFactor(allocator, 10);
+    defer isutc.deinit();
+    try isutc.writeBytes(in_data, t);
 
-    i = @as(usize, @intCast(dataIdx));
-    var extend = data[i..];
+    var extend = try in_data.readAllAlloc(allocator, std.math.maxInt(u16));
     if (extend.len > 2 and extend[0] == '\n' and extend[extend.len - 1] == '\n') {
         extend = extend[1 .. extend.len - 1];
     }
@@ -564,32 +526,22 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     }
 
     var zonesBuff = [_]zone{undefined} ** 10000;
-    var dataZoneIdx: i32 = 0;
+
+    var zonedataBuffTReam = std.io.fixedBufferStream(zonedata.bytes());
+    var in_zonedata = zonedataBuffTReam.reader();
+
     for (0..nzone) |idx| {
-        i = @as(usize, @intCast(dataZoneIdx));
-        var bign = big4(zonedata, i);
-        if (!bign.ok) {
-            return Error.BadData;
-        }
-        dataZoneIdx += 4;
+        const offset = try in_zonedata.readIntBig(i32);
 
-        const offset = @as(i32, @bitCast(bign.val));
-
-        i = @as(usize, @intCast(dataZoneIdx));
-        var b = zonedata[i];
-        dataZoneIdx += 1;
-
+        var b = try in_zonedata.readByte();
         const isDST = b != 0;
 
-        i = @as(usize, @intCast(dataZoneIdx));
-        b = zonedata[i];
-        dataZoneIdx += 1;
-
-        if (@as(usize, @intCast(b)) >= abbrev.len) {
+        b = try in_zonedata.readByte();
+        if (b >= abbrev.len) {
             return Error.BadData;
         }
 
-        const zname = abbrev[b..];
+        const zname = try abbrev.fromBytes(b);
 
         if (builtin.os.tag == .aix and name.len > 8 and (std.mem.eql(u8, name[0..8], "Etc/GMT+") or std.mem.eql(u8, name[0..8], "Etc/GMT-"))) {
             // There is a bug with AIX 7.2 TL 0 with files in Etc,
@@ -606,39 +558,33 @@ fn LoadLocationFromTZData(name: []const u8, data: []const u8) Error!Location {
     // Now the transition time info.
     const nzonerx = @as(usize, @intCast(n[NTime]));
     var txBuff = [_]zoneTrans{undefined} ** 10000;
-    var dataZoneTransIdx: i32 = 0;
+
+    var txtimesBuffTReam = std.io.fixedBufferStream(txtimes.bytes());
+    var in_txtimes = txtimesBuffTReam.reader();
+
     for (0..nzonerx) |idx| {
         var when: i64 = 0;
         if (!is64) {
-            i = @as(usize, @intCast(dataZoneTransIdx));
-            const n4 = big4(txtimes, i);
-            dataZoneTransIdx += 4;
-
-            if (!n4.ok) {
-                return Error.BadData;
-            } else {
-                when = @as(i64, @intCast(n4.val));
-            }
+            const val = try in_txtimes.readIntBig(u32);
+            when = @as(i64, @intCast(val));
         } else {
-            i = @as(usize, @intCast(dataZoneTransIdx));
-            const n8 = big8(txtimes, i);
-            dataZoneTransIdx += 8;
-
-            if (!n8.ok) {
-                return Error.BadData;
-            } else {
-                when = @as(i64, @bitCast(n8.val));
-            }
+            const val = try in_txtimes.readIntBig(u64);
+            when = @as(i64, @bitCast(val));
         }
 
-        if (txzones[idx] >= zones.len) {
+        const index = try txzones.byteAt(idx);
+        if (index >= zones.len) {
             return Error.BadData;
         }
 
-        const index = txzones[idx];
-
-        const isstdBool: bool = if (idx < isstd.len) isstd[idx] != 0 else false;
-        const isutcBool: bool = if (idx < isutc.len) isutc[idx] != 0 else false;
+        const isstdBool: bool = if (idx < isstd.len) blk: {
+            const val = try isstd.byteAt(idx);
+            break :blk val != 0;
+        } else false;
+        const isutcBool: bool = if (idx < isutc.len) blk: {
+            const val = try isstd.byteAt(idx);
+            break :blk val != 0;
+        } else false;
 
         txBuff[idx] = zoneTrans{ .when = when, .index = index, .isstd = isstdBool, .isutc = isutcBool };
     }
@@ -1187,42 +1133,4 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
     }
 
     return s + r.time - off;
-}
-
-fn BigNResult(comptime T: type) type {
-    return struct {
-        ok: bool,
-        val: T,
-    };
-}
-
-fn big4(data: []const u8, start: usize) BigNResult(u32) {
-    if (data.len < start + 4) return .{ .ok = false, .val = 0 };
-    const p = data[start .. start + 4];
-    if (p.len < 4) {
-        return .{ .ok = false, .val = 0 };
-    }
-
-    const b0 = @as(u32, @intCast(p[3]));
-    const b8 = @as(u32, @intCast(p[2])) << 8;
-    const b16 = @as(u32, @intCast(p[1])) << 16;
-    const b24 = @as(u32, @intCast(p[0])) << 24;
-
-    return .{ .ok = true, .val = (b0 | b8 | b16 | b24) };
-}
-
-fn big8(data: []const u8, start: usize) BigNResult(u64) {
-    const n1 = big4(data, start);
-    if (!n1.ok) {
-        return .{ .ok = false, .val = 0 };
-    }
-
-    const n2 = big4(data, start + 4);
-    if (!n2.ok) {
-        return .{ .ok = false, .val = 0 };
-    }
-    const b16 = @as(u64, @intCast(n1.val)) << 32;
-    const b32 = @as(u64, @intCast(n2.val));
-
-    return .{ .ok = true, .val = b16 | b32 };
 }
