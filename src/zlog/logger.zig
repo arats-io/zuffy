@@ -176,10 +176,11 @@ pub const Logger = struct {
     }
 
     inline fn entry(self: Self, comptime op: Level) Entry {
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return Entry.init(
+            self.allocator,
+            if (@intFromEnum(self.log_level) > @intFromEnum(op)) null else self,
+            op,
+        );
     }
 
     pub fn Trace(self: Self) Entry {
@@ -211,33 +212,33 @@ pub const Entry = struct {
     logger: ?Logger = null,
     opLevel: Level = .Disabled,
 
-    elems: ?std.StringHashMap([]const u8) = null,
+    elems: std.StringHashMap([]const u8),
 
     fn initEmpty() Self {
         return Self{};
     }
 
     fn init(
-        logger: Logger,
+        allocator: std.mem.Allocator,
+        logger: ?Logger,
         opLevel: Level,
     ) Self {
-        return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(logger.allocator) };
+        return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(allocator) };
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.elems) |*hash| {
-            var iter = hash.iterator();
+        if (self.logger) |logger| {
+            var iter = self.elems.iterator();
             while (iter.next()) |entry| {
-                self.logger.?.allocator.free(entry.value_ptr.*);
+                logger.allocator.free(entry.value_ptr.*);
             }
 
-            hash.deinit();
+            self.elems.deinit();
         }
     }
 
     pub fn Attr(self: *Self, key: []const u8, comptime V: type, value: V) *Self {
-        if (self.elems) |*hash| {
-            const logger = self.logger.?;
+        if (self.logger) |logger| {
             var str = StringBuilder.init(logger.allocator);
 
             switch (@TypeOf(value)) {
@@ -307,7 +308,7 @@ pub const Entry = struct {
                 }
             };
 
-            hash.put(key, str.bytes()) catch |err| {
+            self.elems.put(key, str.bytes()) catch |err| {
                 switch (logger.internalFailure) {
                     .panic => {
                         std.debug.panic("Failed to store the attribute; {}", .{err});
@@ -328,8 +329,8 @@ pub const Entry = struct {
     }
 
     pub fn Msg(self: *Self, message: []const u8) !void {
-        if (self.elems) |_| {
-            switch (self.logger.?.log_format) {
+        if (self.logger) |logger| {
+            switch (logger.log_format) {
                 .simple => try self.simpleMsg(message),
                 .json => try self.jsonMsg(message),
             }
@@ -337,10 +338,8 @@ pub const Entry = struct {
     }
 
     fn jsonMsg(self: *Self, message: []const u8) !void {
-        if (self.elems) |*hash| {
+        if (self.logger) |logger| {
             defer self.deinit();
-
-            const logger = self.logger.?;
 
             var str = StringBuilder.init(logger.allocator);
             defer str.deinit();
@@ -359,7 +358,7 @@ pub const Entry = struct {
                 try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "message", message });
             }
 
-            var iter = hash.iterator();
+            var iter = self.elems.iterator();
             while (iter.next()) |entry| {
                 try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ entry.key_ptr.*, entry.value_ptr.* });
             }
@@ -379,10 +378,8 @@ pub const Entry = struct {
     }
 
     fn simpleMsg(self: *Self, message: []const u8) !void {
-        if (self.elems) |*hash| {
+        if (self.logger) |logger| {
             defer self.deinit();
-
-            const logger = self.logger.?;
 
             var str = StringBuilder.init(logger.allocator);
             defer str.deinit();
@@ -401,7 +398,7 @@ pub const Entry = struct {
             }
             try str.append(" ");
 
-            var iter = hash.iterator();
+            var iter = self.elems.iterator();
             while (iter.next()) |entry| {
                 try str.appendf("{s}={s} ", .{ entry.key_ptr.*, entry.value_ptr.* });
             }
