@@ -114,7 +114,7 @@ pub const Location = struct {
 
         if (self.zone.len == 0) {
             return LookupResult{
-                .name = self.name,
+                .name = self.name[0..],
                 .offset = 0,
                 .start = std.math.minInt(i64),
                 .end = std.math.maxInt(i64),
@@ -124,7 +124,7 @@ pub const Location = struct {
 
         if (self.cacheStart <= sec and sec < self.cacheEnd) {
             return LookupResult{
-                .name = self.cacheZone.name,
+                .name = self.cacheZone.name[0..],
                 .offset = self.cacheZone.offset,
                 .start = self.cacheStart,
                 .end = self.cacheEnd,
@@ -135,7 +135,7 @@ pub const Location = struct {
         if (self.tx.len == 0 or sec < self.tx[0].when) {
             const zoneLocal = self.zone[self.lookupFirstZone()];
             return LookupResult{
-                .name = zoneLocal.name,
+                .name = zoneLocal.name[0..],
                 .offset = zoneLocal.offset,
                 .start = std.math.minInt(i64),
                 .end = if (self.tx.len > 0) self.tx[0].when else std.math.maxInt(i64),
@@ -168,7 +168,7 @@ pub const Location = struct {
             const r = tzset(self.extend, start, sec);
             if (r.ok) {
                 return LookupResult{
-                    .name = r.name,
+                    .name = r.name[0..],
                     .offset = r.offset,
                     .start = r.start,
                     .end = r.end,
@@ -178,7 +178,7 @@ pub const Location = struct {
         }
 
         return LookupResult{
-            .name = zoneLocal.name,
+            .name = zoneLocal.name[0..],
             .offset = zoneLocal.offset,
             .start = start,
             .end = end,
@@ -541,7 +541,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             return Error.BadData;
         }
 
-        const zname = try abbrev.fromBytes(b);
+        var zname = try abbrev.fromBytes(b);
 
         if (builtin.os.tag == .aix and name.len > 8 and (std.mem.eql(u8, name[0..8], "Etc/GMT+") or std.mem.eql(u8, name[0..8], "Etc/GMT-"))) {
             // There is a bug with AIX 7.2 TL 0 with files in Etc,
@@ -549,9 +549,12 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             if (!std.mem.eql(u8, name, "Etc/GMT+0")) {
                 // GMT+0 is OK
                 zname = name[4..];
+                b = name.len - 4;
             }
         }
-        zonesBuff[idx] = zone{ .name = zname, .offset = offset, .isDST = isDST };
+        var buf: [1024]u8 = undefined;
+        std.mem.copy(u8, &buf, zname);
+        zonesBuff[idx] = zone{ .name = buf[0..b], .offset = offset, .isDST = isDST };
     }
     const zones = zonesBuff[0..nzone];
 
@@ -618,12 +621,10 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
                 if (r.ok) {
                     const zname = r.name;
                     const zoffset = r.offset;
-                    const zestart = r.start;
-                    const zeend = r.end;
+                    cacheStart = r.start;
+                    cacheEnd = r.end;
                     const zisDST = r.isDST;
 
-                    cacheStart = zestart;
-                    cacheEnd = zeend;
                     // Find the zone that is returned by tzset to avoid allocation if possible.
                     for (zones, 0..) |z, zoneIdx| {
                         if (std.mem.eql(u8, z.name, zname) and z.offset == zoffset and z.isDST == zisDST) {
@@ -632,8 +633,10 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
                         }
                     }
                     if (cacheZone == null) {
+                        var buf: [1024]u8 = undefined;
+                        std.mem.copy(u8, &buf, zname);
                         cacheZone = zone{
-                            .name = zname,
+                            .name = buf[0..zname.len],
                             .offset = zoffset,
                             .isDST = zisDST,
                         };
@@ -644,11 +647,13 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
         }
     }
 
+    var buf: [1024]u8 = undefined;
+    std.mem.copy(u8, &buf, name);
     return Location{
         .zone = zones,
         .tx = tx,
-        .name = name,
-        .extend = extend,
+        .name = buf[0..name.len],
+        .extend = extend[0..],
         .cacheStart = cacheStart,
         .cacheEnd = cacheEnd,
         .cacheZone = cacheZone.?,
