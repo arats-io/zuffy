@@ -20,7 +20,7 @@ pub const LoggerBuilder = struct {
     time_enabled: bool,
     time_pattern: []const u8,
     log_writer: std.fs.File.Writer,
-    internalFailure: InternalFailure,
+    internal_failure: InternalFailure,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -30,7 +30,7 @@ pub const LoggerBuilder = struct {
             .time_measure = Measure.seconds,
             .time_enabled = false,
             .time_pattern = "DD/MM/YYYY'T'HH:mm:ss",
-            .internalFailure = InternalFailure.nothing,
+            .internal_failure = InternalFailure.nothing,
             .log_writer = std.io.getStdOut().writer(),
         };
     }
@@ -43,7 +43,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = true,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -56,7 +56,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = writer,
         };
     }
@@ -69,7 +69,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -82,7 +82,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -95,7 +95,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -108,7 +108,7 @@ pub const LoggerBuilder = struct {
             .time_measure = timemeasure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -121,7 +121,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = failure,
+            .internal_failure = failure,
             .log_writer = self.log_writer,
         };
     }
@@ -134,7 +134,7 @@ pub const LoggerBuilder = struct {
             .time_measure = self.time_measure,
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
-            .internalFailure = self.internalFailure,
+            .internal_failure = self.internal_failure,
             .log_writer = self.log_writer,
         };
     }
@@ -151,7 +151,7 @@ pub const Logger = struct {
     time_enabled: bool,
     time_pattern: []const u8,
     log_writer: std.fs.File.Writer,
-    internalFailure: InternalFailure,
+    internal_failure: InternalFailure,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -160,7 +160,7 @@ pub const Logger = struct {
         time_measure: Measure,
         time_enabled: bool,
         time_pattern: []const u8,
-        internalFailure: InternalFailure,
+        internal_failure: InternalFailure,
         log_writer: std.fs.File.Writer,
     ) Self {
         return Self{
@@ -170,7 +170,7 @@ pub const Logger = struct {
             .time_measure = time_measure,
             .time_enabled = time_enabled,
             .time_pattern = time_pattern,
-            .internalFailure = internalFailure,
+            .internal_failure = internal_failure,
             .log_writer = log_writer,
         };
     }
@@ -223,7 +223,11 @@ pub const Entry = struct {
         logger: ?Logger,
         opLevel: Level,
     ) Self {
-        return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(allocator) };
+        return Self{
+            .logger = logger,
+            .opLevel = opLevel,
+            .elems = std.StringHashMap([]const u8).init(allocator),
+        };
     }
 
     pub fn deinit(self: *Self) void {
@@ -243,26 +247,10 @@ pub const Entry = struct {
 
             switch (@TypeOf(value)) {
                 []const u8 => str.appendf("{s}", .{value}) catch |err| {
-                    switch (logger.internalFailure) {
-                        .panic => {
-                            std.debug.panic("Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
-                        },
-                        .print => {
-                            std.debug.panic("Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
-                        },
-                        else => {},
-                    }
+                    failureFn(logger.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
                 },
                 else => str.appendf("{}", .{value}) catch |err| {
-                    switch (logger.internalFailure) {
-                        .panic => {
-                            std.debug.panic("Failed to consider attribute {s}:{}; {}", .{ key, value, err });
-                        },
-                        .print => {
-                            std.debug.panic("Failed to consider attribute {s}:{}; {}", .{ key, value, err });
-                        },
-                        else => {},
-                    }
+                    failureFn(logger.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                 },
             }
 
@@ -270,26 +258,10 @@ pub const Entry = struct {
                 switch (logger.log_format) {
                     .simple => {
                         str.insertAt("\u{0022}", 0) catch |err| {
-                            switch (logger.internalFailure) {
-                                .panic => {
-                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
-                                },
-                                .print => {
-                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
-                                },
-                                else => {},
-                            }
+                            failureFn(logger.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
                         };
                         str.append("\u{0022}") catch |err| {
-                            switch (logger.internalFailure) {
-                                .panic => {
-                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
-                                },
-                                .print => {
-                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
-                                },
-                                else => {},
-                            }
+                            failureFn(logger.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
                         };
                     },
                     .json => {},
@@ -297,27 +269,11 @@ pub const Entry = struct {
             }
 
             str.shrink() catch |err| {
-                switch (logger.internalFailure) {
-                    .panic => {
-                        std.debug.panic("Failed to shrink the result; {}", .{err});
-                    },
-                    .print => {
-                        std.debug.panic("Failed to shrink the result; {}", .{err});
-                    },
-                    else => {},
-                }
+                failureFn(logger.internal_failure, "Failed to shrink the result; {}", .{err});
             };
 
             self.elems.put(key, str.bytes()) catch |err| {
-                switch (logger.internalFailure) {
-                    .panic => {
-                        std.debug.panic("Failed to store the attribute; {}", .{err});
-                    },
-                    .print => {
-                        std.debug.panic("Failed to store the attribute; {}", .{err});
-                    },
-                    else => {},
-                }
+                failureFn(logger.internal_failure, "Failed to store the attribute; {}", .{err});
             };
         }
 
@@ -419,5 +375,13 @@ pub const Entry = struct {
 
     pub fn Send(self: *Self) void {
         self.Msg("");
+    }
+
+    fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
+        switch (on) {
+            .panic => std.debug.panic(format, args),
+            .print => std.debug.print(format, args),
+            else => {},
+        }
     }
 };
