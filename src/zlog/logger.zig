@@ -175,51 +175,33 @@ pub const Logger = struct {
         };
     }
 
-    pub fn Trace(self: Self) Entry {
-        const op = Level.Trace;
+    inline fn entry(self: Self, comptime op: Level) Entry {
         if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
             return Entry.initEmpty();
         }
         return Entry.init(self, op);
+    }
+
+    pub fn Trace(self: Self) Entry {
+        return self.entry(Level.Trace);
     }
     pub fn Debug(self: Self) Entry {
-        const op = Level.Debug;
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return self.entry(Level.Debug);
     }
     pub fn Info(self: Self) Entry {
-        const op = Level.Info;
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return self.entry(Level.Info);
     }
     pub fn Warn(self: Self) Entry {
-        const op = Level.Warn;
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return self.entry(Level.Warn);
     }
     pub fn Error(self: Self) Entry {
-        const op = Level.Error;
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return self.entry(Level.Error);
     }
     pub fn Fatal(self: Self) Entry {
-        const op = Level.Fatal;
-        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
-            return Entry.initEmpty();
-        }
-        return Entry.init(self, op);
+        return self.entry(Level.Fatal);
     }
     pub fn Disabled(self: Self) Entry {
-        _ = self;
-        return Entry.initEmpty();
+        return self.entry(Level.Disabled);
     }
 };
 
