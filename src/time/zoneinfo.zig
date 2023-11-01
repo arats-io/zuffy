@@ -501,6 +501,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // Whether tx times associated with local time types
     // are specified as standard time or wall time.
     t = @as(usize, @intCast(n[NStdWall]));
+    
     var isstd = Buffer.initWithFactor(allocator, 10);
     defer isstd.deinit();
     try isstd.writeBytes(in_data, t);
@@ -513,6 +514,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     try isutc.writeBytes(in_data, t);
 
     var extend = try in_data.readAllAlloc(allocator, std.math.maxInt(u16));
+
     if (extend.len > 2 and extend[0] == '\n' and extend[extend.len - 1] == '\n') {
         extend = extend[1 .. extend.len - 1];
     }
@@ -705,6 +707,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
                 .isDST = false,
                 .ok = false,
             };
+
         }
     }
     if (s.len == 0 or s[0] == ',') {
@@ -791,6 +794,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const lptime = @import("time.zig");
     const seconds = sec + unixToInternal + internalToAbsolute;
     const t = lptime.absDate(seconds);
+
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));
@@ -1081,6 +1085,7 @@ fn tzsetRule(source: []const u8) tzsetRuleResult {
     if (!r.ok) {
         return tzsetRuleResult{ .rule = rule.empty(), .rest = "", .ok = false };
     }
+
     return tzsetRuleResult{
         .rule = rule{ .kind = kind, .day = day, .week = week, .mon = mon, .time = r.offset },
         .rest = r.rest,
