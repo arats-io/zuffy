@@ -23,13 +23,17 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const level = try Level.ParseString("TRACE");
     const logger = LoggerBuilder.init(arena.allocator())
-        .GlobalLevel(level)
+        .GlobalLevel(Level.ParseString("TRACE"))
         .OutputFormat(Format.json)
         .Timestamp()
         .TimePattern("YYYY MMM Do ddd HH:mm:ss.SSS - Qo")
         .build();
+
+    try generateLogs(logger);
+}
+
+pub fn generateLogs(logger: anytype) !void {
     try @constCast(&logger.Trace())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)

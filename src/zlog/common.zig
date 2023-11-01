@@ -31,8 +31,8 @@ pub const Level = enum(u4) {
             .Disabled => "DISABLED",
         };
     }
-    pub fn ParseString(val: []const u8) !Level {
-        var buffer: [50]u8 = undefined;
+    pub fn ParseString(val: []const u8) Level {
+        var buffer: [8]u8 = undefined;
         const lVal = std.ascii.upperString(&buffer, val);
 
         if (std.mem.eql(u8, "TRACE", lVal)) return .Trace;
