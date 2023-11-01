@@ -1,5 +1,11 @@
 const std = @import("std");
 
+pub const InternalFailure = enum {
+    nothing,
+    panic,
+    print,
+};
+
 pub const Format = enum(u4) {
     simple = 0,
     json = 1,

@@ -7,220 +7,438 @@ const Measure = @import("../time/mod.zig").Measure;
 
 const Format = @import("common.zig").Format;
 const Level = @import("common.zig").Level;
+const InternalFailure = @import("common.zig").InternalFailure;
 
-pub fn Logger(comptime format: Format, comptime timemeasure: Measure, comptime pattern: []const u8) type {
-    return struct {
-        const Self = @This();
+pub const LoggerBuilder = struct {
+    const Self = @This();
 
+    allocator: std.mem.Allocator,
+
+    log_level: Level,
+    log_format: Format,
+    time_measure: Measure,
+    time_enabled: bool,
+    time_pattern: []const u8,
+    log_writer: std.fs.File.Writer,
+    internalFailure: InternalFailure,
+
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return Self{
+            .allocator = allocator,
+            .log_level = Level.Info,
+            .log_format = Format.simple,
+            .time_measure = Measure.seconds,
+            .time_enabled = false,
+            .time_pattern = "DD/MM/YYYY'T'HH:mm:ss",
+            .internalFailure = InternalFailure.nothing,
+            .log_writer = std.io.getStdOut().writer(),
+        };
+    }
+
+    pub fn Timestamp(self: Self) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = true,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn OutputWriter(self: Self, writer: std.fs.File.Writer) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = writer,
+        };
+    }
+
+    pub fn GlobalLevel(self: Self, level: Level) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn OutputFormat(self: Self, format: Format) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn TimePattern(self: Self, pattern: []const u8) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn TimeMeasure(self: Self, timemeasure: Measure) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = timemeasure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn InternalFailureFn(self: Self, failure: InternalFailure) Self {
+        return Self{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = failure,
+            .log_writer = self.log_writer,
+        };
+    }
+
+    pub fn build(self: Self) Logger {
+        return Logger{
+            .allocator = self.allocator,
+            .log_level = self.log_level,
+            .log_format = self.log_format,
+            .time_measure = self.time_measure,
+            .time_enabled = self.time_enabled,
+            .time_pattern = self.time_pattern,
+            .internalFailure = self.internalFailure,
+            .log_writer = self.log_writer,
+        };
+    }
+};
+
+pub const Logger = struct {
+    const Self = @This();
+
+    allocator: std.mem.Allocator,
+
+    log_level: Level,
+    log_format: Format,
+    time_measure: Measure,
+    time_enabled: bool,
+    time_pattern: []const u8,
+    log_writer: std.fs.File.Writer,
+    internalFailure: InternalFailure,
+
+    pub fn init(
         allocator: std.mem.Allocator,
-        writer: std.fs.File.Writer,
-        level: Level,
+        log_level: Level,
+        log_format: Format,
+        time_measure: Measure,
+        time_enabled: bool,
+        time_pattern: []const u8,
+        internalFailure: InternalFailure,
+        log_writer: std.fs.File.Writer,
+    ) Self {
+        return Self{
+            .allocator = allocator,
+            .log_level = log_level,
+            .log_format = log_format,
+            .time_measure = time_measure,
+            .time_enabled = time_enabled,
+            .time_pattern = time_pattern,
+            .internalFailure = internalFailure,
+            .log_writer = log_writer,
+        };
+    }
 
-        pub fn init(allocator: std.mem.Allocator, l: Level) Self {
-            return initWithWriter(allocator, l, std.io.getStdOut().writer());
+    pub fn Trace(self: Self) Entry {
+        const op = Level.Trace;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
         }
-
-        pub fn initWithWriter(allocator: std.mem.Allocator, l: Level, writer: std.fs.File.Writer) Self {
-            return Self{ .allocator = allocator, .level = l, .writer = writer };
+        return Entry.init(self, op);
+    }
+    pub fn Debug(self: Self) Entry {
+        const op = Level.Debug;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
         }
+        return Entry.init(self, op);
+    }
+    pub fn Info(self: Self) Entry {
+        const op = Level.Info;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
+        }
+        return Entry.init(self, op);
+    }
+    pub fn Warn(self: Self) Entry {
+        const op = Level.Warn;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
+        }
+        return Entry.init(self, op);
+    }
+    pub fn Error(self: Self) Entry {
+        const op = Level.Error;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
+        }
+        return Entry.init(self, op);
+    }
+    pub fn Fatal(self: Self) Entry {
+        const op = Level.Fatal;
+        if (@intFromEnum(self.log_level) > @intFromEnum(op)) {
+            return Entry.initEmpty();
+        }
+        return Entry.init(self, op);
+    }
+    pub fn Disabled(self: Self) Entry {
+        _ = self;
+        return Entry.initEmpty();
+    }
+};
 
-        pub fn Trace(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Trace;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
+pub const Entry = struct {
+    const Self = @This();
+
+    logger: ?Logger = null,
+    opLevel: Level = .Disabled,
+
+    elems: ?std.StringHashMap([]const u8) = null,
+
+    fn initEmpty() Self {
+        return Self{};
+    }
+
+    fn init(
+        logger: Logger,
+        opLevel: Level,
+    ) Self {
+        return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(logger.allocator) };
+    }
+
+    pub fn deinit(self: *Self) void {
+        if (self.elems) |*hash| {
+            var iter = hash.iterator();
+            while (iter.next()) |entry| {
+                self.logger.?.allocator.free(entry.value_ptr.*);
             }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Debug(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Debug;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
-            }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Info(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Info;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
-            }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Warn(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Warn;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
-            }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Error(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Error;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
-            }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Fatal(self: Self) Entry(format, timemeasure, pattern) {
-            const op = Level.Fatal;
-            if (@intFromEnum(self.level) > @intFromEnum(op)) {
-                return Entry(format, timemeasure, pattern).initEmpty();
-            }
-            return Entry(format, timemeasure, pattern).init(self, op);
-        }
-        pub fn Disabled(self: Self) Entry(format, timemeasure, pattern) {
-            _ = self;
-            return Entry(format, timemeasure, pattern).initEmpty();
-        }
-    };
-}
 
-pub fn Entry(comptime format: Format, comptime timemeasure: Measure, comptime pattern: []const u8) type {
-    return struct {
-        const Self = @This();
-
-        logger: ?Logger(format, timemeasure, pattern) = null,
-        opLevel: Level = .Disabled,
-
-        elems: ?std.StringHashMap([]const u8) = null,
-
-        fn initEmpty() Self {
-            return Self{};
+            hash.deinit();
         }
+    }
 
-        fn init(
-            logger: Logger(format, timemeasure, pattern),
-            opLevel: Level,
-        ) Self {
-            return Self{ .logger = logger, .opLevel = opLevel, .elems = std.StringHashMap([]const u8).init(logger.allocator) };
-        }
+    pub fn Attr(self: *Self, key: []const u8, comptime V: type, value: V) *Self {
+        if (self.elems) |*hash| {
+            const logger = self.logger.?;
+            var str = StringBuilder.init(logger.allocator);
 
-        pub fn deinit(self: *Self) void {
-            if (self.elems) |*hash| {
-                var iter = hash.iterator();
-                while (iter.next()) |entry| {
-                    self.logger.?.allocator.free(entry.value_ptr.*);
-                }
-
-                hash.deinit();
-            }
-        }
-
-        pub fn Attr(self: *Self, key: []const u8, comptime V: type, value: V) *Self {
-            if (self.elems) |*hash| {
-                var str = StringBuilder.init(self.logger.?.allocator);
-
-                switch (@TypeOf(value)) {
-                    []const u8 => str.appendf("{s}", .{value}) catch {},
-                    else => str.appendf("{}", .{value}) catch {},
-                }
-
-                if (str.find(" ")) |_| {
-                    switch (format) {
-                        inline .simple => {
-                            str.insertAt("\u{0022}", 0) catch {};
-                            str.append("\u{0022}") catch {};
+            switch (@TypeOf(value)) {
+                []const u8 => str.appendf("{s}", .{value}) catch |err| {
+                    switch (logger.internalFailure) {
+                        .panic => {
+                            std.debug.panic("Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
                         },
-                        inline .json => {},
+                        .print => {
+                            std.debug.panic("Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
+                        },
+                        else => {},
                     }
-                }
-
-                str.shrink() catch {};
-
-                hash.put(key, str.bytes()) catch {};
+                },
+                else => str.appendf("{}", .{value}) catch |err| {
+                    switch (logger.internalFailure) {
+                        .panic => {
+                            std.debug.panic("Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .print => {
+                            std.debug.panic("Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        else => {},
+                    }
+                },
             }
 
-            return self;
-        }
-
-        pub fn Error(self: *Self, value: anyerror) *Self {
-            return self.Attr("error", []const u8, @errorName(value));
-        }
-
-        pub fn Msg(self: *Self, message: []const u8) void {
-            if (self.elems) |_| {
-                switch (format) {
-                    inline .simple => self.simpleMsg(message),
-                    inline .json => self.jsonMsg(message),
+            if (str.find(" ")) |_| {
+                switch (logger.log_format) {
+                    .simple => {
+                        str.insertAt("\u{0022}", 0) catch |err| {
+                            switch (logger.internalFailure) {
+                                .panic => {
+                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
+                                },
+                                .print => {
+                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
+                                },
+                                else => {},
+                            }
+                        };
+                        str.append("\u{0022}") catch |err| {
+                            switch (logger.internalFailure) {
+                                .panic => {
+                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
+                                },
+                                .print => {
+                                    std.debug.panic("Failed to insert and unicode code \u{0022}; {}", .{err});
+                                },
+                                else => {},
+                            }
+                        };
+                    },
+                    .json => {},
                 }
             }
+
+            str.shrink() catch |err| {
+                switch (logger.internalFailure) {
+                    .panic => {
+                        std.debug.panic("Failed to shrink the result; {}", .{err});
+                    },
+                    .print => {
+                        std.debug.panic("Failed to shrink the result; {}", .{err});
+                    },
+                    else => {},
+                }
+            };
+
+            hash.put(key, str.bytes()) catch |err| {
+                switch (logger.internalFailure) {
+                    .panic => {
+                        std.debug.panic("Failed to store the attribute; {}", .{err});
+                    },
+                    .print => {
+                        std.debug.panic("Failed to store the attribute; {}", .{err});
+                    },
+                    else => {},
+                }
+            };
         }
 
-        inline fn jsonMsg(self: *Self, message: []const u8) void {
-            if (self.elems) |*hash| {
-                defer self.deinit();
+        return self;
+    }
 
-                var str = StringBuilder.init(self.logger.?.allocator);
-                defer str.deinit();
+    pub fn Error(self: *Self, value: anyerror) *Self {
+        return self.Attr("error", []const u8, @errorName(value));
+    }
 
-                str.append("{") catch {};
+    pub fn Msg(self: *Self, message: []const u8) !void {
+        if (self.elems) |_| {
+            switch (self.logger.?.log_format) {
+                .simple => try self.simpleMsg(message),
+                .json => try self.jsonMsg(message),
+            }
+        }
+    }
 
-                const t = Time(timemeasure).new();
+    fn jsonMsg(self: *Self, message: []const u8) !void {
+        if (self.elems) |*hash| {
+            defer self.deinit();
 
+            const logger = self.logger.?;
+
+            var str = StringBuilder.init(logger.allocator);
+            defer str.deinit();
+
+            try str.append("{");
+
+            const t = Time.new(logger.time_measure);
+
+            if (logger.time_enabled) {
                 var buffer: [512]u8 = undefined;
-                const len = t.format(pattern, buffer[0..]) catch pattern.len;
-                str.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "timestamp", buffer[0..len] }) catch {};
-                str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "level", self.opLevel.String() }) catch {};
-                if (message.len > 0) {
-                    str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "message", message }) catch {};
-                }
+                const len = try t.format(logger.time_pattern, &buffer);
+                try str.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ "timestamp", buffer[0..len] });
+            }
+            try str.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "level", self.opLevel.String() });
+            if (message.len > 0) {
+                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "message", message });
+            }
 
-                var iter = hash.iterator();
-                while (iter.next()) |entry| {
-                    str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ entry.key_ptr.*, entry.value_ptr.* }) catch {};
-                }
+            var iter = hash.iterator();
+            while (iter.next()) |entry| {
+                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ entry.key_ptr.*, entry.value_ptr.* });
+            }
 
-                str.append("}\n") catch {};
+            try str.append("}\n");
 
-                str.shrink() catch {};
+            try str.shrink();
 
-                const result = str.bytes();
+            const result = str.bytes();
 
-                _ = self.logger.?.writer.write(result) catch {};
+            _ = try logger.log_writer.write(result);
 
-                if (self.opLevel == .Fatal) {
-                    @panic("logger on fatal");
-                }
+            if (self.opLevel == .Fatal) {
+                @panic("logger on fatal");
             }
         }
+    }
 
-        inline fn simpleMsg(self: *Self, message: []const u8) void {
-            if (self.elems) |*hash| {
-                defer self.deinit();
+    fn simpleMsg(self: *Self, message: []const u8) !void {
+        if (self.elems) |*hash| {
+            defer self.deinit();
 
-                var str = StringBuilder.init(self.logger.?.allocator);
-                defer str.deinit();
+            const logger = self.logger.?;
 
-                const t = Time(timemeasure).new();
+            var str = StringBuilder.init(logger.allocator);
+            defer str.deinit();
 
+            const t = Time.new(logger.time_measure);
+
+            if (logger.time_enabled) {
                 var buffer: [512]u8 = undefined;
-                const len = t.format(pattern, buffer[0..]) catch pattern.len;
-                str.appendf("{s} {s}", .{ buffer[0..len], self.opLevel.String().ptr[0..4] }) catch {};
-                if (message.len > 0) {
-                    str.appendf(" {s}", .{message}) catch {};
-                }
-                str.append(" ") catch {};
+                const len = try t.format(logger.time_pattern, &buffer);
+                try str.appendf("{s} ", .{buffer[0..len]});
+            }
 
-                var iter = hash.iterator();
-                while (iter.next()) |entry| {
-                    str.appendf("{s}={s} ", .{ entry.key_ptr.*, entry.value_ptr.* }) catch {};
-                }
-                str.removeEnd(1) catch {};
+            try str.appendf("{s}", .{self.opLevel.String().ptr[0..4]});
+            if (message.len > 0) {
+                try str.appendf(" {s}", .{message});
+            }
+            try str.append(" ");
 
-                str.append("\n") catch {};
+            var iter = hash.iterator();
+            while (iter.next()) |entry| {
+                try str.appendf("{s}={s} ", .{ entry.key_ptr.*, entry.value_ptr.* });
+            }
+            try str.removeEnd(1);
+            try str.append("\n");
 
-                str.shrink() catch {};
+            try str.shrink();
 
-                const result = str.bytes();
+            const result = str.bytes();
 
-                _ = self.logger.?.writer.write(result) catch {};
+            _ = try logger.log_writer.write(result);
 
-                if (self.opLevel == .Fatal) {
-                    @panic("logger on fatal");
-                }
+            if (self.opLevel == .Fatal) {
+                @panic("logger on fatal");
             }
         }
+    }
 
-        pub fn Send(self: *Self) void {
-            self.Msg("");
-        }
-    };
-}
+    pub fn Send(self: *Self) void {
+        self.Msg("");
+    }
+};
