@@ -265,10 +265,12 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
             try sources.append("zoneinfo.zip");
 
             const z = try loadLocation(allocator, tzTmp[0 .. tzTmp.len - 4], sources);
+            var buf: [1024]u8 = undefined;
+            std.mem.copy(u8, &buf, tzTmp);
             return Location{
                 .zone = z.zone,
                 .tx = z.tx,
-                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else tzTmp,
+                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else buf[0..tzTmp.len],
                 .extend = z.extend,
                 .cacheStart = z.cacheStart,
                 .cacheEnd = z.cacheEnd,
@@ -337,9 +339,9 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     var gzip_stream = try std.compress.gzip.decompress(allocator, in_stream.reader());
     defer gzip_stream.deinit();
 
-    const buf = try gzip_stream.reader().readAllAlloc(allocator, std.math.maxInt(usize));
+    const gzip_data = try gzip_stream.reader().readAllAlloc(allocator, std.math.maxInt(usize));
 
-    var entries = try archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(buf));
+    var entries = try archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(gzip_data));
     defer entries.deinit();
 
     const Collector = struct {

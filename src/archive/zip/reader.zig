@@ -117,8 +117,8 @@ const DataDescriptor = struct {
 const NO_COMPRESSION = 0;
 const DEFLATE = 8;
 
-pub fn Entries(allocator: mem.Allocator, reader: anytype) !ReaderEntries(@TypeOf(reader)) {
-    return ReaderEntries(@TypeOf(reader)).init(allocator, reader);
+pub fn Entries(allocator: mem.Allocator, source: anytype) !ReaderEntries(@TypeOf(source)) {
+    return ReaderEntries(@TypeOf(source)).init(allocator, source);
 }
 
 pub fn ReaderEntries(comptime ParseSource: type) type {
@@ -332,7 +332,31 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            _ = self;
+            if (self.central_directory.eocd_record.comment) |b| {
+                @constCast(&b).deinit();
+            }
+            if (self.central_directory.digital_signature) |ds| {
+                if (ds.signature_data) |b| {
+                    @constCast(&b).deinit();
+                }
+            }
+            if (self.central_directory.zip64_eocd_record) |r| {
+                if (r.comment) |b| {
+                    @constCast(&b).deinit();
+                }
+            }
+            for (self.central_directory.file_headers.items) |header| {
+                if (header.filename) |b| {
+                    @constCast(&b).deinit();
+                }
+                if (header.extra_field) |b| {
+                    @constCast(&b).deinit();
+                }
+                if (header.comment) |b| {
+                    @constCast(&b).deinit();
+                }
+            }
+            self.central_directory.file_headers.deinit();
         }
 
         fn matches(filename: Buffer, filters: std.ArrayList([]const u8)) bool {
@@ -396,6 +420,15 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                     break :blk tmp;
                 } else null;
 
+                defer {
+                    if (filename) |b| {
+                        @constCast(&b).deinit();
+                    }
+                    if (extra_field) |b| {
+                        @constCast(&b).deinit();
+                    }
+                }
+
                 const header = LocalFileHeader{
                     .signature = signature,
                     .version = version,
@@ -415,18 +448,20 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 const content_size = if (header.compression_method == 0) header.uncompressed_size else header.compressed_size;
 
                 var content = Buffer.initWithFactor(self.allocator, 5);
+                defer content.deinit();
+
                 for (0..content_size) |_| {
                     const byte: u8 = try in_reader.readByte();
                     try content.writeByte(byte);
                 }
                 // const encryption_header = try in_reader.readBoundedBytes(12);
-                const encryption_header = null;
 
                 const data_descriptor = DataDescriptor{
                     .crc32 = try in_reader.readIntLittle(u32),
                     .compressed_size = try in_reader.readIntLittle(u32),
                     .uncompressed_size = try in_reader.readIntLittle(u32),
                 };
+                _ = data_descriptor;
 
                 if (content_size > 0) {
                     switch (header.compression_method) {
@@ -441,6 +476,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
 
                             var decoded_content = Buffer.initWithFactor(self.allocator, 5);
                             defer decoded_content.deinit();
+
                             while (true) {
                                 if (deflator.reader().readByte()) |byte| {
                                     try decoded_content.writeByte(byte);
@@ -455,19 +491,6 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                             return error.InvalidCompression;
                         },
                     }
-                }
-
-                const entry = LocalFileEntry{
-                    .file_header = header,
-                    .encryption_header = encryption_header,
-                    .data_descriptor = data_descriptor,
-                    .content = content,
-                };
-
-                defer {
-                    @constCast(&entry.content).deinit();
-                    @constCast(&entry.file_header.filename.?).deinit();
-                    @constCast(&entry.file_header.extra_field.?).deinit();
                 }
             }
         }
