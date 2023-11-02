@@ -19,7 +19,6 @@ pub const LoggerBuilder = struct {
     time_measure: Measure,
     time_enabled: bool,
     time_pattern: []const u8,
-    log_writer: std.fs.File.Writer,
     internal_failure: InternalFailure,
 
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -31,7 +30,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = false,
             .time_pattern = "DD/MM/YYYY'T'HH:mm:ss",
             .internal_failure = InternalFailure.nothing,
-            .log_writer = std.io.getStdOut().writer(),
         };
     }
 
@@ -44,20 +42,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = true,
             .time_pattern = self.time_pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
-        };
-    }
-
-    pub fn OutputWriter(self: Self, writer: std.fs.File.Writer) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-            .log_writer = writer,
         };
     }
 
@@ -70,7 +54,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
         };
     }
 
@@ -83,7 +66,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
         };
     }
 
@@ -96,7 +78,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
         };
     }
 
@@ -109,7 +90,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
         };
     }
 
@@ -122,7 +102,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
             .internal_failure = failure,
-            .log_writer = self.log_writer,
         };
     }
 
@@ -135,7 +114,6 @@ pub const LoggerBuilder = struct {
             .time_enabled = self.time_enabled,
             .time_pattern = self.time_pattern,
             .internal_failure = self.internal_failure,
-            .log_writer = self.log_writer,
         };
     }
 };
@@ -150,7 +128,6 @@ pub const Logger = struct {
     time_measure: Measure,
     time_enabled: bool,
     time_pattern: []const u8,
-    log_writer: std.fs.File.Writer,
     internal_failure: InternalFailure,
 
     pub fn init(
@@ -161,7 +138,6 @@ pub const Logger = struct {
         time_enabled: bool,
         time_pattern: []const u8,
         internal_failure: InternalFailure,
-        log_writer: std.fs.File.Writer,
     ) Self {
         return Self{
             .allocator = allocator,
@@ -171,7 +147,6 @@ pub const Logger = struct {
             .time_enabled = time_enabled,
             .time_pattern = time_pattern,
             .internal_failure = internal_failure,
-            .log_writer = log_writer,
         };
     }
 
@@ -284,16 +259,32 @@ pub const Entry = struct {
         return self.Attr("error", []const u8, @errorName(value));
     }
 
-    pub fn Msg(self: *Self, message: []const u8) !void {
+    pub fn MsgWriter(self: *Self, message: []const u8, writer: anytype) !void {
         if (self.logger) |logger| {
             switch (logger.log_format) {
-                .simple => try self.simpleMsg(message),
-                .json => try self.jsonMsg(message),
+                inline .simple => try self.simpleMsg(message, writer),
+                inline .json => try self.jsonMsg(message, writer),
             }
         }
     }
 
-    fn jsonMsg(self: *Self, message: []const u8) !void {
+    pub fn Msg(self: *Self, message: []const u8) !void {
+        return self.MsgStdOut(message);
+    }
+
+    pub fn MsgStdOut(self: *Self, message: []const u8) !void {
+        return self.MsgWriter(message, std.io.getStdOut());
+    }
+
+    pub fn MsgStdErr(self: *Self, message: []const u8) !void {
+        return self.MsgWriter(message, std.io.getStdErr());
+    }
+
+    pub fn MsgStdIn(self: *Self, message: []const u8) !void {
+        return self.MsgWriter(message, std.io.getStdIn());
+    }
+
+    fn jsonMsg(self: *Self, message: []const u8, writer: anytype) !void {
         if (self.logger) |logger| {
             defer self.deinit();
 
@@ -325,7 +316,7 @@ pub const Entry = struct {
 
             const result = str.bytes();
 
-            _ = try logger.log_writer.write(result);
+            _ = try writer.write(result);
 
             if (self.opLevel == .Fatal) {
                 @panic("logger on fatal");
@@ -333,7 +324,7 @@ pub const Entry = struct {
         }
     }
 
-    fn simpleMsg(self: *Self, message: []const u8) !void {
+    fn simpleMsg(self: *Self, message: []const u8, writer: anytype) !void {
         if (self.logger) |logger| {
             defer self.deinit();
 
@@ -365,7 +356,7 @@ pub const Entry = struct {
 
             const result = str.bytes();
 
-            _ = try logger.log_writer.write(result);
+            _ = try writer.write(result);
 
             if (self.opLevel == .Fatal) {
                 @panic("logger on fatal");
@@ -373,14 +364,30 @@ pub const Entry = struct {
         }
     }
 
+    pub fn SendWriter(self: *Self, writer: anytype) void {
+        self.MsgWriter("", writer);
+    }
+
     pub fn Send(self: *Self) void {
         self.Msg("");
     }
 
+    pub fn SendStdOut(self: *Self) void {
+        self.MsgStdOut("");
+    }
+
+    pub fn SendStdErr(self: *Self) void {
+        self.MsgStdErr("");
+    }
+
+    pub fn SendStdIn(self: *Self) void {
+        self.MsgStdIn("");
+    }
+
     fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
         switch (on) {
-            .panic => std.debug.panic(format, args),
-            .print => std.debug.print(format, args),
+            inline .panic => std.debug.panic(format, args),
+            inline .print => std.debug.print(format, args),
             else => {},
         }
     }

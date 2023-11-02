@@ -2,6 +2,7 @@ const std = @import("std");
 const xstd = @import("xstd");
 
 const StringBuilder = xstd.bytes.StringBuilder;
+const Buffer = xstd.bytes.Buffer;
 
 const LoggerBuilder = xstd.zlog.LoggerBuilder;
 const Level = xstd.zlog.Level;
@@ -34,34 +35,44 @@ pub fn main() !void {
 }
 
 pub fn generateLogs(logger: anytype) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var buffer = Buffer.initWithFactor(arena.allocator(), 10);
+    defer buffer.deinit();
+
+    var buffWriter = buffer.writer();
+
     try @constCast(&logger.Trace())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
     try @constCast(&logger.Debug())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
     try @constCast(&logger.Info())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
     try @constCast(&logger.Warn())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
     try @constCast(&logger.Error())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Error(Error.OutOfMemoryClient)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
     try @constCast(&logger.Disabled())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .MsgWriter("Initialization...", buffWriter);
+
+    std.debug.print("{s}", .{buffer.bytes()});
 }
