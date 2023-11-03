@@ -214,34 +214,6 @@ pub const Entry = struct {
         return self;
     }
 
-    pub fn MsgWriter(self: *Self, message: []const u8, writer: anytype) !void {
-        defer self.deinit();
-        errdefer self.deinit();
-
-        if (self.options) |options| {
-            switch (options.format) {
-                inline .simple => try self.simpleMsg(message, writer),
-                inline .json => try self.jsonMsg(message, writer),
-            }
-        }
-    }
-
-    pub fn Msg(self: *Self, message: []const u8) !void {
-        try self.MsgStdOut(message);
-    }
-
-    pub fn MsgStdOut(self: *Self, message: []const u8) !void {
-        try self.MsgWriter(message, std.io.getStdOut().writer());
-    }
-
-    pub fn MsgStdErr(self: *Self, message: []const u8) !void {
-        try self.MsgWriter(message, std.io.getStdErr().writer());
-    }
-
-    pub fn MsgStdIn(self: *Self, message: []const u8) !void {
-        try self.MsgWriter(message, std.io.getStdIn().writer());
-    }
-
     fn jsonMsg(self: *Self, message: []const u8, writer: anytype) !void {
         if (self.options) |options| {
             var str = Utf8Buffer.init(self.allocator);
@@ -277,8 +249,10 @@ pub const Entry = struct {
 
                 var key_buffer = @as([*]const u8, @ptrFromInt(key_ptr))[0..key_size];
                 defer self.allocator.free(key_buffer);
+                errdefer self.allocator.free(key_buffer);
                 var value_buffer = @as([*]const u8, @ptrFromInt(value_ptr))[0..value_size];
                 defer self.allocator.free(value_buffer);
+                errdefer self.allocator.free(value_buffer);
 
                 try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key_buffer, value_buffer });
             }
@@ -327,8 +301,10 @@ pub const Entry = struct {
 
                 var key_buffer = @as([*]const u8, @ptrFromInt(key_ptr))[0..key_size];
                 defer self.allocator.free(key_buffer);
+                errdefer self.allocator.free(key_buffer);
                 var value_buffer = @as([*]const u8, @ptrFromInt(value_ptr))[0..value_size];
                 defer self.allocator.free(value_buffer);
+                errdefer self.allocator.free(value_buffer);
 
                 try str.appendf("{s}={s} ", .{ key_buffer, value_buffer });
             }
@@ -342,6 +318,34 @@ pub const Entry = struct {
                 @panic("logger on fatal");
             }
         }
+    }
+
+    pub fn MsgWriter(self: *Self, message: []const u8, writer: anytype) !void {
+        defer self.deinit();
+        errdefer self.deinit();
+
+        if (self.options) |options| {
+            switch (options.format) {
+                inline .simple => try self.simpleMsg(message, writer),
+                inline .json => try self.jsonMsg(message, writer),
+            }
+        }
+    }
+
+    pub fn Msg(self: *Self, message: []const u8) !void {
+        try self.MsgStdOut(message);
+    }
+
+    pub fn MsgStdOut(self: *Self, message: []const u8) !void {
+        try self.MsgWriter(message, std.io.getStdOut().writer());
+    }
+
+    pub fn MsgStdErr(self: *Self, message: []const u8) !void {
+        try self.MsgWriter(message, std.io.getStdErr().writer());
+    }
+
+    pub fn MsgStdIn(self: *Self, message: []const u8) !void {
+        try self.MsgWriter(message, std.io.getStdIn().writer());
     }
 
     pub fn SendWriter(self: *Self, writer: anytype) void {
