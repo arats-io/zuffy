@@ -365,6 +365,8 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
             }
 
             var b = Utf8Buffer.initWithBuffer(filename);
+            defer b.deinit();
+
             for (filters.items) |item| {
                 if (b.contains(item)) return true;
             }

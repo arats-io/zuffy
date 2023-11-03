@@ -4,7 +4,7 @@ const xstd = @import("xstd");
 const StringBuilder = xstd.bytes.StringBuilder;
 const Buffer = xstd.bytes.Buffer;
 
-const LoggerBuilder = xstd.zlog.LoggerBuilder;
+const Logger = xstd.zlog.Logger;
 const Level = xstd.zlog.Level;
 const Format = xstd.zlog.Format;
 
@@ -24,55 +24,73 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = LoggerBuilder.init(arena.allocator())
-        .GlobalLevel(Level.ParseString("TRACE"))
-        .OutputFormat(Format.json)
-        .Timestamp()
-        .TimePattern("YYYY MMM Do ddd HH:mm:ss.SSS - Qo")
-        .build();
+    const logger = Logger.init(arena.allocator(), .{
+        .caller_enabled = true,
+        .caller_field_name = "caller",
+        .time_enabled = true,
+        .time_measure = .micros,
+        .time_formating = .pattern,
+        .level = Level.ParseString("trace"),
+        .format = Format.json,
+        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
+    });
 
-    try generateLogs(logger);
+    while (true) {
+        try generateLogsTrace(logger);
+        try generateLogsDebug(logger);
+        try generateLogsInfo(logger);
+        try generateLogsWarn(logger);
+        try generateLogsError(logger);
+        try generateLogsDisabled(logger);
+    }
 }
 
-pub fn generateLogs(logger: anytype) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    var buffer = Buffer.initWithFactor(arena.allocator(), 10);
-    defer buffer.deinit();
-
-    var buffWriter = buffer.writer();
-
+pub fn generateLogsTrace(logger: anytype) !void {
     try @constCast(&logger.Trace())
+        .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Debug())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Info())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Warn())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Error())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Error(Error.OutOfMemoryClient)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Disabled())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
+        .Msg("Initialization...");
+}
 
-    std.debug.print("{s}", .{buffer.bytes()});
+pub fn generateLogsDebug(logger: anytype) !void {
+    try @constCast(&logger.Debug())
+        .Source(@src())
+        .Attr("database", []const u8, "myapp huraaaa !")
+        .Attr("counter", i32, 34)
+        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
+        .Msg("Initialization...");
+}
+pub fn generateLogsInfo(logger: anytype) !void {
+    try @constCast(&logger.Info())
+        .Source(@src())
+        .Attr("database", []const u8, "myapp huraaaa !")
+        .Attr("counter", i32, 34)
+        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
+        .Msg("Initialization...");
+}
+pub fn generateLogsWarn(logger: anytype) !void {
+    try @constCast(&logger.Warn())
+        .Source(@src())
+        .Attr("database", []const u8, "myapp huraaaa !")
+        .Attr("counter", i32, 34)
+        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
+        .Msg("Initialization...");
+}
+pub fn generateLogsError(logger: anytype) !void {
+    try @constCast(&logger.Error())
+        .Source(@src())
+        .Attr("database", []const u8, "myapp huraaaa !")
+        .Attr("counter", i32, 34)
+        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
+        .Msg("Initialization...");
+}
+pub fn generateLogsDisabled(logger: anytype) !void {
+    try @constCast(&logger.Disabled())
+        .Source(@src())
+        .Attr("database", []const u8, "myapp huraaaa !")
+        .Attr("counter", i32, 34)
+        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
+        .Msg("Initialization...");
 }

@@ -121,7 +121,8 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
-            return std.fmt.format(self.writer(), format, args);
+            var writer = self.writer();
+            return std.fmt.format(writer, format, args);
         }
 
         pub fn repeat(self: *Self, n: usize) !void {

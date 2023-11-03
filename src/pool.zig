@@ -33,7 +33,7 @@ pub fn Pool(comptime T: type) type {
             self.queue.deinit();
         }
 
-        pub fn pop(self: *Self) !T {
+        pub fn pop(self: *Self) T {
             if (threadsafe) {
                 self.mu.lock();
                 defer self.mu.unlock();
