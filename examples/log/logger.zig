@@ -47,50 +47,56 @@ pub fn main() !void {
 
 pub fn generateLogsTrace(logger: anytype) !void {
     try @constCast(&logger.Trace())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
 
 pub fn generateLogsDebug(logger: anytype) !void {
     try @constCast(&logger.Debug())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
 pub fn generateLogsInfo(logger: anytype) !void {
     try @constCast(&logger.Info())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
 pub fn generateLogsWarn(logger: anytype) !void {
     try @constCast(&logger.Warn())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
 pub fn generateLogsError(logger: anytype) !void {
     try @constCast(&logger.Error())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
 pub fn generateLogsDisabled(logger: anytype) !void {
     try @constCast(&logger.Disabled())
+        .Message("Initialization...")
         .Source(@src())
         .Attr("database", []const u8, "myapp huraaaa !")
         .Attr("counter", i32, 34)
         .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .Msg("Initialization...");
+        .Send();
 }
