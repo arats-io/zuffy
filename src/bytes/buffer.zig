@@ -76,7 +76,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             }
 
             self.allocator.free(self.ptr[0..self.cap]);
-            self.ptr = @as([*]u8, @ptrFromInt(0xFF));
+            self.ptr = &[_]u8{};
             self.len = 0;
             self.cap = 0;
         }

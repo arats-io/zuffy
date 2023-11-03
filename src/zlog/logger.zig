@@ -89,10 +89,8 @@ pub const Logger = struct {
 };
 
 const Elem = struct {
-    key_ptr: usize,
-    key_size: usize,
-    value_ptr: usize,
-    value_size: usize,
+    key: Utf8Buffer,
+    value: Utf8Buffer,
 };
 
 pub const Entry = struct {
@@ -118,25 +116,24 @@ pub const Entry = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        defer self.elems.deinit();
+        defer {
+            self.elems.deinit();
+            self.elems.items = &.{};
+        }
 
         while (self.elems.popOrNull()) |elem| {
-            const key_ptr = elem.key_ptr;
-            const key_size = elem.key_size;
-            const value_ptr = elem.value_ptr;
-            const value_size = elem.value_size;
-
-            var key_buffer = @as([*]const u8, @ptrFromInt(key_ptr))[0..key_size];
-            self.allocator.free(key_buffer);
-            var value_buffer = @as([*]const u8, @ptrFromInt(value_ptr))[0..value_size];
-            self.allocator.free(value_buffer);
+            var key = elem.key;
+            defer key.deinit();
+            errdefer key.deinit();
+            var value = elem.value;
+            defer value.deinit();
+            errdefer value.deinit();
         }
     }
 
     pub fn Attr(self: *Self, key: []const u8, comptime V: type, value: V) *Self {
         if (self.options) |options| {
             var strValue = Utf8Buffer.init(self.allocator);
-            defer strValue.deinit();
             errdefer strValue.deinit();
 
             switch (@TypeOf(value)) {
@@ -163,30 +160,15 @@ pub const Entry = struct {
             }
 
             var strKey = Utf8Buffer.init(self.allocator);
-            defer strKey.deinit();
             errdefer strKey.deinit();
 
             _ = strKey.append(key) catch |err| {
                 failureFn(options.internal_failure, "Failed to write the key into the buffer; {}", .{err});
             };
 
-            var key_buffer = strKey.bytesWithAllocator(self.allocator) catch |err| blk: {
-                failureFn(options.internal_failure, "Failed to write the key into the buffer; {}", .{err});
-                break :blk &.{};
-            };
-            errdefer self.allocator.free(key_buffer);
-
-            var value_buffer = strValue.bytesWithAllocator(self.allocator) catch |err| blk: {
-                failureFn(options.internal_failure, "Failed to write the key into the buffer; {}", .{err});
-                break :blk &.{};
-            };
-            errdefer self.allocator.free(value_buffer);
-
             const elem = Elem{
-                .key_ptr = @intFromPtr(key_buffer.ptr),
-                .key_size = key_buffer.len,
-                .value_ptr = @intFromPtr(value_buffer.ptr),
-                .value_size = value_buffer.len,
+                .key = strKey,
+                .value = strValue,
             };
             self.elems.append(elem) catch |err| {
                 failureFn(options.internal_failure, "Attribute could not be included into the list; {}", .{err});
@@ -241,20 +223,15 @@ pub const Entry = struct {
                 try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ options.message_field_name, message });
             }
 
-            while (self.elems.popOrNull()) |elem| {
-                const key_ptr = elem.key_ptr;
-                const key_size = elem.key_size;
-                const value_ptr = elem.value_ptr;
-                const value_size = elem.value_size;
+            for (self.elems.items) |elem| {
+                var key = elem.key;
+                defer key.deinit();
+                errdefer key.deinit();
+                var value = elem.value;
+                defer value.deinit();
+                errdefer value.deinit();
 
-                var key_buffer = @as([*]const u8, @ptrFromInt(key_ptr))[0..key_size];
-                defer self.allocator.free(key_buffer);
-                errdefer self.allocator.free(key_buffer);
-                var value_buffer = @as([*]const u8, @ptrFromInt(value_ptr))[0..value_size];
-                defer self.allocator.free(value_buffer);
-                errdefer self.allocator.free(value_buffer);
-
-                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key_buffer, value_buffer });
+                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key.bytes(), value.bytes() });
             }
 
             try str.append("}\n");
@@ -293,20 +270,15 @@ pub const Entry = struct {
             }
             try str.append(" ");
 
-            while (self.elems.popOrNull()) |elem| {
-                const key_ptr = elem.key_ptr;
-                const key_size = elem.key_size;
-                const value_ptr = elem.value_ptr;
-                const value_size = elem.value_size;
+            for (self.elems.items) |elem| {
+                var key = elem.key;
+                defer key.deinit();
+                errdefer key.deinit();
+                var value = elem.value;
+                defer value.deinit();
+                errdefer value.deinit();
 
-                var key_buffer = @as([*]const u8, @ptrFromInt(key_ptr))[0..key_size];
-                defer self.allocator.free(key_buffer);
-                errdefer self.allocator.free(key_buffer);
-                var value_buffer = @as([*]const u8, @ptrFromInt(value_ptr))[0..value_size];
-                defer self.allocator.free(value_buffer);
-                errdefer self.allocator.free(value_buffer);
-
-                try str.appendf("{s}={s} ", .{ key_buffer, value_buffer });
+                try str.appendf("{s}={s} ", .{ key.bytes(), value.bytes() });
             }
 
             try str.removeEnd(1);
