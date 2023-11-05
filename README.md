@@ -2,12 +2,12 @@
 Current Zig library do offer some extra functionality missing from official Zig STD.
 Work in progress...
 
-## List of exposed 
-
+## List of modules 
 
 ### Bytes
 - [x] Buffer
 - [x] Utf8Buffer/StringBuilder
+---
 
 ### Time and Time Zoneinfo 
 - [x] Extend time wrapper for time adjusted according to timezone
@@ -35,11 +35,13 @@ IMPORTANT: As the zip is embeded is affecting the binary size. Zip(and gziped) i
 
 - [x] *nix systems
 - [ ] windows systems
+---
 
 ### Archives
 - [x] Zip archive extraction
 - [ ] Zip archive creation
 - [ ] More format to be supported ...
+---
 
 ### ZLog a Zig logger
 - [x] ZLog - Zig logger 
