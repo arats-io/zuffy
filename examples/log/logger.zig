@@ -31,11 +31,11 @@ pub fn main() !void {
         .time_measure = .micros,
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
-        .format = Format.simple,
+        .format = Format.json,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
     });
 
-    const max = std.math.maxInt(u20);
+    const max = std.math.maxInt(u4);
     var m: i128 = 0;
     const start = std.time.microTimestamp();
     for (0..max) |_| {
@@ -44,7 +44,7 @@ pub fn main() !void {
             .Message("Initialization...")
             .Source(@src())
             .Attr("attribute-null", null)
-            .Attr("database", "myapp huraaaa !")
+            .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
@@ -54,7 +54,7 @@ pub fn main() !void {
         try @constCast(&logger.Debug())
             .Message("Initialization...")
             .Source(@src())
-            .Attr("database", "myapp huraaaa !")
+            .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
@@ -64,7 +64,7 @@ pub fn main() !void {
         try @constCast(&logger.Info())
             .Message("Initialization...")
             .Source(@src())
-            .Attr("database", "myapp huraaaa !")
+            .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
@@ -74,7 +74,7 @@ pub fn main() !void {
         try @constCast(&logger.Warn())
             .Message("Initialization...")
             .Source(@src())
-            .Attr("database", "myapp huraaaa !")
+            .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
@@ -84,24 +84,15 @@ pub fn main() !void {
         try @constCast(&logger.Error())
             .Message("Initialization...")
             .Source(@src())
-            .Attr("database", "myapp huraaaa !")
+            .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Error(Error.OutOfMemoryClient)
             .Send();
         m += (std.time.microTimestamp() - startTime);
-
-        startTime = std.time.microTimestamp();
-        try @constCast(&logger.Disabled())
-            .Message("Initialization...")
-            .Source(@src())
-            .Attr("database", "myapp huraaaa !")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1", .elem = &Element{ .int = 64, .string = "Nested Element1" } })
-            .Send();
-        m += (std.time.microTimestamp() - startTime);
     }
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});
-    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ max, (std.time.microTimestamp() - start), @divTrunc(m, max) });
+    const total = max * 5;
+    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.microTimestamp() - start), @divTrunc(m, total) });
 }

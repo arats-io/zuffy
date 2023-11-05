@@ -68,8 +68,8 @@ pub const Logger = struct {
     inline fn entry(self: Self, comptime op: Level) Entry {
         return Entry.init(
             self.allocator,
-            if (@intFromEnum(self.options.level) > @intFromEnum(op) or self.options.level == .Disabled) null else self.options,
             op,
+            if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
         );
     }
 
@@ -91,9 +91,6 @@ pub const Logger = struct {
     pub fn Fatal(self: Self) Entry {
         return self.entry(Level.Fatal);
     }
-    pub fn Disabled(self: Self) Entry {
-        return self.entry(Level.Disabled);
-    }
 };
 
 const Elem = struct {
@@ -110,11 +107,7 @@ pub const Entry = struct {
 
     data: Utf8Buffer,
 
-    fn init(
-        allocator: std.mem.Allocator,
-        options: ?Options,
-        opLevel: Level,
-    ) Self {
+    fn init(allocator: std.mem.Allocator, opLevel: Level, options: ?Options) Self {
         var self = Self{
             .allocator = allocator,
             .options = options,
@@ -292,10 +285,9 @@ pub const Entry = struct {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                         },
                         .Pointer => |ptr_info| switch (ptr_info.size) {
-                            .Slice => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key, value }) catch |err| {
+                            .Slice, .Many, .One, .C => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key, value }) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
                             },
-                            else => {},
                         },
                         .ComptimeInt, .Int, .ComptimeFloat, .Float => self.data.appendf(", \u{0022}{s}\u{0022}:{}", .{ key, value }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });

@@ -161,6 +161,7 @@ pub const Time = struct {
 
     date_time: ?DateTime = null,
 
+    rest: u64 = 0,
     milli: u10 = 0,
     micro: u10 = 0,
     nano: u10 = 0,
@@ -185,6 +186,7 @@ pub const Time = struct {
             inline .millis => blk: {
                 const milli = @rem(self.value, std.time.ms_per_s);
                 @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
 
                 break :blk @divTrunc(self.value, std.time.ms_per_s);
             },
@@ -193,6 +195,8 @@ pub const Time = struct {
                 @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
 
                 var milli = @rem(self.value, std.time.us_per_s);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+
                 milli = @divTrunc(milli, std.time.ns_per_us);
                 @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
 
@@ -207,6 +211,8 @@ pub const Time = struct {
                 @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
 
                 var milli = @rem(self.value, std.time.ns_per_s);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+
                 milli = @divTrunc(milli, std.time.ns_per_ms);
                 @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
 
@@ -429,20 +435,7 @@ pub const Time = struct {
         } else if (std.mem.eql(u8, token, "s")) {
             try sb.appendf("{d}", .{date_time.sec});
         } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
-            const items = [_]u10{ self.milli, self.micro, self.nano };
-            for (items) |item| {
-                if (item > 0) {
-                    var buffer: [3]u8 = undefined;
-                    if (item < 10) {
-                        _ = try std.fmt.bufPrint(&buffer, "00{d}", .{item});
-                    } else if (item < 100) {
-                        _ = try std.fmt.bufPrint(&buffer, "0{d}", .{item});
-                    } else {
-                        _ = try std.fmt.bufPrint(&buffer, "{d}", .{item});
-                    }
-                    try sb.append(buffer[0..3]);
-                }
-            }
+            try sb.appendf("{d}", .{self.rest});
         } else if (std.mem.eql(u8, token, "a") or std.mem.eql(u8, token, "A")) {
             if (date_time.hour <= 11) {
                 try sb.append("AM");
