@@ -1,13 +1,40 @@
 # Extended Zig standard library
-Current repository do expose a some extra functionality missing from official Zig STD.
+Current Zig library do offer some extra functionality missing from official Zig STD.
 Work in progress...
 
 ## List of exposed 
+
+
+### Bytes
+- [x] Buffer
+- [x] Utf8Buffer/StringBuilder
 
 ### Time and Time Zoneinfo 
 - [x] Extend time wrapper for time adjusted according to timezone
 - [x] Timezone information
 - [ ] Still work in progress ... for imrpovement puorpose
+
+
+#### Usage
+The Time struct do include machine timezone adjustments as an offset.
+
+Environment variable `TZ` can be used to calculate a time for a different timezone. 
+```
+export TZ='Europe/Tiraspol';
+
+2023 Nov 5th Sun 22:33:05.477603
+```
+
+In case if machine is not having a way to fetch desired zoninfo, the library is considering embeded zip(and gziped) archive with all zone information.
+```
+export TZ='Europe/Tiraspol.zip';
+
+2023 Nov 5th Sun 22:33:05.477603
+```
+IMPORTANT: As the zip is embeded is affecting the binary size. Zip(and gziped) is having 144KB.
+
+- [x] *nix systems
+- [ ] windows systems
 
 ### Archives
 - [x] Zip archive extraction
@@ -17,7 +44,7 @@ Work in progress...
 ### ZLog a Zig logger
 - [x] ZLog - Zig logger 
 
-#### Usaging
+#### Usage
 Include the xstd into the `build.zig.zon` file.
 ```
 .dependencies = .{
@@ -108,8 +135,3 @@ Output:
 {"time": "2023 Nov 5th Sun 20:29:40.312136 - 4th", "level": "warn", "message": "Initialization...", "caller": "examples/log/logger.zig:76", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
 {"time": "2023 Nov 5th Sun 20:29:40.312203 - 4th", "level": "error", "message": "Initialization...", "caller": "examples/log/logger.zig:86", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}, "error": "OutOfMemoryClient"}
 ```
-
-
-### Bytes
-- [x] Buffer
-- [x] Utf8Buffer/StringBuilder
