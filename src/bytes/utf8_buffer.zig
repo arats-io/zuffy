@@ -209,11 +209,21 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn removeLast(self: *Self, src: []const u8) !bool {
-            return self.replace(.last, src, "");
+            if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
+                try self.replace(index, src, "");
+                return true;
+            }
+
+            return false;
         }
 
         pub fn removeFirst(self: *Self, src: []const u8) !bool {
-            return self.replace(.first, src, "");
+            if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
+                try self.replace(index, src, "");
+                return true;
+            }
+
+            return false;
         }
 
         pub fn removeAll(self: *Self, src: []const u8) !bool {

@@ -81,7 +81,7 @@ test "Pool Usage" {
     defer utf8BufferPool.deinit();
 
     {
-        var sb10 = try utf8BufferPool.pop();
+        var sb10 = utf8BufferPool.pop();
         assert(sb10.rawLength() == 0);
 
         try sb10.append("💯Hello💯");
@@ -90,10 +90,10 @@ test "Pool Usage" {
         try utf8BufferPool.push(&sb10);
     }
 
-    var sb11 = try utf8BufferPool.pop();
+    var sb11 = utf8BufferPool.pop();
     assert(sb11.compare("💯Hello💯"));
 
-    var sb21 = try utf8BufferPool.pop();
+    var sb21 = utf8BufferPool.pop();
     try sb21.append("💯Hello2💯");
     assert(sb21.compare("💯Hello2💯"));
 
@@ -103,14 +103,14 @@ test "Pool Usage" {
     assert(utf8BufferPool.counter == 2);
 
     {
-        var sb12 = try utf8BufferPool.pop();
+        var sb12 = utf8BufferPool.pop();
         assert(sb12.compare("💯Hello💯"));
     }
 
     assert(utf8BufferPool.counter == 1);
 
     {
-        var sb22 = try utf8BufferPool.pop();
+        var sb22 = utf8BufferPool.pop();
         assert(sb22.compare("💯Hello2💯"));
     }
 
