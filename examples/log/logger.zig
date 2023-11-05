@@ -31,7 +31,7 @@ pub fn main() !void {
         .time_measure = .nanos,
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
-        .format = Format.json,
+        .format = Format.simple,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
     });
 

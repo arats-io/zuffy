@@ -26,7 +26,7 @@ pub const Options = struct {
     level: Level = Level.Info,
     level_field_name: []const u8 = "level",
 
-    format: Format = Format.simple,
+    format: Format = Format.json,
 
     time_enabled: bool = false,
     time_field_name: []const u8 = "time",
@@ -125,7 +125,12 @@ pub const Entry = struct {
                                 };
                             },
                             .pattern => {
-                                t.formatf(allocator, opts.time_pattern, self.data.writer()) catch |err| {
+                                var buffer: [1024]u8 = undefined;
+                                const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                    break :blk 0;
+                                };
+                                self.data.appendf("{s}=\u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                     failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                 };
                             },
@@ -237,6 +242,10 @@ pub const Entry = struct {
                             self.data.appendf(" {s}=\u{0022}", .{key}) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
                             };
+
+                            // var sb = Utf8Buffer.init(self.allocator);
+                            // defer sb.deinit();
+                            // errdefer sb.deinit();
 
                             std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
