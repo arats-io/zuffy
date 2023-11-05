@@ -307,7 +307,7 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
         .zone = z.zone,
         .tx = z.tx,
         .name = "Local",
-        .extend = extend[0..],
+        .extend = extend,
         .cacheStart = z.cacheStart,
         .cacheEnd = z.cacheEnd,
         .cacheZone = z.cacheZone,

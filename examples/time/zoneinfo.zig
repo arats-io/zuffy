@@ -8,6 +8,7 @@ pub fn main() !void {
     const z = try xstd.time.zoneinfo.Local.Get();
 
     std.debug.print("Location Name: {s}\n", .{z.name});
+    std.debug.print("Location Extend: {s}\n", .{z.extend});
 
     const o = z.Lookup();
     std.debug.print("Zone: {}\n", .{o});
