@@ -36,13 +36,16 @@ pub const Local = struct {
             return loc;
         } else {
             var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-            defer arena.deinit();
+            defer {
+                arena.deinit();
+            }
 
             const allocator = arena.allocator();
 
             const isUnix = builtin.os.tag.isDarwin() or builtin.os.tag.isBSD() or builtin.os.tag == .linux;
             if (isUnix) {
                 const tz_val: ?[]const u8 = std.process.getEnvVarOwned(allocator, "TZ") catch null;
+                std.debug.print("{s}\n", .{"Initiating the zone info local"});
                 instance = try unix(allocator, tz_val);
             } else {
                 return Error.NotImplemented;
@@ -54,7 +57,9 @@ pub const Local = struct {
 
     pub fn timezoneLocation(timezone: []const u8) !Location {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
+        defer {
+            arena.deinit();
+        }
 
         const allocator = arena.allocator();
 
@@ -302,7 +307,7 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
         .zone = z.zone,
         .tx = z.tx,
         .name = "Local",
-        .extend = extend[0..],
+        .extend = extend,
         .cacheStart = z.cacheStart,
         .cacheEnd = z.cacheEnd,
         .cacheZone = z.cacheZone,
@@ -501,7 +506,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // Whether tx times associated with local time types
     // are specified as standard time or wall time.
     t = @as(usize, @intCast(n[NStdWall]));
-    
+
     var isstd = Buffer.initWithFactor(allocator, 10);
     defer isstd.deinit();
     try isstd.writeBytes(in_data, t);
@@ -513,7 +518,9 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     defer isutc.deinit();
     try isutc.writeBytes(in_data, t);
 
-    var extend = try in_data.readAllAlloc(allocator, std.math.maxInt(u16));
+    var extent_buff: [1024]u8 = undefined;
+    var extend_size = try in_data.read(&extent_buff);
+    var extend = extent_buff[0..extend_size];
 
     if (extend.len > 2 and extend[0] == '\n' and extend[extend.len - 1] == '\n') {
         extend = extend[1 .. extend.len - 1];
@@ -657,7 +664,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
         .zone = zones,
         .tx = tx,
         .name = buf[0..name.len],
-        .extend = extend[0..],
+        .extend = extend[0..extend.len],
         .cacheStart = cacheStart,
         .cacheEnd = cacheEnd,
         .cacheZone = cacheZone.?,
@@ -707,7 +714,6 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
                 .isDST = false,
                 .ok = false,
             };
-
         }
     }
     if (s.len == 0 or s[0] == ',') {
@@ -794,7 +800,6 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const lptime = @import("time.zig");
     const seconds = sec + unixToInternal + internalToAbsolute;
     const t = lptime.absDate(seconds);
-
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));

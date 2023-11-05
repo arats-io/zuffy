@@ -121,7 +121,8 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
-            return std.fmt.format(self.writer(), format, args);
+            var writer = self.writer();
+            return std.fmt.format(writer, format, args);
         }
 
         pub fn repeat(self: *Self, n: usize) !void {
@@ -133,84 +134,96 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             last,
         };
 
-        fn replace(self: *Self, comptime direction: Direction, src: []const u8, dst: []const u8) !bool {
+        fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
             if (threadsafe) {
                 self.buffer.mu.lock();
                 defer self.buffer.mu.unlock();
             }
 
-            const indexOfFn = comptime switch (direction) {
-                inline .first => std.mem.indexOf,
-                inline .last => std.mem.lastIndexOfLinear,
-            };
-
-            if (indexOfFn(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
-                if (dst.len > src.len) {
-                    // Make sure buffer has enough space
-                    const size = self.buffer.len + (dst.len - src.len);
-                    if (size > self.buffer.cap) {
-                        try self.buffer.resize(size);
-                    }
-
-                    // Move existing contents over, as expanding
-                    for (0..(dst.len - src.len)) |_| {
-                        var i: usize = self.buffer.len;
-                        while (i >= (index + src.len)) : (i -= 1) {
-                            self.buffer.ptr[i] = self.buffer.ptr[i - 1];
-                        }
-                        @atomicStore(usize, &self.buffer.len, self.buffer.len + 1, .Monotonic);
-                    }
-                } else if (dst.len < src.len) {
-                    // Move existing contents over, as shriking
-                    const diff = src.len - dst.len;
-
-                    var i: usize = index + dst.len;
-                    while (i < self.buffer.len) : (i += 1) {
-                        self.buffer.ptr[i] = self.buffer.ptr[i + diff];
-                    }
-
-                    @atomicStore(usize, &self.buffer.len, self.buffer.len - diff, .Monotonic);
+            if (dst.len > src.len) {
+                // Make sure buffer has enough space
+                const size = self.buffer.len + (dst.len - src.len);
+                if (size > self.buffer.cap) {
+                    try self.buffer.resize(size);
                 }
-                var i: usize = 0;
-                while (i < dst.len) : (i += 1) {
-                    self.buffer.ptr[index + i] = dst.ptr[i];
+
+                // Move existing contents over, as expanding
+                for (0..(dst.len - src.len)) |_| {
+                    var i: usize = self.buffer.len;
+                    while (i >= (index + src.len)) : (i -= 1) {
+                        self.buffer.ptr[i] = self.buffer.ptr[i - 1];
+                    }
+                    @atomicStore(usize, &self.buffer.len, self.buffer.len + 1, .Monotonic);
                 }
+            } else if (dst.len < src.len) {
+                // Move existing contents over, as shriking
+                const diff = src.len - dst.len;
+
+                var i: usize = index + dst.len;
+                while (i < self.buffer.len) : (i += 1) {
+                    self.buffer.ptr[i] = self.buffer.ptr[i + diff];
+                }
+
+                @atomicStore(usize, &self.buffer.len, self.buffer.len - diff, .Monotonic);
+            }
+            var i: usize = 0;
+            while (i < dst.len) : (i += 1) {
+                self.buffer.ptr[index + i] = dst.ptr[i];
+            }
+        }
+
+        pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
+            if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
+                try self.replace(pos, src, dst);
                 return true;
             }
             return false;
         }
 
-        pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
-            return self.replace(.last, src, dst);
-        }
-
         pub fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
-            return self.replace(.first, src, dst);
+            if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
+                try self.replace(pos, src, dst);
+                return true;
+            }
+            return false;
         }
 
         pub fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
+            return self.replaceAllFromPos(0, src, dst);
+        }
+
+        pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []const u8) !bool {
             if (threadsafe) {
                 self.buffer.mu.lock();
                 defer self.buffer.mu.unlock();
             }
 
+            var pos: usize = startPos;
             var found = false;
-            while (true) {
-                if (!try self.replaceFirst(src, dst)) {
-                    return found;
-                } else {
-                    found = true;
-                }
+            while (std.mem.indexOf(u8, self.buffer.ptr[pos..self.buffer.len], src)) |index| {
+                try self.replace(pos + index, src, dst);
+                found = true;
+                pos += index + dst.len;
             }
             return found;
         }
 
         pub fn removeLast(self: *Self, src: []const u8) !bool {
-            return self.replace(.last, src, "");
+            if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
+                try self.replace(index, src, "");
+                return true;
+            }
+
+            return false;
         }
 
         pub fn removeFirst(self: *Self, src: []const u8) !bool {
-            return self.replace(.first, src, "");
+            if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
+                try self.replace(index, src, "");
+                return true;
+            }
+
+            return false;
         }
 
         pub fn removeAll(self: *Self, src: []const u8) !bool {

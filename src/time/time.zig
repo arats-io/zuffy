@@ -129,7 +129,6 @@ pub fn absDate(seconds: i128) DateTime {
         }
     }
 
-
     const i = @as(usize, @intCast(month));
     var begin = daysBefore[i];
     var end = daysBefore[i + 1];
@@ -159,7 +158,6 @@ pub const Time = struct {
 
     measure: Measure,
     value: i128,
-
 
     date_time: ?DateTime = null,
 
@@ -288,12 +286,23 @@ pub const Time = struct {
     // Usage:
     // Time.now().format('MMMM Mo YY N kk:mm:ss A')) // output like: January 1st 22 AD 13:45:33 PM
 
-    pub fn format(self: Self, pattern: []const u8, dst: []const u8) !usize {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
+    pub fn formatf(self: Self, allocator: std.mem.Allocator, pattern: []const u8, writer: anytype) !void {
+        var sb = try self.format(allocator, pattern);
+        defer sb.deinit();
+        errdefer sb.deinit();
+        _ = try writer.write(sb.bytes());
+    }
 
-        var tokens = std.fifo.LinearFifo([]const u8, .Dynamic).init(arena.allocator());
-        defer tokens.deinit();
+    pub fn formatfBuffer(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
+        var sb = try self.format(allocator, pattern);
+        defer sb.deinit();
+        errdefer sb.deinit();
+        return try sb.bytesInto(dst);
+    }
+
+    fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8) !StringBuilder {
+        var sb = try StringBuilder.initWithCapacity(allocator, pattern.len);
+        errdefer sb.deinit();
 
         var i: usize = 0;
         while (i < pattern.len) {
@@ -310,7 +319,7 @@ pub const Time = struct {
                 const l4 = j == 4 and in(4, slice);
                 if (l1 or l2 or l3 or l4) {
                     const token = pattern.ptr[i .. i + j];
-                    try tokens.writeItem(token);
+                    try self.appendToken(token, @constCast(&sb));
                     i += (j - 1);
                     break;
                 }
@@ -318,189 +327,186 @@ pub const Time = struct {
             i += 1;
         }
 
-        var sb = try StringBuilder.initWithCapacity(arena.allocator(), pattern.len);
-        defer sb.deinit();
+        return sb;
+    }
 
+    fn appendToken(self: Self, token: []const u8, sb: *StringBuilder) !void {
         const date_time = self.dateTime();
 
-        while (tokens.readItem()) |token| {
-            if (std.mem.eql(u8, token, "YYYY")) {
-                try sb.appendf("{d}", .{date_time.year});
-            } else if (std.mem.eql(u8, token, "MMMM")) {
-                try sb.appendf("{s}", .{self.getMonth().string()});
-            } else if (std.mem.eql(u8, token, "MMM")) {
-                try sb.appendf("{s}", .{self.getMonth().shortString()});
-            } else if (std.mem.eql(u8, token, "MM")) {
-                if (date_time.month < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.month});
-            } else if (std.mem.eql(u8, token, "M")) {
-                try sb.appendf("{d}", .{date_time.month});
-            } else if (std.mem.eql(u8, token, "Mo")) {
-                const suffix = switch (date_time.month) {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    else => "th",
-                };
-                try sb.appendf("{d}{s}", .{ date_time.month, suffix });
-            } else if (std.mem.eql(u8, token, "DD")) {
-                if (date_time.day < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.day});
-            } else if (std.mem.eql(u8, token, "D")) {
-                try sb.appendf("{d}", .{date_time.day});
-            } else if (std.mem.eql(u8, token, "Do")) {
-                const rem = @rem(date_time.day, 30);
-                const suffix = switch (rem) {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    else => "th",
-                };
-                try sb.appendf("{d}{s}", .{ date_time.day, suffix });
-            } else if (std.mem.eql(u8, token, "DDDD")) {
-                if (date_time.yday < 10) {
-                    try sb.appendf("00{d}", .{date_time.yday});
-                } else if (date_time.yday < 100) {
-                    try sb.appendf("0{d}", .{date_time.yday});
-                } else {
-                    try sb.appendf("{d}", .{date_time.yday});
-                }
-            } else if (std.mem.eql(u8, token, "DDD")) {
-                try sb.appendf("{d}", .{date_time.yday});
-            } else if (std.mem.eql(u8, token, "DDDo")) {
-                const rem = @rem(date_time.yday, daysBefore[date_time.month]);
-                const suffix = switch (rem) {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    else => "th",
-                };
-                try sb.appendf("{d}{s}", .{ date_time.yday, suffix });
-            } else if (std.mem.eql(u8, token, "HH")) {
-                if (date_time.hour < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.hour});
-            } else if (std.mem.eql(u8, token, "H")) {
-                try sb.appendf("{d}", .{date_time.hour});
-            } else if (std.mem.eql(u8, token, "kk")) {
-                if (date_time.hour < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.hour});
-            } else if (std.mem.eql(u8, token, "k")) {
-                try sb.appendf("{d}", .{date_time.hour});
-            } else if (std.mem.eql(u8, token, "hh")) {
-                const h = @rem(date_time.hour, 12);
-                try sb.appendf("{d}", .{h});
-            } else if (std.mem.eql(u8, token, "h")) {
-                const h = @rem(date_time.hour, 12);
-                if (h < 10) {
-                    try sb.append("0");
-                    try sb.appendf("0{d}", .{h});
-                } else {
-                    try sb.appendf("{d}", .{h});
-                }
-            } else if (std.mem.eql(u8, token, "mm")) {
-                if (date_time.min < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.min});
-            } else if (std.mem.eql(u8, token, "m")) {
-                try sb.appendf("{d}", .{date_time.min});
-            } else if (std.mem.eql(u8, token, "ss")) {
-                if (date_time.sec < 10) {
-                    try sb.append("0");
-                }
-                try sb.appendf("{d}", .{date_time.sec});
-            } else if (std.mem.eql(u8, token, "s")) {
-                try sb.appendf("{d}", .{date_time.sec});
-            } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
-                const items = [_]u10{ self.milli, self.micro, self.nano };
-                for (items) |item| {
-                    if (item > 0) {
-                        var buffer: [3]u8 = undefined;
-                        if (item < 10) {
-                            _ = try std.fmt.bufPrint(&buffer, "00{d}", .{item});
-                        } else if (item < 100) {
-                            _ = try std.fmt.bufPrint(&buffer, "0{d}", .{item});
-                        } else {
-                            _ = try std.fmt.bufPrint(&buffer, "{d}", .{item});
-                        }
-                        try sb.append(buffer[0..3]);
-                    }
-                }
-            } else if (std.mem.eql(u8, token, "a") or std.mem.eql(u8, token, "A")) {
-                if (date_time.hour <= 11) {
-                    try sb.append("AM");
-                } else {
-                    try sb.append("PM");
-                }
-            } else if (std.mem.eql(u8, token, "c") or std.mem.eql(u8, token, "d")) {
-                try sb.appendf("{d}", .{date_time.wday});
-            } else if (std.mem.eql(u8, token, "dd")) {
-                try sb.appendf("{s}", .{self.getWeekday().shorterString()});
-            } else if (std.mem.eql(u8, token, "ddd")) {
-                try sb.appendf("{s}", .{self.getWeekday().shortString()});
-            } else if (std.mem.eql(u8, token, "dddd")) {
-                try sb.appendf("{s}", .{self.getWeekday().string()});
-            } else if (std.mem.eql(u8, token, "ZZZ")) {
-                try sb.append("ZZZ(N/A)");
-            } else if (std.mem.eql(u8, token, "ZZ")) {
-                try sb.append("ZZ(N/A)");
-            } else if (std.mem.eql(u8, token, "Z")) {
-                try sb.append("Z(N/A)");
-            } else if (std.mem.eql(u8, token, "NN")) {
-                try sb.append("BC");
-            } else if (std.mem.eql(u8, token, "N")) {
-                try sb.append("Before Christ");
-            } else if (std.mem.eql(u8, token, "w")) {
-                const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-                const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-                try sb.appendf("{d}", .{wy});
-            } else if (std.mem.eql(u8, token, "wo")) {
-                const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-                const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-                const suffix = switch (wy) {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    else => "th",
-                };
-                try sb.appendf("{d}{s}", .{ wy, suffix });
-            } else if (std.mem.eql(u8, token, "ww")) {
-                const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-                const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-                if (wy < 10) {
-                    try sb.appendf("0{d}", .{wy});
-                } else {
-                    try sb.appendf("{d}", .{wy});
-                }
-            } else if (std.mem.eql(u8, token, "QQ")) {
-                const q = @divTrunc(date_time.month - 1, 3) + 1;
-                try sb.appendf("0{d}", .{q});
-            } else if (std.mem.eql(u8, token, "Q")) {
-                const q = @divTrunc(date_time.month - 1, 3) + 1;
-                try sb.appendf("0{d}", .{q});
-            } else if (std.mem.eql(u8, token, "Qo")) {
-                const q = @divTrunc(date_time.month - 1, 3) + 1;
-                const suffix = switch (q) {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    else => "th",
-                };
-                try sb.appendf("{d}{s}", .{ q, suffix });
-            } else {
-                try sb.append(token);
+        if (std.mem.eql(u8, token, "YYYY")) {
+            try sb.appendf("{d}", .{date_time.year});
+        } else if (std.mem.eql(u8, token, "MMMM")) {
+            try sb.appendf("{s}", .{self.getMonth().string()});
+        } else if (std.mem.eql(u8, token, "MMM")) {
+            try sb.appendf("{s}", .{self.getMonth().shortString()});
+        } else if (std.mem.eql(u8, token, "MM")) {
+            if (date_time.month < 10) {
+                try sb.append("0");
             }
+            try sb.appendf("{d}", .{date_time.month});
+        } else if (std.mem.eql(u8, token, "M")) {
+            try sb.appendf("{d}", .{date_time.month});
+        } else if (std.mem.eql(u8, token, "Mo")) {
+            const suffix = switch (date_time.month) {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                else => "th",
+            };
+            try sb.appendf("{d}{s}", .{ date_time.month, suffix });
+        } else if (std.mem.eql(u8, token, "DD")) {
+            if (date_time.day < 10) {
+                try sb.append("0");
+            }
+            try sb.appendf("{d}", .{date_time.day});
+        } else if (std.mem.eql(u8, token, "D")) {
+            try sb.appendf("{d}", .{date_time.day});
+        } else if (std.mem.eql(u8, token, "Do")) {
+            const rem = @rem(date_time.day, 30);
+            const suffix = switch (rem) {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                else => "th",
+            };
+            try sb.appendf("{d}{s}", .{ date_time.day, suffix });
+        } else if (std.mem.eql(u8, token, "DDDD")) {
+            if (date_time.yday < 10) {
+                try sb.appendf("00{d}", .{date_time.yday});
+            } else if (date_time.yday < 100) {
+                try sb.appendf("0{d}", .{date_time.yday});
+            } else {
+                try sb.appendf("{d}", .{date_time.yday});
+            }
+        } else if (std.mem.eql(u8, token, "DDD")) {
+            try sb.appendf("{d}", .{date_time.yday});
+        } else if (std.mem.eql(u8, token, "DDDo")) {
+            const rem = @rem(date_time.yday, daysBefore[date_time.month]);
+            const suffix = switch (rem) {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                else => "th",
+            };
+            try sb.appendf("{d}{s}", .{ date_time.yday, suffix });
+        } else if (std.mem.eql(u8, token, "HH")) {
+            if (date_time.hour < 10) {
+                try sb.append("0");
+            }
+            try sb.appendf("{d}", .{date_time.hour});
+        } else if (std.mem.eql(u8, token, "H")) {
+            try sb.appendf("{d}", .{date_time.hour});
+        } else if (std.mem.eql(u8, token, "kk")) {
+            if (date_time.hour < 10) {
+                try sb.append("0");
+            }
+            try sb.appendf("{d}", .{date_time.hour});
+        } else if (std.mem.eql(u8, token, "k")) {
+            try sb.appendf("{d}", .{date_time.hour});
+        } else if (std.mem.eql(u8, token, "hh")) {
+            const h = @rem(date_time.hour, 12);
+            try sb.appendf("{d}", .{h});
+        } else if (std.mem.eql(u8, token, "h")) {
+            const h = @rem(date_time.hour, 12);
+            if (h < 10) {
+                try sb.append("0");
+                try sb.appendf("0{d}", .{h});
+            } else {
+                try sb.appendf("{d}", .{h});
+            }
+        } else if (std.mem.eql(u8, token, "mm")) {
+            if (date_time.min < 10) {
+                try sb.append("0");
+            }
+            try sb.appendf("{d}", .{date_time.min});
+        } else if (std.mem.eql(u8, token, "m")) {
+            try sb.appendf("{d}", .{date_time.min});
+        } else if (std.mem.eql(u8, token, "ss")) {
+            if (date_time.sec < 10) {
+                try sb.append("0");
+            }
+            try sb.appendf("{d}", .{date_time.sec});
+        } else if (std.mem.eql(u8, token, "s")) {
+            try sb.appendf("{d}", .{date_time.sec});
+        } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
+            const items = [_]u10{ self.milli, self.micro, self.nano };
+            for (items) |item| {
+                if (item > 0) {
+                    var buffer: [3]u8 = undefined;
+                    if (item < 10) {
+                        _ = try std.fmt.bufPrint(&buffer, "00{d}", .{item});
+                    } else if (item < 100) {
+                        _ = try std.fmt.bufPrint(&buffer, "0{d}", .{item});
+                    } else {
+                        _ = try std.fmt.bufPrint(&buffer, "{d}", .{item});
+                    }
+                    try sb.append(buffer[0..3]);
+                }
+            }
+        } else if (std.mem.eql(u8, token, "a") or std.mem.eql(u8, token, "A")) {
+            if (date_time.hour <= 11) {
+                try sb.append("AM");
+            } else {
+                try sb.append("PM");
+            }
+        } else if (std.mem.eql(u8, token, "c") or std.mem.eql(u8, token, "d")) {
+            try sb.appendf("{d}", .{date_time.wday});
+        } else if (std.mem.eql(u8, token, "dd")) {
+            try sb.appendf("{s}", .{self.getWeekday().shorterString()});
+        } else if (std.mem.eql(u8, token, "ddd")) {
+            try sb.appendf("{s}", .{self.getWeekday().shortString()});
+        } else if (std.mem.eql(u8, token, "dddd")) {
+            try sb.appendf("{s}", .{self.getWeekday().string()});
+        } else if (std.mem.eql(u8, token, "ZZZ")) {
+            try sb.append("ZZZ(N/A)");
+        } else if (std.mem.eql(u8, token, "ZZ")) {
+            try sb.append("ZZ(N/A)");
+        } else if (std.mem.eql(u8, token, "Z")) {
+            try sb.append("Z(N/A)");
+        } else if (std.mem.eql(u8, token, "NN")) {
+            try sb.append("BC");
+        } else if (std.mem.eql(u8, token, "N")) {
+            try sb.append("Before Christ");
+        } else if (std.mem.eql(u8, token, "w")) {
+            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+            try sb.appendf("{d}", .{wy});
+        } else if (std.mem.eql(u8, token, "wo")) {
+            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+            const suffix = switch (wy) {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                else => "th",
+            };
+            try sb.appendf("{d}{s}", .{ wy, suffix });
+        } else if (std.mem.eql(u8, token, "ww")) {
+            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+            if (wy < 10) {
+                try sb.appendf("0{d}", .{wy});
+            } else {
+                try sb.appendf("{d}", .{wy});
+            }
+        } else if (std.mem.eql(u8, token, "QQ")) {
+            const q = @divTrunc(date_time.month - 1, 3) + 1;
+            try sb.appendf("0{d}", .{q});
+        } else if (std.mem.eql(u8, token, "Q")) {
+            const q = @divTrunc(date_time.month - 1, 3) + 1;
+            try sb.appendf("0{d}", .{q});
+        } else if (std.mem.eql(u8, token, "Qo")) {
+            const q = @divTrunc(date_time.month - 1, 3) + 1;
+            const suffix = switch (q) {
+                1 => "st",
+                2 => "nd",
+                3 => "rd",
+                else => "th",
+            };
+            try sb.appendf("{d}{s}", .{ q, suffix });
+        } else {
+            try sb.append(token);
         }
-
-        return try sb.bytesInto(dst);
     }
 
     pub fn getWeekday(self: Self) Weekday {

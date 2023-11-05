@@ -4,7 +4,7 @@ const xstd = @import("xstd");
 const StringBuilder = xstd.bytes.StringBuilder;
 const Buffer = xstd.bytes.Buffer;
 
-const LoggerBuilder = xstd.zlog.LoggerBuilder;
+const Logger = xstd.zlog.Logger;
 const Level = xstd.zlog.Level;
 const Format = xstd.zlog.Format;
 
@@ -24,55 +24,84 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = LoggerBuilder.init(arena.allocator())
-        .GlobalLevel(Level.ParseString("TRACE"))
-        .OutputFormat(Format.json)
-        .Timestamp()
-        .TimePattern("YYYY MMM Do ddd HH:mm:ss.SSS - Qo")
-        .build();
+    const logger = Logger.init(arena.allocator(), .{
+        .caller_enabled = true,
+        .caller_field_name = "caller",
+        .time_enabled = true,
+        .time_measure = .micros,
+        .time_formating = .pattern,
+        .level = Level.ParseString("trace"),
+        .format = Format.simple,
+        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
+    });
 
-    try generateLogs(logger);
-}
+    const max = std.math.maxInt(u20);
+    var m: i128 = 0;
+    const start = std.time.microTimestamp();
+    for (0..max) |_| {
+        var startTime = std.time.microTimestamp();
+        try @constCast(&logger.Trace())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("attribute-null", null)
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
 
-pub fn generateLogs(logger: anytype) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
+        startTime = std.time.microTimestamp();
+        try @constCast(&logger.Debug())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
 
-    var buffer = Buffer.initWithFactor(arena.allocator(), 10);
-    defer buffer.deinit();
+        startTime = std.time.microTimestamp();
+        try @constCast(&logger.Info())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
 
-    var buffWriter = buffer.writer();
+        startTime = std.time.microTimestamp();
+        try @constCast(&logger.Warn())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
 
-    try @constCast(&logger.Trace())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Debug())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Info())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Warn())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Error())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Error(Error.OutOfMemoryClient)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
-    try @constCast(&logger.Disabled())
-        .Attr("database", []const u8, "myapp huraaaa !")
-        .Attr("counter", i32, 34)
-        .Attr("element1", Element, Element{ .int = 32, .string = "Element1" })
-        .MsgWriter("Initialization...", buffWriter);
+        startTime = std.time.microTimestamp();
+        try @constCast(&logger.Error())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Error(Error.OutOfMemoryClient)
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
 
-    std.debug.print("{s}", .{buffer.bytes()});
+        startTime = std.time.microTimestamp();
+        try @constCast(&logger.Disabled())
+            .Message("Initialization...")
+            .Source(@src())
+            .Attr("database", "myapp huraaaa !")
+            .Attr("counter", 34)
+            .Attr("element1", Element{ .int = 32, .string = "Element1", .elem = &Element{ .int = 64, .string = "Nested Element1" } })
+            .Send();
+        m += (std.time.microTimestamp() - startTime);
+    }
+
+    std.debug.print("\n----------------------------------------------------------------------------", .{});
+    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ max, (std.time.microTimestamp() - start), @divTrunc(m, max) });
 }

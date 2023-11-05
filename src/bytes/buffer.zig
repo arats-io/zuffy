@@ -57,7 +57,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
 
         pub fn initWithFactor(allocator: std.mem.Allocator, factor: u4) Self {
             return Self{
-                .ptr = @as([*]u8, @ptrFromInt(0xFF)),
+                .ptr = &[_]u8{},
                 .allocator = allocator,
                 .cap = 0,
                 .len = 0,
@@ -76,18 +76,18 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             }
 
             self.allocator.free(self.ptr[0..self.cap]);
+            self.ptr = &[_]u8{};
+            self.len = 0;
+            self.cap = 0;
         }
 
         pub fn resize(self: *Self, cap: usize) !void {
-            const l = self.len;
-
-            var slice = try self.allocator.alloc(u8, cap);
-
-            _copy(u8, slice, self.ptr[0..l]);
-            self.allocator.free(self.ptr[0..self.cap]);
-
-            self.ptr = slice.ptr;
-            self.cap = cap;
+            const new_source = try self.allocator.realloc(self.ptr[0..self.cap], cap);
+            self.ptr = new_source.ptr;
+            self.cap = new_source.len;
+            if (self.len > cap) {
+                self.len = new_source.len;
+            }
         }
 
         pub fn shrink(self: *Self) !void {
@@ -253,13 +253,9 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            const s = self.bytes();
-            if (allocator.alloc(u8, s.len)) |newStr| {
-                std.mem.copy(u8, newStr, s);
-                return newStr;
-            } else |_| {
-                return Error.OutOfMemory;
-            }
+            var new_str = try allocator.alloc(u8, self.len);
+            _copy(u8, new_str, self.ptr[0..self.len]);
+            return new_str;
         }
 
         pub fn repeat(self: *Self, n: usize) !void {

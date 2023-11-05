@@ -1,159 +1,74 @@
 const std = @import("std");
 
-const StringBuilder = @import("../bytes/mod.zig").StringBuilder;
+const Buffer = @import("../bytes/mod.zig").Buffer;
+const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 const Time = @import("../time/mod.zig").Time;
+const Local = @import("../time/mod.zig").zoneinfo.Local;
 const Measure = @import("../time/mod.zig").Measure;
 
+const TimeFormating = @import("common.zig").TimeFormating;
 const Format = @import("common.zig").Format;
 const Level = @import("common.zig").Level;
 const InternalFailure = @import("common.zig").InternalFailure;
 
-pub const LoggerBuilder = struct {
-    const Self = @This();
-
-    allocator: std.mem.Allocator,
-
-    log_level: Level,
-    log_format: Format,
-    time_measure: Measure,
-    time_enabled: bool,
-    time_pattern: []const u8,
-    internal_failure: InternalFailure,
-
-    pub fn init(allocator: std.mem.Allocator) Self {
-        return Self{
-            .allocator = allocator,
-            .log_level = Level.Info,
-            .log_format = Format.simple,
-            .time_measure = Measure.seconds,
-            .time_enabled = false,
-            .time_pattern = "DD/MM/YYYY'T'HH:mm:ss",
-            .internal_failure = InternalFailure.nothing,
-        };
+const default_caller_marshal_fn = struct {
+    fn handler(src: std.builtin.SourceLocation) []const u8 {
+        var buf: [10 * 1024]u8 = undefined;
+        const data = std.fmt.bufPrint(&buf, "{s}:{}", .{ src.file, src.line }) catch "";
+        return data[0..];
     }
+}.handler;
 
-    pub fn Timestamp(self: Self) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = true,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+const _ = Local.Get();
 
-    pub fn GlobalLevel(self: Self, level: Level) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+pub const Options = struct {
+    level: Level = Level.Info,
+    level_field_name: []const u8 = "level",
 
-    pub fn OutputFormat(self: Self, format: Format) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+    format: Format = Format.json,
 
-    pub fn TimePattern(self: Self, pattern: []const u8) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+    time_enabled: bool = false,
+    time_field_name: []const u8 = "time",
+    time_measure: Measure = Measure.seconds,
+    time_formating: TimeFormating = TimeFormating.timestamp,
+    time_pattern: []const u8 = "DD/MM/YYYY'T'HH:mm:ss",
 
-    pub fn TimeMeasure(self: Self, timemeasure: Measure) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = timemeasure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+    message_field_name: []const u8 = "message",
+    error_field_name: []const u8 = "error",
 
-    pub fn InternalFailureFn(self: Self, failure: InternalFailure) Self {
-        return Self{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = failure,
-        };
-    }
+    internal_failure: InternalFailure = InternalFailure.nothing,
 
-    pub fn build(self: Self) Logger {
-        return Logger{
-            .allocator = self.allocator,
-            .log_level = self.log_level,
-            .log_format = self.log_format,
-            .time_measure = self.time_measure,
-            .time_enabled = self.time_enabled,
-            .time_pattern = self.time_pattern,
-            .internal_failure = self.internal_failure,
-        };
-    }
+    caller_enabled: bool = false,
+    caller_field_name: []const u8 = "caller",
+    caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
+
+    struct_union: StructUnionOptions = StructUnionOptions{},
+};
+
+pub const StructUnionOptions = struct {
+    escape_enabled: bool = false,
+    src_escape_characters: []const u8 = "\"",
+    dst_escape_characters: []const u8 = "\\\"",
 };
 
 pub const Logger = struct {
     const Self = @This();
 
     allocator: std.mem.Allocator,
+    options: Options,
 
-    log_level: Level,
-    log_format: Format,
-    time_measure: Measure,
-    time_enabled: bool,
-    time_pattern: []const u8,
-    internal_failure: InternalFailure,
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-        log_level: Level,
-        log_format: Format,
-        time_measure: Measure,
-        time_enabled: bool,
-        time_pattern: []const u8,
-        internal_failure: InternalFailure,
-    ) Self {
+    pub fn init(allocator: std.mem.Allocator, options: Options) Self {
         return Self{
             .allocator = allocator,
-            .log_level = log_level,
-            .log_format = log_format,
-            .time_measure = time_measure,
-            .time_enabled = time_enabled,
-            .time_pattern = time_pattern,
-            .internal_failure = internal_failure,
+            .options = options,
         };
     }
 
     inline fn entry(self: Self, comptime op: Level) Entry {
         return Entry.init(
             self.allocator,
-            if (@intFromEnum(self.log_level) > @intFromEnum(op)) null else self,
+            if (@intFromEnum(self.options.level) > @intFromEnum(op) or self.options.level == .Disabled) null else self.options,
             op,
         );
     }
@@ -181,142 +96,276 @@ pub const Logger = struct {
     }
 };
 
+const Elem = struct {
+    key: Utf8Buffer,
+    value: Utf8Buffer,
+};
+
 pub const Entry = struct {
     const Self = @This();
 
-    logger: ?Logger = null,
+    allocator: std.mem.Allocator,
+    options: ?Options = null,
     opLevel: Level = .Disabled,
 
-    elems: std.StringHashMap([]const u8),
-
-    fn initEmpty() Self {
-        return Self{};
-    }
+    data: Utf8Buffer,
 
     fn init(
         allocator: std.mem.Allocator,
-        logger: ?Logger,
+        options: ?Options,
         opLevel: Level,
     ) Self {
-        return Self{
-            .logger = logger,
+        var self = Self{
+            .allocator = allocator,
+            .options = options,
             .opLevel = opLevel,
-            .elems = std.StringHashMap([]const u8).init(allocator),
+            .data = Utf8Buffer.init(allocator),
         };
+        if (options) |opts| {
+            switch (opts.format) {
+                inline .simple => {
+                    if (opts.time_enabled) {
+                        const t = Time.new(opts.time_measure);
+                        switch (opts.time_formating) {
+                            .timestamp => {
+                                self.data.appendf("{}", .{t.value}) catch |err| {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                };
+                            },
+                            .pattern => {
+                                var buffer: [1024]u8 = undefined;
+                                const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                    break :blk 0;
+                                };
+                                self.data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                };
+                            },
+                        }
+                    }
+                    self.data.appendf(" {s}", .{opLevel.String().ptr[0..4]}) catch |err| {
+                        failureFn(opts.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
+                    };
+                },
+                inline .json => {
+                    self.data.append("{") catch |err| {
+                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                    };
+                    if (opts.time_enabled) {
+                        const t = Time.new(opts.time_measure);
+
+                        switch (opts.time_formating) {
+                            .timestamp => {
+                                self.data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                };
+                            },
+                            .pattern => {
+                                var buffer: [1024]u8 = undefined;
+                                const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                    break :blk 0;
+                                };
+                                self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                };
+                            },
+                        }
+                    }
+                    self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
+                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                    };
+                },
+            }
+        }
+        return self;
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.logger) |logger| {
-            var iter = self.elems.iterator();
-            while (iter.next()) |entry| {
-                logger.allocator.free(entry.value_ptr.*);
-            }
-
-            self.elems.deinit();
-        }
+        self.data.deinit();
     }
 
-    pub fn Attr(self: *Self, key: []const u8, comptime V: type, value: V) *Self {
-        if (self.logger) |logger| {
-            var str = StringBuilder.init(logger.allocator);
+    pub fn Attr(self: *Self, key: []const u8, value: anytype) *Self {
+        if (self.options) |options| {
+            const T = @TypeOf(value);
+            const ty = @typeInfo(T);
 
-            switch (@TypeOf(value)) {
-                []const u8 => str.appendf("{s}", .{value}) catch |err| {
-                    failureFn(logger.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
+            switch (ty) {
+                .ErrorUnion => {
+                    if (value) |payload| {
+                        return self.Attr(key, payload);
+                    } else |err| {
+                        return self.Attr(key, err);
+                    }
                 },
-                else => str.appendf("{}", .{value}) catch |err| {
-                    failureFn(logger.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                .Type => {
+                    return self.Attr(key, @typeName(value));
                 },
+                .EnumLiteral => {
+                    const buffer = [_]u8{'.'} ++ @tagName(value);
+                    return self.Attr(key, buffer);
+                },
+                .Void => {
+                    return self.Attr(key, "void");
+                },
+                .Optional => {
+                    if (value) |payload| {
+                        return self.Attr(key, payload);
+                    } else {
+                        return self.Attr(key, null);
+                    }
+                },
+                .Fn => {
+                    return self;
+                },
+                else => {},
             }
 
-            if (str.find(" ")) |_| {
-                switch (logger.log_format) {
-                    .simple => {
-                        str.insertAt("\u{0022}", 0) catch |err| {
-                            failureFn(logger.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
-                        };
-                        str.append("\u{0022}") catch |err| {
-                            failureFn(logger.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
-                        };
-                    },
-                    .json => {},
-                }
+            switch (options.format) {
+                inline .simple => {
+                    switch (ty) {
+                        .Enum => self.data.appendf(" {s}=\u{0022}{s}\u{0022}", .{ key, @typeName(value) }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, @typeName(value), err });
+                        },
+                        .Bool => self.data.appendf(" {s}=\u{0022}{s}\u{0022}", .{ key, if (value) "true" else "false" }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .Pointer => |ptr_info| switch (ptr_info.size) {
+                            .Slice => self.data.appendf(" {s}=\u{0022}{s}\u{0022}", .{ key, value }) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
+                            },
+                            else => {},
+                        },
+                        .ComptimeInt, .Int, .ComptimeFloat, .Float => self.data.appendf(" {s}={}", .{ key, value }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .ErrorSet => self.data.appendf(" {s}=\u{0022}{s}\u{0022}", .{ options.error_field_name, @errorName(value) }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ options.error_field_name, value, err });
+                        },
+                        .Null => self.data.appendf(" {s}=null", .{key}) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:null; {}", .{ key, err });
+                        },
+                        .Struct, .Union => {
+                            if (options.struct_union.escape_enabled) {
+                                self.data.appendf(" {s}=\u{0022}", .{key}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
+                                };
+                            } else {
+                                self.data.appendf(" {s}=", .{key}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
+                                };
+                            }
+
+                            const cPos = self.data.length();
+                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                            };
+
+                            if (options.struct_union.escape_enabled) {
+                                _ = self.data.replaceAllFromPos(
+                                    cPos,
+                                    options.struct_union.src_escape_characters,
+                                    options.struct_union.dst_escape_characters,
+                                ) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                                };
+                            }
+
+                            if (options.struct_union.escape_enabled) {
+                                self.data.appendf("\u{0022}", .{}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
+                                };
+                            }
+                        },
+                        else => self.data.appendf(" {s}=\u{0022}{}\u{0022}", .{ key, value }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                    }
+                },
+                inline .json => {
+                    switch (ty) {
+                        .Enum => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key, @typeName(value) }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, @typeName(value), err });
+                        },
+                        .Bool => self.data.appendf(", \u{0022}{s}\u{0022}: {s}", .{ key, if (value) "true" else "false" }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .Pointer => |ptr_info| switch (ptr_info.size) {
+                            .Slice => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key, value }) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
+                            },
+                            else => {},
+                        },
+                        .ComptimeInt, .Int, .ComptimeFloat, .Float => self.data.appendf(", \u{0022}{s}\u{0022}:{}", .{ key, value }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .ErrorSet => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ key, @errorName(value) }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                        .Null => self.data.appendf(", \u{0022}{s}\u{0022}:null", .{key}) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:null; {}", .{ key, err });
+                        },
+                        .Struct, .Union => {
+                            self.data.appendf(", \u{0022}{s}\u{0022}:", .{key}) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}; {}", .{ key, err });
+                            };
+
+                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                            };
+                        },
+                        else => self.data.appendf(", \u{0022}{s}\u{0022}: \u{0022}{}\u{0022}", .{ key, value }) catch |err| {
+                            failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                        },
+                    }
+                },
             }
-
-            str.shrink() catch |err| {
-                failureFn(logger.internal_failure, "Failed to shrink the result; {}", .{err});
-            };
-
-            self.elems.put(key, str.bytes()) catch |err| {
-                failureFn(logger.internal_failure, "Failed to store the attribute; {}", .{err});
-            };
         }
 
         return self;
     }
 
     pub fn Error(self: *Self, value: anyerror) *Self {
-        return self.Attr("error", []const u8, @errorName(value));
+        if (self.options) |options| {
+            _ = self.Attr(options.error_field_name, @errorName(value));
+        }
+        return self;
     }
 
-    pub fn MsgWriter(self: *Self, message: []const u8, writer: anytype) !void {
-        if (self.logger) |logger| {
-            switch (logger.log_format) {
-                inline .simple => try self.simpleMsg(message, writer),
-                inline .json => try self.jsonMsg(message, writer),
+    pub fn Source(self: *Self, src: std.builtin.SourceLocation) *Self {
+        if (self.options) |options| {
+            if (options.caller_enabled) {
+                const data = options.caller_marshal_fn(src);
+                return self.Attr(options.caller_field_name[0..], data);
             }
         }
+
+        return self;
     }
 
-    pub fn Msg(self: *Self, message: []const u8) !void {
-        return self.MsgStdOut(message);
+    pub fn Message(self: *Self, message: []const u8) *Self {
+        if (self.options) |options| {
+            _ = self.Attr(options.message_field_name, message);
+        }
+        return self;
     }
 
-    pub fn MsgStdOut(self: *Self, message: []const u8) !void {
-        return self.MsgWriter(message, std.io.getStdOut());
-    }
+    pub fn SendWriter(self: *Self, writer: anytype) !void {
+        defer self.deinit();
+        errdefer self.deinit();
 
-    pub fn MsgStdErr(self: *Self, message: []const u8) !void {
-        return self.MsgWriter(message, std.io.getStdErr());
-    }
-
-    pub fn MsgStdIn(self: *Self, message: []const u8) !void {
-        return self.MsgWriter(message, std.io.getStdIn());
-    }
-
-    fn jsonMsg(self: *Self, message: []const u8, writer: anytype) !void {
-        if (self.logger) |logger| {
-            defer self.deinit();
-
-            var str = StringBuilder.init(logger.allocator);
-            defer str.deinit();
-
-            try str.append("{");
-
-            const t = Time.new(logger.time_measure);
-
-            if (logger.time_enabled) {
-                var buffer: [512]u8 = undefined;
-                const len = try t.format(logger.time_pattern, &buffer);
-                try str.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ "timestamp", buffer[0..len] });
-            }
-            try str.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "level", self.opLevel.String() });
-            if (message.len > 0) {
-                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ "message", message });
+        if (self.options) |options| {
+            switch (options.format) {
+                inline .simple => {
+                    try self.data.append("\n");
+                },
+                inline .json => {
+                    try self.data.append("}\n");
+                },
             }
 
-            var iter = self.elems.iterator();
-            while (iter.next()) |entry| {
-                try str.appendf(", \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ entry.key_ptr.*, entry.value_ptr.* });
-            }
-
-            try str.append("}\n");
-
-            try str.shrink();
-
-            const result = str.bytes();
-
-            _ = try writer.write(result);
+            _ = try writer.write(self.data.bytes());
 
             if (self.opLevel == .Fatal) {
                 @panic("logger on fatal");
@@ -324,64 +373,20 @@ pub const Entry = struct {
         }
     }
 
-    fn simpleMsg(self: *Self, message: []const u8, writer: anytype) !void {
-        if (self.logger) |logger| {
-            defer self.deinit();
-
-            var str = StringBuilder.init(logger.allocator);
-            defer str.deinit();
-
-            const t = Time.new(logger.time_measure);
-
-            if (logger.time_enabled) {
-                var buffer: [512]u8 = undefined;
-                const len = try t.format(logger.time_pattern, &buffer);
-                try str.appendf("{s} ", .{buffer[0..len]});
-            }
-
-            try str.appendf("{s}", .{self.opLevel.String().ptr[0..4]});
-            if (message.len > 0) {
-                try str.appendf(" {s}", .{message});
-            }
-            try str.append(" ");
-
-            var iter = self.elems.iterator();
-            while (iter.next()) |entry| {
-                try str.appendf("{s}={s} ", .{ entry.key_ptr.*, entry.value_ptr.* });
-            }
-            try str.removeEnd(1);
-            try str.append("\n");
-
-            try str.shrink();
-
-            const result = str.bytes();
-
-            _ = try writer.write(result);
-
-            if (self.opLevel == .Fatal) {
-                @panic("logger on fatal");
-            }
-        }
+    pub fn Send(self: *Self) !void {
+        try self.SendStdOut();
     }
 
-    pub fn SendWriter(self: *Self, writer: anytype) void {
-        self.MsgWriter("", writer);
+    pub fn SendStdOut(self: *Self) !void {
+        try self.SendWriter(std.io.getStdOut().writer());
     }
 
-    pub fn Send(self: *Self) void {
-        self.Msg("");
+    pub fn SendStdErr(self: *Self) !void {
+        try self.SendWriter(std.io.getStdErr().writer());
     }
 
-    pub fn SendStdOut(self: *Self) void {
-        self.MsgStdOut("");
-    }
-
-    pub fn SendStdErr(self: *Self) void {
-        self.MsgStdErr("");
-    }
-
-    pub fn SendStdIn(self: *Self) void {
-        self.MsgStdIn("");
+    pub fn SendStdIn(self: *Self) !void {
+        try self.SendWriter(std.io.getStdIn().writer());
     }
 
     fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
