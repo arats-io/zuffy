@@ -57,7 +57,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
 
         pub fn initWithFactor(allocator: std.mem.Allocator, factor: u4) Self {
             return Self{
-                .ptr = @as([*]u8, @ptrFromInt(0xFF)),
+                .ptr = &[_]u8{},
                 .allocator = allocator,
                 .cap = 0,
                 .len = 0,
@@ -82,23 +82,11 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn resize(self: *Self, cap: usize) !void {
-            const l = self.len;
-
-            if (l == 0) {
-                var new_source = try self.allocator.alloc(u8, cap);
-
-                _copy(u8, new_source, self.ptr[0..l]);
-                self.allocator.free(self.ptr[0..self.cap]);
-
-                self.ptr = new_source.ptr;
-                self.cap = new_source.len;
-            } else {
-                var new_source = try self.allocator.realloc(self.ptr[0..self.cap], cap);
-                self.ptr = new_source.ptr;
-                self.cap = new_source.len;
-                if (l > cap) {
-                    self.len = new_source.len;
-                }
+            const new_source = try self.allocator.realloc(self.ptr[0..self.cap], cap);
+            self.ptr = new_source.ptr;
+            self.cap = new_source.len;
+            if (self.len > cap) {
+                self.len = new_source.len;
             }
         }
 
