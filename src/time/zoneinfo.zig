@@ -518,7 +518,9 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     defer isutc.deinit();
     try isutc.writeBytes(in_data, t);
 
-    var extend = try in_data.readAllAlloc(allocator, std.math.maxInt(u16));
+    var extent_buff: [1024]u8 = undefined;
+    var extend_size = try in_data.read(&extent_buff);
+    var extend = extent_buff[0..extend_size];
 
     if (extend.len > 2 and extend[0] == '\n' and extend[extend.len - 1] == '\n') {
         extend = extend[1 .. extend.len - 1];
@@ -662,7 +664,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
         .zone = zones,
         .tx = tx,
         .name = buf[0..name.len],
-        .extend = extend[0..],
+        .extend = extend[0..extend.len],
         .cacheStart = cacheStart,
         .cacheEnd = cacheEnd,
         .cacheZone = cacheZone.?,

@@ -138,7 +138,7 @@ pub const Entry = struct {
                                     failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     break :blk 0;
                                 };
-                                self.data.appendf("{s}=\u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                self.data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                     failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                 };
                             },
