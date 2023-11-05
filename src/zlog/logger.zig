@@ -125,12 +125,7 @@ pub const Entry = struct {
                                 };
                             },
                             .pattern => {
-                                var buffer: [512]u8 = undefined;
-                                const len = t.format(allocator, opts.time_pattern, &buffer) catch |err| blk: {
-                                    failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
-                                    break :blk 0;
-                                };
-                                self.data.appendf("{s}", .{buffer[0..len]}) catch |err| {
+                                t.formatf(allocator, opts.time_pattern, self.data.writer()) catch |err| {
                                     failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                 };
                             },
@@ -155,7 +150,7 @@ pub const Entry = struct {
                             },
                             .pattern => {
                                 var buffer: [1024]u8 = undefined;
-                                const len = t.format(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
                                     failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     break :blk 0;
                                 };
@@ -184,7 +179,6 @@ pub const Entry = struct {
             const ty = @typeInfo(T);
 
             switch (ty) {
-                .Fn => @compileError("unable to format function body type, use '*const " ++ @typeName(T) ++ "' for a function pointer type"),
                 .ErrorUnion => {
                     if (value) |payload| {
                         return self.Attr(key, payload);
@@ -209,8 +203,9 @@ pub const Entry = struct {
                         return self.Attr(key, null);
                     }
                 },
-                .Union => {},
-                .Struct => {},
+                .Fn => {
+                    return self;
+                },
                 else => {},
             }
 
@@ -239,12 +234,16 @@ pub const Entry = struct {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:null; {}", .{ key, err });
                         },
                         .Struct, .Union => {
-                            self.data.appendf(" {s}=", .{key}) catch |err| {
-                                failureFn(options.internal_failure, "Failed to consider attribute {s}; {}", .{ key, err });
+                            self.data.appendf(" {s}=\u{0022}", .{key}) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
                             };
 
-                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), 255) catch |err| {
+                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                            };
+
+                            self.data.appendf("\u{0022}", .{}) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
                             };
                         },
                         else => self.data.appendf(" {s}=\u{0022}{}\u{0022}", .{ key, value }) catch |err| {
@@ -280,7 +279,7 @@ pub const Entry = struct {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}; {}", .{ key, err });
                             };
 
-                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), 255) catch |err| {
+                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                             };
                         },

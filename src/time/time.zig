@@ -286,9 +286,22 @@ pub const Time = struct {
     // Usage:
     // Time.now().format('MMMM Mo YY N kk:mm:ss A')) // output like: January 1st 22 AD 13:45:33 PM
 
-    pub fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
-        var sb = try StringBuilder.initWithCapacity(allocator, pattern.len);
+    pub fn formatf(self: Self, allocator: std.mem.Allocator, pattern: []const u8, writer: anytype) !void {
+        var sb = try self.format(allocator, pattern);
         defer sb.deinit();
+        errdefer sb.deinit();
+        _ = try writer.write(sb.bytes());
+    }
+
+    pub fn formatfBuffer(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
+        var sb = try self.format(allocator, pattern);
+        defer sb.deinit();
+        errdefer sb.deinit();
+        return try sb.bytesInto(dst);
+    }
+
+    fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8) !StringBuilder {
+        var sb = try StringBuilder.initWithCapacity(allocator, pattern.len);
         errdefer sb.deinit();
 
         var i: usize = 0;
@@ -314,7 +327,7 @@ pub const Time = struct {
             i += 1;
         }
 
-        return try sb.bytesInto(dst);
+        return sb;
     }
 
     fn appendToken(self: Self, token: []const u8, sb: *StringBuilder) !void {

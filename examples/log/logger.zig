@@ -97,7 +97,7 @@ pub fn main() !void {
             .Source(@src())
             .Attr("database", "myapp huraaaa !")
             .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
+            .Attr("element1", Element{ .int = 32, .string = "Element1", .elem = &Element{ .int = 64, .string = "Nested Element1" } })
             .Send();
         m += (std.time.microTimestamp() - startTime);
     }
