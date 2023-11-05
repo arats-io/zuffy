@@ -42,6 +42,14 @@ pub const Options = struct {
     caller_enabled: bool = false,
     caller_field_name: []const u8 = "caller",
     caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
+
+    struct_union: StructUnionOptions = StructUnionOptions{},
+};
+
+pub const StructUnionOptions = struct {
+    escape_enabled: bool = false,
+    src_escape_characters: []const u8 = "\"",
+    dst_escape_characters: []const u8 = "\\\"",
 };
 
 pub const Logger = struct {
@@ -239,27 +247,36 @@ pub const Entry = struct {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:null; {}", .{ key, err });
                         },
                         .Struct, .Union => {
-                            self.data.appendf(" {s}=\u{0022}", .{key}) catch |err| {
-                                failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
-                            };
+                            if (options.struct_union.escape_enabled) {
+                                self.data.appendf(" {s}=\u{0022}", .{key}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
+                                };
+                            } else {
+                                self.data.appendf(" {s}=", .{key}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
+                                };
+                            }
 
-                            var sb = Utf8Buffer.init(self.allocator);
-                            defer sb.deinit();
-                            errdefer sb.deinit();
-
-                            std.json.stringifyMaxDepth(value, .{}, sb.writer(), std.math.maxInt(u16)) catch |err| {
+                            const cPos = self.data.length();
+                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                             };
-                            _ = sb.replaceAll("\"", "\\\"") catch |err| {
-                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
-                            };
 
-                            self.data.appendf("{s}\u{0022}", .{sb.bytes()}) catch |err| {
-                                failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
-                            };
-                            // self.data.appendf("\u{0022}", .{}) catch |err| {
-                            //     failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
-                            // };
+                            if (options.struct_union.escape_enabled) {
+                                _ = self.data.replaceAllFromPos(
+                                    cPos,
+                                    options.struct_union.src_escape_characters,
+                                    options.struct_union.dst_escape_characters,
+                                ) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                                };
+                            }
+
+                            if (options.struct_union.escape_enabled) {
+                                self.data.appendf("\u{0022}", .{}) catch |err| {
+                                    failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
+                                };
+                            }
                         },
                         else => self.data.appendf(" {s}=\u{0022}{}\u{0022}", .{ key, value }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });

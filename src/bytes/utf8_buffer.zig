@@ -189,12 +189,16 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
+            return self.replaceAllFromPos(0, src, dst);
+        }
+
+        pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []const u8) !bool {
             if (threadsafe) {
                 self.buffer.mu.lock();
                 defer self.buffer.mu.unlock();
             }
 
-            var pos: usize = 0;
+            var pos: usize = startPos;
             var found = false;
             while (std.mem.indexOf(u8, self.buffer.ptr[pos..self.buffer.len], src)) |index| {
                 try self.replace(pos + index, src, dst);

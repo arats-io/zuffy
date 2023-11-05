@@ -28,7 +28,7 @@ pub fn main() !void {
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
-        .time_measure = .nanos,
+        .time_measure = .micros,
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
         .format = Format.simple,
