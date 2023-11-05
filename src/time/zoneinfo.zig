@@ -45,7 +45,6 @@ pub const Local = struct {
             const isUnix = builtin.os.tag.isDarwin() or builtin.os.tag.isBSD() or builtin.os.tag == .linux;
             if (isUnix) {
                 const tz_val: ?[]const u8 = std.process.getEnvVarOwned(allocator, "TZ") catch null;
-                std.debug.print("{s}\n", .{"Initiating the zone info local"});
                 instance = try unix(allocator, tz_val);
             } else {
                 return Error.NotImplemented;
