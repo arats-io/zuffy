@@ -243,17 +243,23 @@ pub const Entry = struct {
                                 failureFn(options.internal_failure, "Failed to consider struct json  attribute {s}; {}", .{ key, err });
                             };
 
-                            // var sb = Utf8Buffer.init(self.allocator);
-                            // defer sb.deinit();
-                            // errdefer sb.deinit();
+                            var sb = Utf8Buffer.init(self.allocator);
+                            defer sb.deinit();
+                            errdefer sb.deinit();
 
-                            std.json.stringifyMaxDepth(value, .{}, self.data.writer(), std.math.maxInt(u16)) catch |err| {
+                            std.json.stringifyMaxDepth(value, .{}, sb.writer(), std.math.maxInt(u16)) catch |err| {
+                                failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
+                            };
+                            _ = sb.replaceAll("\"", "\\\"") catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                             };
 
-                            self.data.appendf("\u{0022}", .{}) catch |err| {
+                            self.data.appendf("{s}\u{0022}", .{sb.bytes()}) catch |err| {
                                 failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
                             };
+                            // self.data.appendf("\u{0022}", .{}) catch |err| {
+                            //     failureFn(options.internal_failure, "Failed to consider struct json attribute {s}; {}", .{ key, err });
+                            // };
                         },
                         else => self.data.appendf(" {s}=\u{0022}{}\u{0022}", .{ key, value }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
