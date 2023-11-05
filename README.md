@@ -1,6 +1,7 @@
 # Extended Zig standard library
 Current Zig library do offer some extra functionality missing from official Zig STD.
-Work in progress...
+
+Work in progress...; If somewthing is not working, feel free to contribute or open a issue. 
 
 ## List of modules 
 
@@ -10,9 +11,8 @@ Work in progress...
 ---
 
 ### Time and Time Zoneinfo 
-- [x] Extend time wrapper for time adjusted according to timezone
-- [x] Timezone information
-- [ ] Still work in progress ... for imrpovement puorpose
+- [x] Time as wrapper which is including the timezone
+- [x] Timezone
 
 
 #### Usage
@@ -31,7 +31,7 @@ export TZ='Europe/Tiraspol.zip';
 
 2023 Nov 5th Sun 22:33:05.477603
 ```
-IMPORTANT: As the zip is embeded is affecting the binary size. Zip(and gziped) is having 144KB.
+IMPORTANT: As the zip is embeded do affect the binary size. Zip(and gziped) is having 144KB.
 
 - [x] *nix systems
 - [ ] windows systems
