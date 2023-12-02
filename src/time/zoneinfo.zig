@@ -271,11 +271,11 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
 
             const z = try loadLocation(allocator, tzTmp[0 .. tzTmp.len - 4], sources);
             var buf: [1024]u8 = undefined;
-            std.mem.copyBackwards(u8, &buf, tzTmp);
+            const s = try std.fmt.bufPrint(&buf, "{s}", .{tzTmp});
             return Location{
                 .zone = z.zone,
                 .tx = z.tx,
-                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else buf[0..tzTmp.len],
+                .name = if (std.mem.eql(u8, tzTmp, "/etc/localtime")) "Local" else s,
                 .extend = z.extend,
                 .cacheStart = z.cacheStart,
                 .cacheEnd = z.cacheEnd,
@@ -366,9 +366,9 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
         pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
             _ = filename;
-            var buffer: [500 * 1024:0]u8 = undefined;
-            std.mem.copyBackwards(u8, &buffer, content[0..content.len]);
-            try self.arr.append(buffer[0..content.len]);
+            var buf: [500 * 1024:0]u8 = undefined;
+            const s = try std.fmt.bufPrint(&buf, "{s}", .{content});
+            try self.arr.append(s);
         }
 
         pub fn receiver(self: *Self) Receiver {
@@ -564,8 +564,8 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             }
         }
         var buf: [1024]u8 = undefined;
-        const full = try std.fmt.bufPrint(&buf, "{s}", .{zname});
-        zonesBuff[idx] = zone{ .name = full, .offset = offset, .isDST = isDST };
+        const s = try std.fmt.bufPrint(&buf, "{s}", .{zname});
+        zonesBuff[idx] = zone{ .name = s, .offset = offset, .isDST = isDST };
     }
     const zones = zonesBuff[0..nzone];
 
@@ -644,9 +644,9 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
                         }
                     }
                     var buf: [1024]u8 = undefined;
-                    std.mem.copyBackwards(u8, &buf, zname);
+                    const s = try std.fmt.bufPrint(&buf, "{s}", .{zname});
                     cacheZone = zone{
-                        .name = buf[0..zname.len],
+                        .name = s,
                         .offset = zoffset,
                         .isDST = zisDST,
                     };
@@ -657,11 +657,11 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     }
 
     var buf: [1024]u8 = undefined;
-    std.mem.copyBackwards(u8, &buf, name);
+    const s = try std.fmt.bufPrint(&buf, "{s}", .{name});
     return Location{
         .zone = zones,
         .tx = tx,
-        .name = buf[0..name.len],
+        .name = s,
         .extend = extend[0..extend.len],
         .cacheStart = cacheStart,
         .cacheEnd = cacheEnd,

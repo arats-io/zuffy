@@ -12,6 +12,8 @@ pub fn main() !void {
 
     const o = z.Lookup();
     std.debug.print("Zone: {}\n", .{o});
+    std.debug.print("Zone Offset: {d}\n", .{o.offset});
+    std.debug.print("Zone Name: {s}\n", .{o.name});
 
     std.debug.print("Time spent to call GetLocation: {d} nano\n", .{std.time.nanoTimestamp() - startTime});
 
