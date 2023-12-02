@@ -2,10 +2,30 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "task-pool-debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/taskpool",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "zig-debug-build",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "time-zoneinfo-debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/zig-out/bin/logger",
+            "program": "${workspaceFolder}/zig-out/bin/time-zoneinfo",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

@@ -141,18 +141,18 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
             while (pos > 0) : (pos -= 1) {
                 try parse_source.seekableStream().seekTo(pos);
 
-                const signature = try parse_source.reader().readIntLittle(u32);
+                const signature = try parse_source.reader().readInt(u32, .little);
                 if (signature != EocdRecord.SIGNATURE) {
                     continue;
                 }
 
-                const num_disk = try parse_source.reader().readIntLittle(u16);
-                const num_disk_cd_start = try parse_source.reader().readIntLittle(u16);
-                const cd_records_total_on_disk = try parse_source.reader().readIntLittle(u16);
-                const cd_records_total = try parse_source.reader().readIntLittle(u16);
-                const cd_size = try parse_source.reader().readIntLittle(u32);
-                const offset_start = try parse_source.reader().readIntLittle(u32);
-                const comment_len = try parse_source.reader().readIntLittle(u16);
+                const num_disk = try parse_source.reader().readInt(u16, .little);
+                const num_disk_cd_start = try parse_source.reader().readInt(u16, .little);
+                const cd_records_total_on_disk = try parse_source.reader().readInt(u16, .little);
+                const cd_records_total = try parse_source.reader().readInt(u16, .little);
+                const cd_size = try parse_source.reader().readInt(u32, .little);
+                const offset_start = try parse_source.reader().readInt(u32, .little);
+                const comment_len = try parse_source.reader().readInt(u16, .little);
 
                 const comment = if (comment_len > 0) cblk: {
                     var tmp = Buffer.initWithFactor(allocator, 5);
@@ -187,25 +187,25 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
 
             for (0..eocd.?.cd_records_total) |idx| {
                 _ = idx;
-                const signature = try reader.readIntLittle(u32);
-                const version_made_by = try reader.readIntLittle(u16);
-                const version = try reader.readIntLittle(u16);
-                const bit_flag = try reader.readIntLittle(u16);
-                const compressed_method = try reader.readIntLittle(u16);
-                const last_modification_time = try reader.readIntLittle(u16);
-                const last_modification_date = try reader.readIntLittle(u16);
-                const crc32 = try reader.readIntLittle(u32);
-                const compressed_size = try reader.readIntLittle(u32);
-                const uncompressed_size = try reader.readIntLittle(u32);
-                const filename_len = try reader.readIntLittle(u16);
-                const extra_field_len = try reader.readIntLittle(u16);
-                const comment_len = try reader.readIntLittle(u16);
-                const disk_file_start = try reader.readIntLittle(u16);
-                const internal_attributes = try reader.readIntLittle(u16);
-                const external_attributes = try reader.readIntLittle(u32);
-                const offset_local_header = try reader.readIntLittle(u32);
+                const signature = try reader.readInt(u32, .little);
+                const version_made_by = try reader.readInt(u16, .little);
+                const version = try reader.readInt(u16, .little);
+                const bit_flag = try reader.readInt(u16, .little);
+                const compressed_method = try reader.readInt(u16, .little);
+                const last_modification_time = try reader.readInt(u16, .little);
+                const last_modification_date = try reader.readInt(u16, .little);
+                const crc32 = try reader.readInt(u32, .little);
+                const compressed_size = try reader.readInt(u32, .little);
+                const uncompressed_size = try reader.readInt(u32, .little);
+                const filename_len = try reader.readInt(u16, .little);
+                const extra_field_len = try reader.readInt(u16, .little);
+                const comment_len = try reader.readInt(u16, .little);
+                const disk_file_start = try reader.readInt(u16, .little);
+                const internal_attributes = try reader.readInt(u16, .little);
+                const external_attributes = try reader.readInt(u32, .little);
+                const offset_local_header = try reader.readInt(u32, .little);
 
-                var filename = if (filename_len > 0) blk: {
+                const filename = if (filename_len > 0) blk: {
                     var tmp = Buffer.initWithFactor(allocator, 5);
                     for (0..filename_len) |_| {
                         const byte: u8 = try reader.readByte();
@@ -260,14 +260,14 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 try cdheaders.append(item);
             }
 
-            const signature = try reader.readIntLittle(u32);
+            const signature = try reader.readInt(u32, .little);
 
             if (signature != EocdRecord.SIGNATURE and signature != DigitalSignature.SIGNATURE) {
                 return error.BadData;
             }
 
             const ds = if (signature == DigitalSignature.SIGNATURE) blkds: {
-                const size_of_data = try reader.readIntLittle(u16);
+                const size_of_data = try reader.readInt(u16, .little);
                 const signature_data = if (size_of_data > 0) blk: {
                     var tmp = Buffer.initWithFactor(allocator, 5);
                     for (0..size_of_data) |_| {
@@ -288,17 +288,17 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
             var zip64_eocd_locator: ?Zip64EocdLocator = null;
             if (eocd.?.num_disk == 0xffff) {
                 zip64_eocd_record = Zip64EocdRecord{
-                    .signature = try reader.readIntLittle(u32),
-                    .size = try reader.readIntLittle(u16),
-                    .version_made_by = try reader.readIntLittle(u16),
-                    .version = try reader.readIntLittle(u16),
-                    .num_disk = try reader.readIntLittle(u32),
-                    .disk_cd_start = try reader.readIntLittle(u32),
-                    .cd_records_on_disk = try reader.readIntLittle(u64),
-                    .cd_records_total = try reader.readIntLittle(u64),
-                    .cd_size = try reader.readIntLittle(u64),
-                    .offset_start = try reader.readIntLittle(u64),
-                    .comment_len = try reader.readIntLittle(u16),
+                    .signature = try reader.readInt(u32, .little),
+                    .size = try reader.readInt(u16, .little),
+                    .version_made_by = try reader.readInt(u16, .little),
+                    .version = try reader.readInt(u16, .little),
+                    .num_disk = try reader.readInt(u32, .little),
+                    .disk_cd_start = try reader.readInt(u32, .little),
+                    .cd_records_on_disk = try reader.readInt(u64, .little),
+                    .cd_records_total = try reader.readInt(u64, .little),
+                    .cd_size = try reader.readInt(u64, .little),
+                    .offset_start = try reader.readInt(u64, .little),
+                    .comment_len = try reader.readInt(u16, .little),
                     .comment = null,
                 };
                 zip64_eocd_record.?.comment = if (zip64_eocd_record.?.comment_len > 0) blk: {
@@ -311,10 +311,10 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 } else null;
 
                 zip64_eocd_locator = Zip64EocdLocator{
-                    .signature = try reader.readIntLittle(u32),
-                    .disk_cd_start = try reader.readIntLittle(u32),
-                    .offset_start = try reader.readIntLittle(u64),
-                    .num_disk = try reader.readIntLittle(u32),
+                    .signature = try reader.readInt(u32, .little),
+                    .disk_cd_start = try reader.readInt(u32, .little),
+                    .offset_start = try reader.readInt(u64, .little),
+                    .num_disk = try reader.readInt(u32, .little),
                 };
             }
 
@@ -389,17 +389,17 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 try self.source.seekableStream().seekTo(item.offset_local_header);
                 const in_reader = self.source.reader();
 
-                const signature = try in_reader.readIntLittle(u32);
-                const version = try in_reader.readIntLittle(u16);
-                const bit_flag = try in_reader.readIntLittle(u16);
-                const compression_method = try in_reader.readIntLittle(u16);
-                const last_modification_time = try in_reader.readIntLittle(u16);
-                const last_modification_date = try in_reader.readIntLittle(u16);
-                const crc32 = try in_reader.readIntLittle(u32);
-                const compressed_size = try in_reader.readIntLittle(u32);
-                const uncompressed_size = try in_reader.readIntLittle(u32);
-                const filename_len = try in_reader.readIntLittle(u16);
-                const extra_field_len = try in_reader.readIntLittle(u16);
+                const signature = try in_reader.readInt(u32, .little);
+                const version = try in_reader.readInt(u16, .little);
+                const bit_flag = try in_reader.readInt(u16, .little);
+                const compression_method = try in_reader.readInt(u16, .little);
+                const last_modification_time = try in_reader.readInt(u16, .little);
+                const last_modification_date = try in_reader.readInt(u16, .little);
+                const crc32 = try in_reader.readInt(u32, .little);
+                const compressed_size = try in_reader.readInt(u32, .little);
+                const uncompressed_size = try in_reader.readInt(u32, .little);
+                const filename_len = try in_reader.readInt(u16, .little);
+                const extra_field_len = try in_reader.readInt(u16, .little);
 
                 if (signature != 0x04034b50)
                     return error.BadHeader;
@@ -459,9 +459,9 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 // const encryption_header = try in_reader.readBoundedBytes(12);
 
                 const data_descriptor = DataDescriptor{
-                    .crc32 = try in_reader.readIntLittle(u32),
-                    .compressed_size = try in_reader.readIntLittle(u32),
-                    .uncompressed_size = try in_reader.readIntLittle(u32),
+                    .crc32 = try in_reader.readInt(u32, .little),
+                    .compressed_size = try in_reader.readInt(u32, .little),
+                    .uncompressed_size = try in_reader.readInt(u32, .little),
                 };
                 _ = data_descriptor;
 

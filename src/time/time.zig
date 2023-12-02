@@ -93,12 +93,12 @@ pub fn absDate(seconds: i128) DateTime {
     d -= days_per_year * n;
 
     var sec = @rem(seconds, std.time.s_per_day);
-    var hour = @divFloor(sec, std.time.s_per_hour);
+    const hour = @divFloor(sec, std.time.s_per_hour);
     sec -= hour * std.time.s_per_hour;
-    var min = @divFloor(sec, std.time.s_per_min);
+    const min = @divFloor(sec, std.time.s_per_min);
     sec -= min * std.time.s_per_min;
 
-    var year = y + absolute_zero_year;
+    const year = y + absolute_zero_year;
 
     var day = d;
 
@@ -131,7 +131,7 @@ pub fn absDate(seconds: i128) DateTime {
 
     const i = @as(usize, @intCast(month));
     var begin = daysBefore[i];
-    var end = daysBefore[i + 1];
+    const end = daysBefore[i + 1];
 
     if (day >= end) {
         month += 1;
@@ -181,7 +181,7 @@ pub const Time = struct {
     }
 
     fn pupulate(self: *Self) *Self {
-        var seconds = switch (self.measure) {
+        const seconds = switch (self.measure) {
             inline .seconds => self.value,
             inline .millis => blk: {
                 const milli = @rem(self.value, std.time.ms_per_s);

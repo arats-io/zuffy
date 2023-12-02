@@ -121,7 +121,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
         }
 
         pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
-            var writer = self.writer();
+            const writer = self.writer();
             return std.fmt.format(writer, format, args);
         }
 
@@ -665,7 +665,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
 
                 pub fn next(it: *Iterator) ?[]const u8 {
                     if (it.index >= it.sb.buffer.len) return null;
-                    var i = it.index;
+                    const i = it.index;
                     it.index += utf8Size(it.sb.buffer.ptr[i]);
                     return it.sb.buffer.ptr[i..it.index];
                 }
@@ -673,7 +673,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                 pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
                     if ((it.index + size) >= it.sb.buffer.len) return null;
 
-                    var i = it.index;
+                    const i = it.index;
                     it.index += size;
                     return it.sb.buffer.ptr[i..it.index];
                 }

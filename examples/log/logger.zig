@@ -35,7 +35,7 @@ pub fn main() !void {
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
     });
 
-    const max = std.math.maxInt(u4);
+    const max = std.math.maxInt(u16);
     var m: i128 = 0;
     const start = std.time.microTimestamp();
     for (0..max) |_| {

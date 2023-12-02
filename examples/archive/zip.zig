@@ -40,7 +40,7 @@ pub fn main() !void {
         pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
             _ = filename;
             var buffer: [500 * 1024]u8 = undefined;
-            std.mem.copy(u8, &buffer, content);
+            std.mem.copyBackwards(u8, &buffer, content);
             try self.arr.append(buffer[0..content.len]);
         }
 

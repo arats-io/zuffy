@@ -113,7 +113,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
         }
 
         fn pushLifo(self: *Self, item: T) T {
-            var previous: T = self.items[self.tail];
+            const previous: T = self.items[self.tail];
 
             self.items[self.tail] = item;
 

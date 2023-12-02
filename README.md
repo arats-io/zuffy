@@ -3,6 +3,8 @@ Current Zig library do offer some extra functionality missing from official Zig 
 
 Work in progress...; If somewthing is not working, feel free to contribute or open a issue. 
 
+Require zig version: **0.12.0-dev.1769+bf5ab54510**
+
 ## List of modules 
 
 ### Bytes

@@ -11,6 +11,7 @@ pub const Error = error{
     EndOfStream,
     StreamTooLong,
     InvalidRange,
+    NoSpaceLeft,
 };
 
 pub const Local = struct {
@@ -266,11 +267,11 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
             var sources = std.ArrayList([]const u8).init(allocator);
             defer sources.deinit();
 
-            try sources.append("zoneinfo.zip");
+            try sources.append(tzTmp);
 
             const z = try loadLocation(allocator, tzTmp[0 .. tzTmp.len - 4], sources);
             var buf: [1024]u8 = undefined;
-            std.mem.copy(u8, &buf, tzTmp);
+            std.mem.copyBackwards(u8, &buf, tzTmp);
             return Location{
                 .zone = z.zone,
                 .tx = z.tx,
@@ -442,7 +443,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     //	number of characters of time zone abbrev strings
     var n: [6]i32 = undefined;
     for (0..6) |idx| {
-        n[idx] = try in_data.readIntBig(i32);
+        n[idx] = try in_data.readInt(i32, .big);
     }
 
     // If we have version 2 or 3, then the data is first written out
@@ -468,7 +469,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
 
         // Read the counts again, they can differ.
         for (0..6) |idx| {
-            n[idx] = try in_data.readIntBig(i32);
+            n[idx] = try in_data.readInt(i32, .big);
         }
     }
 
@@ -518,7 +519,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     try isutc.writeBytes(in_data, t);
 
     var extent_buff: [1024]u8 = undefined;
-    var extend_size = try in_data.read(&extent_buff);
+    const extend_size = try in_data.read(&extent_buff);
     var extend = extent_buff[0..extend_size];
 
     if (extend.len > 2 and extend[0] == '\n' and extend[extend.len - 1] == '\n') {
@@ -541,7 +542,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var in_zonedata = zonedataBuffTReam.reader();
 
     for (0..nzone) |idx| {
-        const offset = try in_zonedata.readIntBig(i32);
+        const offset = try in_zonedata.readInt(i32, .big);
 
         var b = try in_zonedata.readByte();
         const isDST = b != 0;
@@ -563,8 +564,8 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             }
         }
         var buf: [1024]u8 = undefined;
-        std.mem.copy(u8, &buf, zname);
-        zonesBuff[idx] = zone{ .name = buf[0..b], .offset = offset, .isDST = isDST };
+        const full = try std.fmt.bufPrint(&buf, "{s}", .{zname});
+        zonesBuff[idx] = zone{ .name = full, .offset = offset, .isDST = isDST };
     }
     const zones = zonesBuff[0..nzone];
 
@@ -578,10 +579,10 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     for (0..nzonerx) |idx| {
         var when: i64 = 0;
         if (!is64) {
-            const val = try in_txtimes.readIntBig(u32);
+            const val = try in_txtimes.readInt(u32, .big);
             when = @as(i64, @intCast(val));
         } else {
-            const val = try in_txtimes.readIntBig(u64);
+            const val = try in_txtimes.readInt(u64, .big);
             when = @as(i64, @bitCast(val));
         }
 
@@ -636,21 +637,19 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
                     const zisDST = r.isDST;
 
                     // Find the zone that is returned by tzset to avoid allocation if possible.
-                    for (zones, 0..) |z, zoneIdx| {
+                    for (zones) |z| {
                         if (std.mem.eql(u8, z.name, zname) and z.offset == zoffset and z.isDST == zisDST) {
-                            cacheZone = zones[zoneIdx];
+                            cacheZone = z;
                             break;
                         }
                     }
-                    if (cacheZone == null) {
-                        var buf: [1024]u8 = undefined;
-                        std.mem.copy(u8, &buf, zname);
-                        cacheZone = zone{
-                            .name = buf[0..zname.len],
-                            .offset = zoffset,
-                            .isDST = zisDST,
-                        };
-                    }
+                    var buf: [1024]u8 = undefined;
+                    std.mem.copyBackwards(u8, &buf, zname);
+                    cacheZone = zone{
+                        .name = buf[0..zname.len],
+                        .offset = zoffset,
+                        .isDST = zisDST,
+                    };
                 }
             }
             break;
@@ -658,7 +657,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     }
 
     var buf: [1024]u8 = undefined;
-    std.mem.copy(u8, &buf, name);
+    std.mem.copyBackwards(u8, &buf, name);
     return Location{
         .zone = zones,
         .tx = tx,
@@ -797,8 +796,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const endRule = ru.rule;
 
     const lptime = @import("time.zig");
-    const seconds = sec + unixToInternal + internalToAbsolute;
-    const t = lptime.absDate(seconds);
+    const t = lptime.absDate(sec);
 
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));
@@ -839,7 +837,9 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
             .isDST = stdIsDST,
             .ok = true,
         };
-    } else if (ysec >= endSec) {
+    }
+
+    if (ysec >= endSec) {
         return tzsetResult{
             .name = stdName,
             .offset = stdOffset,
@@ -848,16 +848,16 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
             .isDST = stdIsDST,
             .ok = true,
         };
-    } else {
-        return tzsetResult{
-            .name = stdName,
-            .offset = stdOffset,
-            .start = startSec + abs,
-            .end = endSec + abs,
-            .isDST = stdIsDST,
-            .ok = true,
-        };
     }
+
+    return tzsetResult{
+        .name = stdName,
+        .offset = stdOffset,
+        .start = startSec + abs,
+        .end = endSec + abs,
+        .isDST = stdIsDST,
+        .ok = true,
+    };
 }
 
 // tzsetName returns the timezone name at the start of the tzset string s,
@@ -1119,8 +1119,8 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
             if (r.mon <= 2) {
                 yy0 -= 1;
             }
-            var yy1 = @divFloor(yy0, 100);
-            var yy2 = @rem(yy0, 100);
+            const yy1 = @divFloor(yy0, 100);
+            const yy2 = @rem(yy0, 100);
             var dow = @rem((@divFloor((26 * m1 - 2), 10) + 1 + yy2 + @divFloor(yy2, 4) + @divFloor(yy1, 4) - 2 * yy1), 7);
             if (dow < 0) {
                 dow += 7;

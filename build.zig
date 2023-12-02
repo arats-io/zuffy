@@ -76,10 +76,9 @@ pub fn build(b: *std.Build) !void {
     // but does not run it.
     var tests_suite = b.step("test-suite", "Run unit tests");
     {
-        var dir = try std.fs.cwd().openDir(".", .{});
+        const dir = try std.fs.cwd().openDir("./src", .{});
 
-        const walker = try dir.openIterableDir("src", .{ .access_sub_paths = true });
-        var iter = try walker.walk(b.allocator);
+        var iter = try dir.walk(b.allocator);
 
         const allowed_exts = [_][]const u8{".zig"};
         while (try iter.next()) |entry| {
