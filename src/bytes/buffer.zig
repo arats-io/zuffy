@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Stack = std.atomic.Stack;
+const Stack = @import("../atomic/stack.zig").Stack;
 
 const assert = std.debug.assert;
 
@@ -19,6 +19,13 @@ pub fn BufferPool(comptime threadsafe: bool) type {
 
         pub fn init(allocator: std.mem.Allocator) Self {
             return Self{ .queue = Stack(Buffer(threadsafe)).init(), .allocator = allocator };
+        }
+
+        pub fn deinit(self: Self) void {
+            while (self.queue.pop()) |n| {
+                var b: Buffer(threadsafe) = n.data;
+                b.deinit();
+            }
         }
 
         pub fn pop(self: *Self) !Buffer(threadsafe) {

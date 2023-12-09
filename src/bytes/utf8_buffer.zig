@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Stack = std.atomic.Stack;
+const Stack = @import("../atomic/stack.zig").Stack;
 
 const Error = @import("buffer.zig").Error;
 const Buffer = @import("buffer.zig").Buffer;
@@ -17,6 +17,13 @@ pub fn Utf8BufferPoolManaged(comptime threadsafe: bool) type {
 
         pub fn init(allocator: std.mem.Allocator) Self {
             return Self{ .queue = Stack(Utf8BufferManaged(threadsafe)).init(), .allocator = allocator };
+        }
+
+        pub fn deinit(self: Self) void {
+            while (self.queue.pop()) |n| {
+                var b: Utf8BufferManaged(threadsafe) = n.data;
+                b.deinit();
+            }
         }
 
         pub fn pop(self: *Self) !Utf8BufferManaged(threadsafe) {
