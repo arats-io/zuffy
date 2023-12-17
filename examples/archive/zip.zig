@@ -61,7 +61,7 @@ pub fn main() !void {
     // --------------- Extract the Extra Fields ----------------------------
     var ef = ExtraField.init();
     for (entries.central_directory.headers.items) |item| {
-        try item.extraFields(ef.generic().handler());
+        try item.decodeExtraFields(ef.generic().handler());
     }
 }
 

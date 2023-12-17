@@ -111,8 +111,8 @@ pub const CentralDirectoryHeader = struct {
         return toBitSet(self.bit_flag);
     }
 
-    pub fn extraFields(self: Self, handler: anytype) !void {
-        return eftypes.parseExtraFields(self.extra_field, handler);
+    pub fn decodeExtraFields(self: Self, handler: anytype) !void {
+        return eftypes.decodeExtraFields(self.extra_field, handler);
     }
 };
 
@@ -175,8 +175,8 @@ pub const LocalFileHeader = struct {
         return toBitSet(self.bit_flag);
     }
 
-    pub fn extraFields(self: Self, handler: anytype) !void {
-        return eftypes.parseExtraFields(self.extra_field, handler);
+    pub fn decodeExtraFields(self: Self, handler: anytype) !void {
+        return eftypes.decodeExtraFields(self.extra_field, handler);
     }
 };
 

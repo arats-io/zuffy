@@ -94,7 +94,7 @@ pub const ZIPUNIX3rdGenerationGenericUIDGIDInfo = struct {
     gid: u32,
 };
 
-pub fn parseExtraFields(extra_field: ?Buffer, handler: anytype) !void {
+pub fn decodeExtraFields(extra_field: ?Buffer, handler: anytype) !void {
     if (extra_field) |data| {
         var s = std.io.fixedBufferStream(@constCast(&data).bytes());
         var r = s.reader();
