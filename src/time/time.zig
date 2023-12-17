@@ -160,6 +160,7 @@ pub const Time = struct {
     value: i128,
 
     date_time: ?DateTime = null,
+    offset: ?i32 = null,
 
     rest: u64 = 0,
     milli: u10 = 0,
@@ -220,7 +221,8 @@ pub const Time = struct {
             },
         };
 
-        self.date_time = absDate(seconds + offset());
+        self.offset = offset();
+        self.date_time = absDate(seconds + self.offset.?);
 
         return self;
     }
@@ -286,9 +288,9 @@ pub const Time = struct {
     // | | s  | 0 1 ... 58 59 |
     // | | ss | 00 01 ... 58 59 |
     // | Offset
-    // | | Z  | -7 -6 ... +5 +6 |    - (Not yet supported)
-    // | | ZZ | -0700 -0600 ... +0500 +0600 |    - (Not yet supported)
-    // | | ZZZ | -07:00 -06:00 ... +05:00 +06:00 |    - (Not yet supported)
+    // | | Z  | -7 -6 ... +5 +6 |
+    // | | ZZ | -0700 -0600 ... +0500 +0600 |
+    // | | ZZZ | -07:00 -06:00 ... +05:00 +06:00 |
     // Usage:
     // Time.now().format('MMMM Mo YY N kk:mm:ss A')) // output like: January 1st 22 AD 13:45:33 PM
 
@@ -451,11 +453,15 @@ pub const Time = struct {
         } else if (std.mem.eql(u8, token, "dddd")) {
             try sb.appendf("{s}", .{self.getWeekday().string()});
         } else if (std.mem.eql(u8, token, "ZZZ")) {
-            try sb.append("ZZZ(N/A)");
+            try self.zzz(sb, ":");
         } else if (std.mem.eql(u8, token, "ZZ")) {
-            try sb.append("ZZ(N/A)");
+            try self.zzz(sb, "");
         } else if (std.mem.eql(u8, token, "Z")) {
-            try sb.append("Z(N/A)");
+            const h = @divFloor(self.offset.?, std.time.s_per_hour);
+            if (h > 0) {
+                try sb.append("+");
+            }
+            try sb.appendf("{d}", .{h});
         } else if (std.mem.eql(u8, token, "NN")) {
             try sb.append("BC");
         } else if (std.mem.eql(u8, token, "N")) {
@@ -507,6 +513,28 @@ pub const Time = struct {
     }
     pub fn getMonth(self: Self) Month {
         return @as(Month, @enumFromInt(self.dateTime().month));
+    }
+
+    fn zzz(self: Self, sb: *StringBuilder, delimeter: []const u8) !void {
+        var h = @divFloor(self.offset.?, std.time.s_per_hour);
+        if (h > 0) {
+            try sb.append("+");
+        } else if (h < 0) {
+            try sb.append("-");
+            h = @as(i32, @intCast(@abs(h)));
+        }
+        if (h < 10) {
+            try sb.appendf("0{d}", .{h});
+        } else {
+            try sb.appendf("{d}", .{h});
+        }
+
+        const m = @as(i32, @intCast(@divFloor(@as(i32, @intCast(@abs(self.offset.?))) - h * std.time.s_per_hour, std.time.s_per_min)));
+        if (m < 10) {
+            try sb.appendf("{s}0{d}", .{ delimeter, m });
+        } else {
+            try sb.appendf("{s}{d}", .{ delimeter, m });
+        }
     }
 };
 

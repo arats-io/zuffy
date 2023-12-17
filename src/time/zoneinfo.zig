@@ -352,7 +352,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     const Collector = struct {
         const Self = @This();
 
-        pub const Receiver = archive.GenericReceiver(*Self, receive);
+        pub const GenericContent = archive.GenericContent(*Self, receive);
 
         arr: std.ArrayList([]const u8),
 
@@ -364,21 +364,21 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
             self.arr.deinit();
         }
 
-        pub fn receive(self: *Self, filename: []const u8, content: []const u8) !void {
+        pub fn receive(self: *Self, filename: []const u8, fileContent: []const u8) !void {
             _ = filename;
             var buf: [500 * 1024:0]u8 = undefined;
-            const s = try std.fmt.bufPrint(&buf, "{s}", .{content});
+            const s = try std.fmt.bufPrint(&buf, "{s}", .{fileContent});
             try self.arr.append(s);
         }
 
-        pub fn receiver(self: *Self) Receiver {
+        pub fn content(self: *Self) GenericContent {
             return .{ .context = self };
         }
     };
 
     var collector = Collector.init(allocator);
     defer collector.deinit();
-    _ = try entries.readWithFilters(filters, collector.receiver().contentReceiver());
+    _ = try entries.readWithFilters(filters, collector.content().receiver());
 
     if (collector.arr.getLastOrNull()) |item| {
         return item;

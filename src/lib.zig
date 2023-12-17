@@ -1,3 +1,6 @@
+pub const int = @import("int.zig");
+pub const arrays = @import("arrays.zig");
+
 pub const atomic = @import("atomic/mod.zig");
 pub const archive = @import("archive/mod.zig");
 pub const time = @import("time/mod.zig");
