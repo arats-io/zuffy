@@ -68,7 +68,7 @@ pub fn main() !void {
 const ExtraField = struct {
     const Self = @This();
 
-    pub const GenericExtraField = zip.types.GenericExtraField(*Self, exec);
+    pub const GenericExtraField = zip.extrafield.GenericExtraField(*Self, exec);
 
     pub fn init() Self {
         return Self{};
@@ -76,12 +76,12 @@ const ExtraField = struct {
 
     pub fn exec(self: *Self, headerId: u16, args: *const anyopaque) !void {
         switch (headerId) {
-            zip.extrafields.ExtendedTimestamp.CODE => {
-                const ptr: *const zip.extrafields.ExtendedTimestamp = @alignCast(@ptrCast(args));
+            zip.extrafield.types.ExtendedTimestamp.CODE => {
+                const ptr: *const zip.extrafield.types.ExtendedTimestamp = @alignCast(@ptrCast(args));
                 std.debug.print("ExtendedTimestamp = {}, {}, {}\n", .{ ptr.data_size, ptr.flags, ptr.tolm });
             },
-            zip.extrafields.ZIPUNIX3rdGenerationGenericUIDGIDInfo.CODE => {
-                const ptr: *const zip.extrafields.ZIPUNIX3rdGenerationGenericUIDGIDInfo = @alignCast(@ptrCast(args));
+            zip.extrafield.types.ZIPUNIX3rdGenerationGenericUIDGIDInfo.CODE => {
+                const ptr: *const zip.extrafield.types.ZIPUNIX3rdGenerationGenericUIDGIDInfo = @alignCast(@ptrCast(args));
                 std.debug.print("ZIPUNIX3rdGenerationGenericUIDGIDInfo = {}, {}, {}, {}, {}, {}\n", .{ ptr.data_size, ptr.version, ptr.uid_size, ptr.uid, ptr.gid_size, ptr.gid });
             },
             else => {},

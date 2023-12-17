@@ -1,3 +1,5 @@
+pub const types = @import("extra_field_types.zig");
+
 pub const ExtraFieldHandler = @import("extra_field_handler.zig");
 
 pub fn GenericExtraField(
