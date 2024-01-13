@@ -74,10 +74,22 @@ pub const ExtraFieldHeaderID = enum(u16) {
     }
 };
 
+pub const Zip64ExtendedInfo = struct {
+    pub const CODE = ExtraFieldHeaderID.Zip64ExtendedInfo.code();
+
+    data_size: u16,
+
+    original_size: u64,
+    compressed_size: u64,
+    relative_header_offset: u64,
+    disk_start_number: u32,
+};
+
 pub const ExtendedTimestamp = struct {
     pub const CODE = ExtraFieldHeaderID.ExtendedTimestamp.code();
 
     data_size: u16,
+
     flags: u8,
     tolm: u32,
 };
@@ -86,65 +98,120 @@ pub const ZIPUNIX3rdGenerationGenericUIDGIDInfo = struct {
     pub const CODE = ExtraFieldHeaderID.ZIPUNIX3rdGenerationGenericUIDGIDInfo.code();
 
     data_size: u16,
-    version: u8,
 
+    version: u8,
     uid_size: u8,
     uid: u32,
     gid_size: u8,
     gid: u32,
 };
 
-pub fn decodeExtraFields(extra_field: ?Buffer, handler: anytype) !void {
-    if (extra_field) |data| {
-        var s = std.io.fixedBufferStream(@constCast(&data).bytes());
-        var r = s.reader();
+pub fn decodeExtraFields(buffer: Buffer, handler: anytype) !void {
+    var s = std.io.fixedBufferStream(@constCast(&buffer).bytes());
+    var r = s.reader();
 
-        while (true) {
-            const header = r.readInt(u16, .little) catch {
-                return;
-            };
-            const dataSize = try r.readInt(u16, .little);
+    while (true) {
+        const header = r.readInt(u16, .little) catch {
+            return;
+        };
+        const dataSize = try r.readInt(u16, .little);
 
-            const headerId = ExtraFieldHeaderID.from(header);
-            switch (headerId) {
-                .ExtendedTimestamp => {
-                    const flags = try r.readInt(u8, .little);
-                    const tolm = try r.readInt(u32, .little);
+        const headerId = ExtraFieldHeaderID.from(header);
+        switch (headerId) {
+            .Zip64ExtendedInfo => {
+                const original_size = try r.readInt(u64, .little);
+                const compressed_size = try r.readInt(u64, .little);
+                const relative_header_offset = try r.readInt(u64, .little);
+                const disk_start_number = try r.readInt(u32, .little);
 
-                    try handler.exec(header, &ExtendedTimestamp{
-                        .data_size = dataSize,
-                        .flags = flags,
-                        .tolm = tolm,
-                    });
-                },
-                .ZIPUNIX3rdGenerationGenericUIDGIDInfo => {
-                    const vers = try r.readInt(u8, .little);
-                    switch (vers) {
-                        1 => {
-                            const uidSize = try r.readInt(u8, .little);
-                            const uid = try r.readInt(u32, .little);
+                try handler.exec(header, &Zip64ExtendedInfo{
+                    .data_size = dataSize,
+                    .original_size = original_size,
+                    .compressed_size = compressed_size,
+                    .relative_header_offset = relative_header_offset,
+                    .disk_start_number = disk_start_number,
+                });
+            },
+            .ExtendedTimestamp => {
+                const flags = try r.readInt(u8, .little);
+                const tolm = try r.readInt(u32, .little);
 
-                            const gidSize = try r.readInt(u8, .little);
-                            const gid = try r.readInt(u32, .little);
+                try handler.exec(header, &ExtendedTimestamp{
+                    .data_size = dataSize,
+                    .flags = flags,
+                    .tolm = tolm,
+                });
+            },
+            .ZIPUNIX3rdGenerationGenericUIDGIDInfo => {
+                const version = try r.readInt(u8, .little);
+                switch (version) {
+                    1 => {
+                        const uidSize = try r.readInt(u8, .little);
+                        const uid = try r.readInt(u32, .little);
 
-                            try handler.exec(header, &ZIPUNIX3rdGenerationGenericUIDGIDInfo{
-                                .data_size = dataSize,
-                                .version = vers,
-                                .uid_size = uidSize,
-                                .uid = uid,
-                                .gid_size = gidSize,
-                                .gid = gid,
-                            });
-                        },
-                        else => {
-                            std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ int.toHexBytes(u16, .lower, header), vers });
-                        },
-                    }
+                        const gidSize = try r.readInt(u8, .little);
+                        const gid = try r.readInt(u32, .little);
+
+                        try handler.exec(header, &ZIPUNIX3rdGenerationGenericUIDGIDInfo{
+                            .data_size = dataSize,
+                            .version = version,
+                            .uid_size = uidSize,
+                            .uid = uid,
+                            .gid_size = gidSize,
+                            .gid = gid,
+                        });
+                    },
+                    else => {
+                        std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ int.toHexBytes(u16, .lower, header), version });
+                    },
+                }
+            },
+            else => {
+                std.debug.panic("header {s} decoder not handled\n", .{int.toHexBytes(u16, .lower, header)});
+            },
+        }
+    }
+}
+
+pub fn encodeExtraFields(buffer: Buffer, data: anytype) !void {
+    _ = try buffer.write(int.toBytes(u16, data.CODE, .little));
+
+    const header = ExtraFieldHeaderID.from(data.CODE);
+    switch (header) {
+        .Zip64ExtendedInfo => {
+            const s = @as(Zip64ExtendedInfo, data);
+            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(int.toBytes(u64, s.original_size, .little));
+            _ = try buffer.write(int.toBytes(u64, s.compressed_size, .little));
+            _ = try buffer.write(int.toBytes(u64, s.relative_header_offset, .little));
+            _ = try buffer.write(int.toBytes(u32, s.disk_start_number, .little));
+        },
+        .ExtendedTimestamp => {
+            const s = @as(ExtendedTimestamp, data);
+            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(int.toBytes(u8, s.flags, .little));
+            _ = try buffer.write(int.toBytes(u32, s.tolm, .little));
+        },
+        .ZIPUNIX3rdGenerationGenericUIDGIDInfo => {
+            const s = @as(ZIPUNIX3rdGenerationGenericUIDGIDInfo, data);
+            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(int.toBytes(u8, s.version, .little));
+
+            switch (s.version) {
+                1 => {
+                    _ = try buffer.write(int.toBytes(u8, s.uid_size, .little));
+                    _ = try buffer.write(int.toBytes(u32, s.uid, .little));
+
+                    _ = try buffer.write(int.toBytes(u8, s.gid_size, .little));
+                    _ = try buffer.write(int.toBytes(u32, s.gid, .little));
                 },
                 else => {
-                    std.debug.panic("header {s} decoder not handled\n", .{int.toHexBytes(u16, .lower, header)});
+                    std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ int.toHexBytes(u16, .lower, header), s.version });
                 },
             }
-        }
+        },
+        else => {
+            std.debug.panic("header {s} decoder not handled\n", .{int.toHexBytes(u16, .lower, header)});
+        },
     }
 }

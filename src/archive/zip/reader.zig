@@ -46,8 +46,13 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 }
             }
             if (self.central_directory.zip64_eocd_record) |r| {
-                if (r.comment) |b| {
+                if (r.extenssion_data) |b| {
                     @constCast(&b).deinit();
+                }
+                if (r.extenssion_v2) |v2| {
+                    if (v2.hash_data) |b| {
+                        @constCast(&b).deinit();
+                    }
                 }
             }
             for (self.central_directory.headers.items) |header| {
@@ -170,23 +175,33 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                 };
 
                 const bitflag = item.bitFlagToBitSet();
-                // File Encription
+
+                // Archive decryption Encription Header
                 if (bitflag.isSet(0)) {
+                    // should come here
+                    // [archive decryption header]
+                    // [archive extra data record]
+
+                    const password = "";
+                    _ = password;
                     fileentry.encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
+                    const encrption_keys = [3]u32{ 305419896, 591751049, 878082192 };
+                    _ = encrption_keys;
                 }
                 if (bitflag.isSet(6)) {
                     std.debug.print("Strong encryption\n", .{});
                 }
-
-                fileentry.data_descriptor = metadata.DataDescriptor{
-                    .crc32 = try in_reader.readInt(u32, .little),
-                    .compressed_size = try in_reader.readInt(u32, .little),
-                    .uncompressed_size = try in_reader.readInt(u32, .little),
-                };
-
-                // should come here
-                // [archive decryption header]
-                // [archive extra data record]
+                if (bitflag.isSet(3)) {
+                    var CRC32: u32 = try in_reader.readInt(u32, .little);
+                    if (CRC32 == metadata.DataDescriptor.SIGNATURE) {
+                        CRC32 = try in_reader.readInt(u32, .little);
+                    }
+                    fileentry.data_descriptor = metadata.DataDescriptor{
+                        .crc32 = CRC32,
+                        .compressed_size = try in_reader.readInt(u32, .little),
+                        .uncompressed_size = try in_reader.readInt(u32, .little),
+                    };
+                }
 
                 // decide what to do with the ziped file content
                 if (content_size > 0) {

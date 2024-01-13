@@ -78,11 +78,13 @@ const ExtraField = struct {
         switch (headerId) {
             zip.extrafield.types.ExtendedTimestamp.CODE => {
                 const ptr: *const zip.extrafield.types.ExtendedTimestamp = @alignCast(@ptrCast(args));
-                std.debug.print("ExtendedTimestamp = {}, {}, {}\n", .{ ptr.data_size, ptr.flags, ptr.tolm });
+                _ = ptr;
+                //std.debug.print("ExtendedTimestamp = {}, {}, {}\n", .{ ptr.data_size, ptr.flags, ptr.tolm });
             },
             zip.extrafield.types.ZIPUNIX3rdGenerationGenericUIDGIDInfo.CODE => {
                 const ptr: *const zip.extrafield.types.ZIPUNIX3rdGenerationGenericUIDGIDInfo = @alignCast(@ptrCast(args));
-                std.debug.print("ZIPUNIX3rdGenerationGenericUIDGIDInfo = {}, {}, {}, {}, {}, {}\n", .{ ptr.data_size, ptr.version, ptr.uid_size, ptr.uid, ptr.gid_size, ptr.gid });
+                _ = ptr;
+                //std.debug.print("ZIPUNIX3rdGenerationGenericUIDGIDInfo = {}, {}, {}, {}, {}, {}\n", .{ ptr.data_size, ptr.version, ptr.uid_size, ptr.uid, ptr.gid_size, ptr.gid });
             },
             else => {},
         }

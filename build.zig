@@ -4,11 +4,6 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // create a module to be used internally.
-    const xstd_m = b.addModule("xstd", .{
-        .source_file = .{ .path = "src/lib.zig" },
-    });
-
     const lib = b.addStaticLibrary(.{
         .name = "xstd",
         .root_source_file = .{ .path = "src/lib.zig" },
@@ -60,7 +55,9 @@ pub fn build(b: *std.Build) !void {
         });
 
         example.linkLibrary(lib);
-        example.addModule("xstd", xstd_m);
+        example.root_module.addAnonymousImport("xstd", .{
+            .root_source_file = .{ .path = "src/lib.zig" },
+        });
 
         // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
