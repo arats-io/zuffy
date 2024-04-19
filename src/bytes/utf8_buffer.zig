@@ -124,7 +124,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                 }
             }
 
-            @atomicStore(usize, &self.buffer.len, self.buffer.len + numberOfChars, .Monotonic);
+            @atomicStore(usize, &self.buffer.len, self.buffer.len + numberOfChars, .monotonic);
         }
 
         pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
@@ -160,7 +160,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                     while (i >= (index + src.len)) : (i -= 1) {
                         self.buffer.ptr[i] = self.buffer.ptr[i - 1];
                     }
-                    @atomicStore(usize, &self.buffer.len, self.buffer.len + 1, .Monotonic);
+                    @atomicStore(usize, &self.buffer.len, self.buffer.len + 1, .monotonic);
                 }
             } else if (dst.len < src.len) {
                 // Move existing contents over, as shriking
@@ -171,7 +171,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                     self.buffer.ptr[i] = self.buffer.ptr[i + diff];
                 }
 
-                @atomicStore(usize, &self.buffer.len, self.buffer.len - diff, .Monotonic);
+                @atomicStore(usize, &self.buffer.len, self.buffer.len - diff, .monotonic);
             }
             var i: usize = 0;
             while (i < dst.len) : (i += 1) {

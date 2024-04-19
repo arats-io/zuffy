@@ -186,36 +186,36 @@ pub const Time = struct {
             inline .seconds => self.value,
             inline .millis => blk: {
                 const milli = @rem(self.value, std.time.ms_per_s);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.ms_per_s);
             },
             inline .micros => blk: {
                 const micro = @rem(self.value, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .monotonic);
 
                 var milli = @rem(self.value, std.time.us_per_s);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 milli = @divTrunc(milli, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.us_per_s);
             },
             inline .nanos => blk: {
                 const nano = @rem(self.value, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.nano), @as(u10, @intCast(nano)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.nano), @as(u10, @intCast(nano)), .monotonic);
 
                 var micro = @rem(self.value, std.time.ns_per_ms);
                 micro = @divTrunc(micro, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .monotonic);
 
                 var milli = @rem(self.value, std.time.ns_per_s);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 milli = @divTrunc(milli, std.time.ns_per_ms);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.ns_per_s);
             },

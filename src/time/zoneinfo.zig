@@ -1,18 +1,17 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const BufferError = @import("../bytes/mod.zig").Error;
 const Buffer = @import("../bytes/mod.zig").Buffer;
 
 pub const Error = error{
-    OutOfMemory,
     BadData,
     UnknownTimeZone,
     NotImplemented,
     EndOfStream,
     StreamTooLong,
-    InvalidRange,
     NoSpaceLeft,
-};
+} || BufferError;
 
 pub const Local = struct {
     const Self = @This();

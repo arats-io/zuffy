@@ -1,3 +1,4 @@
+pub const Error = @import("buffer.zig").Error;
 pub const Buffer = @import("buffer.zig").Buffer;
 pub const BufferPool = @import("buffer.zig").BufferPool;
 pub const BufferManaged = @import("buffer.zig").BufferManaged;

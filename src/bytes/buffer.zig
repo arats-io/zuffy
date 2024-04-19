@@ -6,9 +6,8 @@ const Stack = @import("../atomic/stack.zig").Stack;
 const assert = std.debug.assert;
 
 pub const Error = error{
-    OutOfMemory,
     InvalidRange,
-};
+} || std.mem.Allocator.Error;
 
 pub fn BufferPool(comptime threadsafe: bool) type {
     return struct {
