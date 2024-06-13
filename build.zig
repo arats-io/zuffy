@@ -4,14 +4,9 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // create a module to be used internally.
-    const xstd_m = b.addModule("xstd", .{
-        .source_file = .{ .path = "src/lib.zig" },
-    });
-
     const lib = b.addStaticLibrary(.{
         .name = "xstd",
-        .root_source_file = .{ .path = "src/lib.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         .target = target,
         .optimize = optimize,
     });
@@ -53,14 +48,16 @@ pub fn build(b: *std.Build) !void {
 
         var example = b.addExecutable(.{
             .name = ex_name,
-            .root_source_file = .{ .path = ex_src },
+            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = ex_src } },
             .target = target,
             .optimize = optimize,
             .single_threaded = false,
         });
 
         example.linkLibrary(lib);
-        example.addModule("xstd", xstd_m);
+        example.root_module.addAnonymousImport("xstd", .{
+            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
+        });
 
         // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
@@ -76,10 +73,9 @@ pub fn build(b: *std.Build) !void {
     // but does not run it.
     var tests_suite = b.step("test-suite", "Run unit tests");
     {
-        var dir = try std.fs.cwd().openDir(".", .{});
+        const dir = try std.fs.cwd().openDir("./src", .{});
 
-        const walker = try dir.openIterableDir("src", .{ .access_sub_paths = true });
-        var iter = try walker.walk(b.allocator);
+        var iter = try dir.walk(b.allocator);
 
         const allowed_exts = [_][]const u8{".zig"};
         while (try iter.next()) |entry| {
@@ -96,7 +92,7 @@ pub fn build(b: *std.Build) !void {
                 //std.debug.print("Testing: {s}\n", .{testPath});
 
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                    .root_source_file = .{ .path = testPath },
+                    .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = testPath } },
                     .target = target,
                     .optimize = optimize,
                 })).step);

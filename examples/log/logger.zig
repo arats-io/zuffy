@@ -32,10 +32,10 @@ pub fn main() !void {
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
         .format = Format.json,
-        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
+        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
 
-    const max = std.math.maxInt(u4);
+    const max = std.math.maxInt(u18);
     var m: i128 = 0;
     const start = std.time.microTimestamp();
     for (0..max) |_| {

@@ -3,5 +3,5 @@
     .name = "xstd",
     .version = "0.1.1",
     .dependencies = .{},
-    .paths = .{ "LICENSE.md", "README.md", "build.zig", "build.zig.zon", "src" },
+    .paths = .{ "LICENSE", "README.md", "build.zig", "build.zig.zon", "src" },
 }

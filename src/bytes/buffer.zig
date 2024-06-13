@@ -1,14 +1,13 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Stack = std.atomic.Stack;
+const Stack = @import("../atomic/stack.zig").Stack;
 
 const assert = std.debug.assert;
 
-pub const Error = error{
-    OutOfMemory,
+pub const BufferError = error{
     InvalidRange,
-};
+} || std.mem.Allocator.Error;
 
 pub fn BufferPool(comptime threadsafe: bool) type {
     return struct {
@@ -19,6 +18,13 @@ pub fn BufferPool(comptime threadsafe: bool) type {
 
         pub fn init(allocator: std.mem.Allocator) Self {
             return Self{ .queue = Stack(Buffer(threadsafe)).init(), .allocator = allocator };
+        }
+
+        pub fn deinit(self: Self) void {
+            while (self.queue.pop()) |n| {
+                var b: Buffer(threadsafe) = n.data;
+                b.deinit();
+            }
         }
 
         pub fn pop(self: *Self) !Buffer(threadsafe) {
@@ -44,6 +50,7 @@ pub const Buffer = BufferManaged(!builtin.single_threaded);
 pub fn BufferManaged(comptime threadsafe: bool) type {
     return struct {
         const Self = @This();
+        const Error = BufferError;
 
         allocator: std.mem.Allocator,
 
@@ -121,6 +128,10 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             }
         }
 
+        pub fn writeAll(self: *Self, array: []const u8) !void {
+            _ = try self.write(array);
+        }
+
         pub fn write(self: *Self, array: []const u8) !usize {
             if (threadsafe) {
                 self.mu.lock();
@@ -147,7 +158,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            var size = if (self.len < dst.len) self.len else dst.len;
+            const size = if (self.len < dst.len) self.len else dst.len;
             _copy(u8, dst, self.ptr[0..size]);
             return size;
         }
@@ -253,7 +264,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            var new_str = try allocator.alloc(u8, self.len);
+            const new_str = try allocator.alloc(u8, self.len);
             _copy(u8, new_str, self.ptr[0..self.len]);
             return new_str;
         }
@@ -351,14 +362,14 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
 
                 pub fn next(it: *Iterator) ?[]const u8 {
                     if (it.index >= it.sb.len) return null;
-                    var i = it.index;
+                    const i = it.index;
                     return it.sb.ptr[i..it.index];
                 }
 
                 pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
                     if ((it.index + size) >= it.sb.len) return null;
 
-                    var i = it.index;
+                    const i = it.index;
                     it.index += size;
                     return it.sb.ptr[i..it.index];
                 }

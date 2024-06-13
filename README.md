@@ -1,24 +1,31 @@
 # Extended Zig standard library
+
 Current Zig library do offer some extra functionality missing from official Zig STD.
 
-Work in progress...; If somewthing is not working, feel free to contribute or open a issue. 
+Work in progress...; If somewthing is not working, feel free to contribute or open a issue.
 
-## List of modules 
+Require zig version: **0.13.0**
+
+## List of modules
 
 ### Bytes
+
 - [x] Buffer
 - [x] Utf8Buffer/StringBuilder
+
 ---
 
-### Time and Time Zoneinfo 
+### Time and Time Zoneinfo
+
 - [x] Time as wrapper which is including the timezone
 - [x] Timezone
 
-
 #### Usage
+
 The Time struct do include machine timezone adjustments as an offset.
 
-Environment variable `TZ` can be used to calculate a time for a different timezone. 
+Environment variable `TZ` can be used to calculate a time for a different timezone.
+
 ```
 export TZ='Europe/Tiraspol';
 
@@ -26,28 +33,36 @@ export TZ='Europe/Tiraspol';
 ```
 
 In case if machine is not having a way to fetch desired zoninfo, the library is considering embeded zip(and gziped) archive with all zone information.
+
 ```
 export TZ='Europe/Tiraspol.zip';
 
 2023 Nov 5th Sun 22:33:05.477603
 ```
+
 IMPORTANT: As the zip is embeded do affect the binary size. Zip(and gziped) is having 144KB.
 
-- [x] *nix systems
+- [x] \*nix systems
 - [ ] windows systems
+
 ---
 
 ### Archives
+
 - [x] Zip archive extraction
 - [ ] Zip archive creation
 - [ ] More format to be supported ...
+
 ---
 
 ### ZLog a Zig logger
-- [x] ZLog - Zig logger 
+
+- [x] ZLog - Zig logger
 
 #### Usage
+
 Include the xstd into the `build.zig.zon` file.
+
 ```
 .dependencies = .{
     .xstd = .{
@@ -58,6 +73,7 @@ Include the xstd into the `build.zig.zon` file.
 ```
 
 Usage based on default options:
+
 ```zig
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
@@ -66,6 +82,7 @@ const logger = Logger.init(arena.allocator(), .{});
 ```
 
 Usage based on custom options:
+
 ```zig
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
@@ -83,6 +100,7 @@ const logger = Logger.init(arena.allocator(), .{
 ```
 
 Example:
+
 ```zig
 fn testing(logger: anytype) void {
     try @constCast(&logger.Trace())
@@ -130,6 +148,7 @@ fn testing(logger: anytype) void {
 ```
 
 Output:
+
 ```json
 {"time": "2023 Nov 5th Sun 20:29:40.311932 - 4th", "level": "trace", "message": "Initialization...", "caller": "examples/log/logger.zig:45", "attribute-null":null, "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
 {"time": "2023 Nov 5th Sun 20:29:40.312001 - 4th", "level": "debug", "message": "Initialization...", "caller": "examples/log/logger.zig:56", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}

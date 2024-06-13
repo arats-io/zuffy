@@ -93,12 +93,12 @@ pub fn absDate(seconds: i128) DateTime {
     d -= days_per_year * n;
 
     var sec = @rem(seconds, std.time.s_per_day);
-    var hour = @divFloor(sec, std.time.s_per_hour);
+    const hour = @divFloor(sec, std.time.s_per_hour);
     sec -= hour * std.time.s_per_hour;
-    var min = @divFloor(sec, std.time.s_per_min);
+    const min = @divFloor(sec, std.time.s_per_min);
     sec -= min * std.time.s_per_min;
 
-    var year = y + absolute_zero_year;
+    const year = y + absolute_zero_year;
 
     var day = d;
 
@@ -131,7 +131,7 @@ pub fn absDate(seconds: i128) DateTime {
 
     const i = @as(usize, @intCast(month));
     var begin = daysBefore[i];
-    var end = daysBefore[i + 1];
+    const end = daysBefore[i + 1];
 
     if (day >= end) {
         month += 1;
@@ -160,6 +160,7 @@ pub const Time = struct {
     value: i128,
 
     date_time: ?DateTime = null,
+    offset: ?i32 = null,
 
     rest: u64 = 0,
     milli: u10 = 0,
@@ -181,46 +182,47 @@ pub const Time = struct {
     }
 
     fn pupulate(self: *Self) *Self {
-        var seconds = switch (self.measure) {
+        const seconds = switch (self.measure) {
             inline .seconds => self.value,
             inline .millis => blk: {
                 const milli = @rem(self.value, std.time.ms_per_s);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.ms_per_s);
             },
             inline .micros => blk: {
                 const micro = @rem(self.value, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .monotonic);
 
                 var milli = @rem(self.value, std.time.us_per_s);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 milli = @divTrunc(milli, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.us_per_s);
             },
             inline .nanos => blk: {
                 const nano = @rem(self.value, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.nano), @as(u10, @intCast(nano)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.nano), @as(u10, @intCast(nano)), .monotonic);
 
                 var micro = @rem(self.value, std.time.ns_per_ms);
                 micro = @divTrunc(micro, std.time.ns_per_us);
-                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.micro), @as(u10, @intCast(micro)), .monotonic);
 
                 var milli = @rem(self.value, std.time.ns_per_s);
-                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .Monotonic);
+                @atomicStore(u64, @constCast(&self.rest), @as(u64, @intCast(milli)), .monotonic);
 
                 milli = @divTrunc(milli, std.time.ns_per_ms);
-                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .Monotonic);
+                @atomicStore(u10, @constCast(&self.milli), @as(u10, @intCast(milli)), .monotonic);
 
                 break :blk @divTrunc(self.value, std.time.ns_per_s);
             },
         };
 
-        self.date_time = absDate(seconds + offset());
+        self.offset = offset();
+        self.date_time = absDate(seconds + self.offset.?);
 
         return self;
     }
@@ -286,9 +288,9 @@ pub const Time = struct {
     // | | s  | 0 1 ... 58 59 |
     // | | ss | 00 01 ... 58 59 |
     // | Offset
-    // | | Z  | -7 -6 ... +5 +6 |    - (Not yet supported)
-    // | | ZZ | -0700 -0600 ... +0500 +0600 |    - (Not yet supported)
-    // | | ZZZ | -07:00 -06:00 ... +05:00 +06:00 |    - (Not yet supported)
+    // | | Z  | -7 -6 ... +5 +6 |
+    // | | ZZ | -0700 -0600 ... +0500 +0600 |
+    // | | ZZZ | -07:00 -06:00 ... +05:00 +06:00 |
     // Usage:
     // Time.now().format('MMMM Mo YY N kk:mm:ss A')) // output like: January 1st 22 AD 13:45:33 PM
 
@@ -451,11 +453,15 @@ pub const Time = struct {
         } else if (std.mem.eql(u8, token, "dddd")) {
             try sb.appendf("{s}", .{self.getWeekday().string()});
         } else if (std.mem.eql(u8, token, "ZZZ")) {
-            try sb.append("ZZZ(N/A)");
+            try self.zzz(sb, ":");
         } else if (std.mem.eql(u8, token, "ZZ")) {
-            try sb.append("ZZ(N/A)");
+            try self.zzz(sb, "");
         } else if (std.mem.eql(u8, token, "Z")) {
-            try sb.append("Z(N/A)");
+            const h = @divFloor(self.offset.?, std.time.s_per_hour);
+            if (h > 0) {
+                try sb.append("+");
+            }
+            try sb.appendf("{d}", .{h});
         } else if (std.mem.eql(u8, token, "NN")) {
             try sb.append("BC");
         } else if (std.mem.eql(u8, token, "N")) {
@@ -507,6 +513,28 @@ pub const Time = struct {
     }
     pub fn getMonth(self: Self) Month {
         return @as(Month, @enumFromInt(self.dateTime().month));
+    }
+
+    fn zzz(self: Self, sb: *StringBuilder, delimeter: []const u8) !void {
+        var h = @divFloor(self.offset.?, std.time.s_per_hour);
+        if (h > 0) {
+            try sb.append("+");
+        } else if (h < 0) {
+            try sb.append("-");
+            h = @as(i32, @intCast(@abs(h)));
+        }
+        if (h < 10) {
+            try sb.appendf("0{d}", .{h});
+        } else {
+            try sb.appendf("{d}", .{h});
+        }
+
+        const m = @as(i32, @intCast(@divFloor(@as(i32, @intCast(@abs(self.offset.?))) - h * std.time.s_per_hour, std.time.s_per_min)));
+        if (m < 10) {
+            try sb.appendf("{s}0{d}", .{ delimeter, m });
+        } else {
+            try sb.appendf("{s}{d}", .{ delimeter, m });
+        }
     }
 };
 

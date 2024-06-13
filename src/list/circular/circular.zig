@@ -94,10 +94,10 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             self.deinit();
 
             self.items = new.items;
-            @atomicStore(usize, &self.tail, new.tail, .Monotonic);
-            @atomicStore(usize, &self.head, new.head, .Monotonic);
-            @atomicStore(usize, &self.cap, new.cap, .Monotonic);
-            @atomicStore(usize, &self.len, new.len, .Monotonic);
+            @atomicStore(usize, &self.tail, new.tail, .monotonic);
+            @atomicStore(usize, &self.head, new.head, .monotonic);
+            @atomicStore(usize, &self.cap, new.cap, .monotonic);
+            @atomicStore(usize, &self.len, new.len, .monotonic);
         }
 
         pub fn push(self: *Self, item: T) T {
@@ -113,15 +113,15 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
         }
 
         fn pushLifo(self: *Self, item: T) T {
-            var previous: T = self.items[self.tail];
+            const previous: T = self.items[self.tail];
 
             self.items[self.tail] = item;
 
             const idx = (self.tail + 1) % self.cap;
-            @atomicStore(usize, &self.tail, idx, .Monotonic);
+            @atomicStore(usize, &self.tail, idx, .monotonic);
 
             if (self.len < self.cap) {
-                @atomicStore(usize, &self.len, self.len + 1, .Monotonic);
+                @atomicStore(usize, &self.len, self.len + 1, .monotonic);
             }
 
             return previous;
@@ -129,9 +129,9 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
 
         fn pushFifo(self: *Self, item: T) T {
             if (self.len == self.cap and self.tail == self.tail) {
-                @atomicStore(usize, &self.head, self.head + 1, .Monotonic);
+                @atomicStore(usize, &self.head, self.head + 1, .monotonic);
                 if (self.head == self.cap) {
-                    @atomicStore(usize, &self.head, 0, .Monotonic);
+                    @atomicStore(usize, &self.head, 0, .monotonic);
                 }
             }
 
@@ -166,12 +166,12 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             }
 
             idx = (idx - 1) % self.cap;
-            @atomicStore(usize, ptr, idx, .Monotonic);
-            @atomicStore(usize, &self.len, self.len - 1, .Monotonic);
+            @atomicStore(usize, ptr, idx, .monotonic);
+            @atomicStore(usize, &self.len, self.len - 1, .monotonic);
 
             if (self.len == 0) {
-                @atomicStore(usize, &self.tail, 0, .Monotonic);
-                @atomicStore(usize, &self.head, 0, .Monotonic);
+                @atomicStore(usize, &self.tail, 0, .monotonic);
+                @atomicStore(usize, &self.head, 0, .monotonic);
             }
             return self.items[idx];
         }

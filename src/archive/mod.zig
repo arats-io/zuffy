@@ -2,14 +2,14 @@ pub const zip = @import("zip/mod.zig");
 
 pub const ContentReceiver = @import("content_receiver.zig");
 
-pub fn GenericReceiver(
+pub fn GenericContent(
     comptime Context: type,
     comptime Fn: anytype,
 ) type {
     return struct {
         context: Context,
 
-        pub inline fn contentReceiver(self: *const Self) ContentReceiver {
+        pub inline fn receiver(self: *const Self) ContentReceiver {
             return .{
                 .context = @ptrCast(&self.context),
                 .receiveFn = typeErasedReceiverFn,
