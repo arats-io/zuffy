@@ -1,8 +1,7 @@
-pub const Error = @import("buffer.zig").Error;
+pub const Error = @import("buffer.zig").BufferError;
 pub const Buffer = @import("buffer.zig").Buffer;
 pub const BufferPool = @import("buffer.zig").BufferPool;
 pub const BufferManaged = @import("buffer.zig").BufferManaged;
-pub const BufferError = @import("buffer.zig").Error;
 
 pub const StringBuilder = @import("utf8_buffer.zig").Utf8Buffer;
 pub const Utf8Buffer = @import("utf8_buffer.zig").Utf8Buffer;

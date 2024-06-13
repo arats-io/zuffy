@@ -5,7 +5,7 @@ const Stack = @import("../atomic/stack.zig").Stack;
 
 const assert = std.debug.assert;
 
-pub const Error = error{
+pub const BufferError = error{
     InvalidRange,
 } || std.mem.Allocator.Error;
 
@@ -50,6 +50,7 @@ pub const Buffer = BufferManaged(!builtin.single_threaded);
 pub fn BufferManaged(comptime threadsafe: bool) type {
     return struct {
         const Self = @This();
+        const Error = BufferError;
 
         allocator: std.mem.Allocator,
 
@@ -125,6 +126,10 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 const byte = try reader.readByte();
                 try self.writeByte(byte);
             }
+        }
+
+        pub fn writeAll(self: *Self, array: []const u8) !void {
+            _ = try self.write(array);
         }
 
         pub fn write(self: *Self, array: []const u8) !usize {

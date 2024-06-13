@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 
 const Stack = @import("../atomic/stack.zig").Stack;
 
-const Error = @import("buffer.zig").Error;
+const Error = @import("buffer.zig").BufferError;
 const Buffer = @import("buffer.zig").Buffer;
 const BufferManaged = @import("buffer.zig").BufferManaged;
 

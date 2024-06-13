@@ -40,7 +40,7 @@ pub fn Pool(comptime T: type) type {
             }
 
             if (self.queue.pop()) |n| {
-                _ = @atomicRmw(usize, &self.counter, .Sub, 1, .Monotonic);
+                _ = @atomicRmw(usize, &self.counter, .Sub, 1, .monotonic);
 
                 return @as(*T, @ptrFromInt(n)).*;
             }
@@ -57,7 +57,7 @@ pub fn Pool(comptime T: type) type {
             if (self.counter == self.queue.cap) {
                 return PoolError.NoCapacity;
             }
-            _ = @atomicRmw(usize, &self.counter, .Add, 1, .Monotonic);
+            _ = @atomicRmw(usize, &self.counter, .Add, 1, .monotonic);
             _ = self.queue.push(@as(usize, @intFromPtr(data)));
         }
     };

@@ -1,7 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
 const io = std.io;
-const deflate = std.compress.deflate;
 
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
@@ -20,7 +19,6 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
         const Self = @This();
 
         pub const Error = ParseSource.Error ||
-            deflate.Decompressor(ParseSource).Error ||
             error{ WrongChecksum, Unsupported };
 
         allocator: mem.Allocator,
@@ -213,8 +211,7 @@ pub fn ReaderEntries(comptime ParseSource: type) type {
                         .Deflated => {
                             var in_stream = std.io.fixedBufferStream(content.bytes());
 
-                            var deflator = try deflate.decompressor(self.allocator, in_stream.reader(), null);
-                            defer deflator.deinit();
+                            var deflator = std.compress.flate.decompressor(in_stream.reader());
 
                             var decoded_content = Buffer.initWithFactor(self.allocator, 5);
                             defer decoded_content.deinit();

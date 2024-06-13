@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) !void {
 
     const lib = b.addStaticLibrary(.{
         .name = "xstd",
-        .root_source_file = .{ .path = "src/lib.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         .target = target,
         .optimize = optimize,
     });
@@ -48,7 +48,7 @@ pub fn build(b: *std.Build) !void {
 
         var example = b.addExecutable(.{
             .name = ex_name,
-            .root_source_file = .{ .path = ex_src },
+            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = ex_src } },
             .target = target,
             .optimize = optimize,
             .single_threaded = false,
@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) !void {
 
         example.linkLibrary(lib);
         example.root_module.addAnonymousImport("xstd", .{
-            .root_source_file = .{ .path = "src/lib.zig" },
+            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         });
 
         // const example_run = example.run();
@@ -92,7 +92,7 @@ pub fn build(b: *std.Build) !void {
                 //std.debug.print("Testing: {s}\n", .{testPath});
 
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                    .root_source_file = .{ .path = testPath },
+                    .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = testPath } },
                     .target = target,
                     .optimize = optimize,
                 })).step);
