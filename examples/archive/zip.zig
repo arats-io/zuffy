@@ -15,7 +15,7 @@ pub fn main() !void {
     var gzip_data = xstd.bytes.Buffer.init(allocator);
     defer gzip_data.deinit();
 
-    try std.compress.gzip.decompress(in_stream.reader(), @constCast(&gzip_data));
+    try std.compress.gzip.decompress(in_stream.reader(), gzip_data.writer());
 
     var entries = try xstd.archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
     defer entries.deinit();

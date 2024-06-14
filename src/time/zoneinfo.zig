@@ -343,7 +343,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     var gzip_data = Buffer.init(allocator);
     defer gzip_data.deinit();
 
-    try std.compress.gzip.decompress(in_stream.reader(), @constCast(&gzip_data));
+    try std.compress.gzip.decompress(in_stream.reader(), gzip_data.writer());
 
     var entries = try archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
     defer entries.deinit();
