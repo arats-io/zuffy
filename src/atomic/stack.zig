@@ -7,7 +7,7 @@ const builtin = @import("builtin");
 pub fn Stack(comptime T: type) type {
     return struct {
         mu: std.Thread.Mutex = std.Thread.Mutex{},
-        root: std.atomic.Value(?*Node),
+        root: std.atomic.Value(?*Node) = std.atomic.Value(?*Node).init(null),
 
         pub const Self = @This();
 
@@ -17,50 +17,45 @@ pub fn Stack(comptime T: type) type {
         };
 
         pub fn init() Self {
-            return Self{
-                .root = std.atomic.Value(?*Node).init(null),
-            };
+            return Self{};
         }
 
-        pub fn push(self: *Self, node: *Node) void {
-            if (!builtin.single_threaded) {
-                self.mu.lock();
-                defer self.mu.unlock();
-            }
+        pub fn push(self: *Self, newNode: *Node) void {
+            self.mu.lock();
+            defer self.mu.unlock();
 
-            const root = self.root.load(.SeqCst);
-            node.next = root;
+            const oldNode = self.root.load(.seq_cst);
+            newNode.next = oldNode;
 
-            self.root.cmpxchgStrong(root, node, .SeqCst, .SeqCst);
+            _ = self.root.cmpxchgStrong(oldNode, newNode, .seq_cst, .seq_cst);
         }
 
         pub fn pop(self: *Self) ?*Node {
-            if (!builtin.single_threaded) {
-                self.mu.lock();
-                defer self.mu.unlock();
+            self.mu.lock();
+            defer self.mu.unlock();
+
+            const root = self.root.load(.seq_cst);
+            if (root) |item| {
+                _ = self.root.cmpxchgStrong(item, item.next, .seq_cst, .seq_cst);
+
+                item.next = undefined;
+                return item;
             }
 
-            const root = self.root.load(.SeqCst);
-            if (root == null) {
-                return null;
-            }
-            const nextRoot = root.next;
-
-            self.root.cmpxchgStrong(root, nextRoot, .SeqCst, .SeqCst);
-            return root;
+            return null;
         }
 
         pub fn isEmpty(self: *Self) bool {
-            return self.root.load(.SeqCst) == null;
+            return self.root.load(.seq_cst) == null;
         }
     };
 }
 
 const Context = struct {
     allocator: std.mem.Allocator,
-    stack: *Stack(i32),
-    put_sum: isize,
-    get_sum: isize,
+    stack: *Stack(i8),
+    put_sum: i128,
+    get_sum: i128,
     get_count: usize,
     puts_done: bool,
 };
@@ -80,7 +75,7 @@ test "std.atomic.stack" {
     var fixed_buffer_allocator = std.heap.FixedBufferAllocator.init(plenty_of_memory);
     const a = fixed_buffer_allocator.threadSafeAllocator();
 
-    var stack = Stack(i32).init();
+    var stack = Stack(i8).init();
     var context = Context{
         .allocator = a,
         .stack = &stack,
@@ -114,15 +109,15 @@ test "std.atomic.stack" {
             t.* = try std.Thread.spawn(.{}, startGets, .{&context});
         }
 
-        for (putters) |t|
+        for (putters) |t| {
             t.join();
-        @atomicStore(bool, &context.puts_done, true, .SeqCst);
-        for (getters) |t|
-            t.join();
-    }
+        }
 
-    if (context.put_sum != context.get_sum) {
-        std.debug.panic("failure\nput_sum:{} != get_sum:{}", .{ context.put_sum, context.get_sum });
+        @atomicStore(bool, &context.puts_done, true, .seq_cst);
+
+        for (getters) |t| {
+            t.join();
+        }
     }
 
     if (context.get_count != puts_per_thread * put_thread_count) {
@@ -132,6 +127,10 @@ test "std.atomic.stack" {
             @as(u32, put_thread_count),
         });
     }
+
+    if (context.put_sum != context.get_sum) {
+        std.debug.panic("failure\nput_sum:{} != get_sum:{}", .{ context.put_sum, context.get_sum });
+    }
 }
 
 fn startPuts(ctx: *Context) u8 {
@@ -140,28 +139,27 @@ fn startPuts(ctx: *Context) u8 {
     const random = prng.random();
     while (put_count != 0) : (put_count -= 1) {
         std.time.sleep(1); // let the os scheduler be our fuzz
-        const x = @as(i32, @bitCast(random.int(u32)));
-        const node = ctx.allocator.create(Stack(i32).Node) catch unreachable;
-        node.* = Stack(i32).Node{
-            .next = undefined,
+        const x = @as(i8, @bitCast(random.int(i8)));
+        const node = ctx.allocator.create(Stack(i8).Node) catch unreachable;
+        node.* = Stack(i8).Node{
+            .next = null,
             .data = x,
         };
         ctx.stack.push(node);
-        _ = @atomicRmw(isize, &ctx.put_sum, .Add, x, .SeqCst);
+        _ = @atomicRmw(i128, &ctx.put_sum, .Add, x, .seq_cst);
     }
     return 0;
 }
 
 fn startGets(ctx: *Context) u8 {
-    while (true) {
-        const last = @atomicLoad(bool, &ctx.puts_done, .SeqCst);
-
+    var last = @atomicLoad(bool, &ctx.puts_done, .seq_cst);
+    while (!last) {
+        std.time.sleep(20); // let the os scheduler be our fuzz
         while (ctx.stack.pop()) |node| {
-            std.time.sleep(1); // let the os scheduler be our fuzz
-            _ = @atomicRmw(isize, &ctx.get_sum, .Add, node.data, .SeqCst);
-            _ = @atomicRmw(usize, &ctx.get_count, .Add, 1, .SeqCst);
+            _ = @atomicRmw(i128, &ctx.get_sum, .Add, node.*.data, .seq_cst);
+            _ = @atomicRmw(usize, &ctx.get_count, .Add, 1, .seq_cst);
         }
-
-        if (last) return 0;
+        last = @atomicLoad(bool, &ctx.puts_done, .seq_cst);
     }
+    return 0;
 }

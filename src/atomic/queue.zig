@@ -222,7 +222,7 @@ test "std.atomic.Queue" {
 
         for (putters) |t|
             t.join();
-        @atomicStore(bool, &context.puts_done, true, .SeqCst);
+        @atomicStore(bool, &context.puts_done, true, .seq_cst);
         for (getters) |t|
             t.join();
 
@@ -256,19 +256,19 @@ fn startPuts(ctx: *Context) u8 {
             .data = x,
         };
         ctx.queue.put(node);
-        _ = @atomicRmw(isize, &ctx.put_sum, .Add, x, .SeqCst);
+        _ = @atomicRmw(isize, &ctx.put_sum, .Add, x, .seq_cst);
     }
     return 0;
 }
 
 fn startGets(ctx: *Context) u8 {
     while (true) {
-        const last = @atomicLoad(bool, &ctx.puts_done, .SeqCst);
+        const last = @atomicLoad(bool, &ctx.puts_done, .seq_cst);
 
         while (ctx.queue.get()) |node| {
             std.time.sleep(1); // let the os scheduler be our fuzz
-            _ = @atomicRmw(isize, &ctx.get_sum, .Add, node.data, .SeqCst);
-            _ = @atomicRmw(usize, &ctx.get_count, .Add, 1, .SeqCst);
+            _ = @atomicRmw(isize, &ctx.get_sum, .Add, node.data, .seq_cst);
+            _ = @atomicRmw(usize, &ctx.get_count, .Add, 1, .seq_cst);
         }
 
         if (last) return 0;

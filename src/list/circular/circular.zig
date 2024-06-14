@@ -181,12 +181,12 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
 
             const res = self.items[idx];
             idx = (idx + 1) % self.cap;
-            @atomicStore(usize, &self.head, idx, .Monotonic);
-            @atomicStore(usize, &self.len, self.len - 1, .Monotonic);
+            @atomicStore(usize, &self.head, idx, .monotonic);
+            @atomicStore(usize, &self.len, self.len - 1, .monotonic);
 
             if (self.len == 0) {
-                @atomicStore(usize, &self.tail, 0, .Monotonic);
-                @atomicStore(usize, &self.head, 0, .Monotonic);
+                @atomicStore(usize, &self.tail, 0, .monotonic);
+                @atomicStore(usize, &self.head, 0, .monotonic);
             }
 
             return res;
