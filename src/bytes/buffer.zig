@@ -138,6 +138,8 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
+            if (array.len == 0) return 0;
+
             if (self.len + array.len > self.cap) {
                 try self.resize((self.len + array.len) * self.factor);
             }
@@ -152,7 +154,12 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             return array.len;
         }
 
-        fn read(self: *Self, dst: []u8) !usize {
+        pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
+            const writer = self.writer();
+            return std.fmt.format(writer, format, args);
+        }
+
+        pub fn read(self: *Self, dst: []u8) !usize {
             if (threadsafe) {
                 self.mu.lock();
                 defer self.mu.unlock();
@@ -199,7 +206,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            if (start < self.len and end < self.len and start < end) {
+            if (start < self.len and end <= self.len and start < end) {
                 return self.ptr[start..end];
             }
             return Error.InvalidRange;

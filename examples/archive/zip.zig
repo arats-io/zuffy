@@ -17,8 +17,8 @@ pub fn main() !void {
 
     try std.compress.gzip.decompress(in_stream.reader(), gzip_data.writer());
 
-    var entries = try xstd.archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
-    defer entries.deinit();
+    var zipFile = xstd.archive.zip.fromBufferStream(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
+    defer zipFile.deinit();
 
     var filters = std.ArrayList([]const u8).init(allocator);
     defer filters.deinit();
@@ -51,7 +51,7 @@ pub fn main() !void {
 
     var collector = Collector.init(allocator);
 
-    _ = try entries.readWithFilters(filters, collector.content().receiver());
+    _ = try zipFile.readWithFilters(filters, collector.content().receiver());
 
     for (collector.arr.items) |item| {
         std.debug.print("\n-----------------------------------------\n", .{});
@@ -60,7 +60,7 @@ pub fn main() !void {
 
     // --------------- Extract the Extra Fields ----------------------------
     var ef = ExtraField.init();
-    for (entries.central_directory.headers.items) |item| {
+    for (zipFile.central_directory.?.headers.items) |item| {
         try item.decodeExtraFields(ef.generic().handler());
     }
 }

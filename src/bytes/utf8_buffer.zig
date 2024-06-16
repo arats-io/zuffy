@@ -3,8 +3,7 @@ const builtin = @import("builtin");
 
 const Stack = @import("../atomic/stack.zig").Stack;
 
-const Error = @import("buffer.zig").BufferError;
-const Buffer = @import("buffer.zig").Buffer;
+pub const Error = @import("buffer.zig").BufferError;
 const BufferManaged = @import("buffer.zig").BufferManaged;
 
 pub const Utf8BufferPool = Utf8BufferPoolManaged(!builtin.single_threaded);
@@ -91,6 +90,8 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
                 defer self.buffer.mu.unlock();
             }
 
+            if (len == 0) return;
+
             const numberOfChars = if (len > array.len) array.len else len;
 
             // Make sure buffer has enough space
@@ -127,9 +128,24 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             @atomicStore(usize, &self.buffer.len, self.buffer.len + numberOfChars, .monotonic);
         }
 
+        pub fn rangeBytes(self: *Self, start: usize, end: usize) ![]const u8 {
+            return self.buffer.rangeBytes(start, end);
+        }
+
+        pub fn fromBytes(self: *Self, start: usize) ![]const u8 {
+            self.buffer.fromBytes(start);
+        }
+
         pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
-            const writer = self.writer();
-            return std.fmt.format(writer, format, args);
+            return self.buffer.print(format, args);
+        }
+
+        pub fn write(self: *Self, array: []const u8) !usize {
+            return self.buffer.write(array);
+        }
+
+        pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
+            return self.buffer.print(format, args);
         }
 
         pub fn repeat(self: *Self, n: usize) !void {
@@ -549,6 +565,10 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             return self.buffer.bytes();
         }
 
+        fn read(self: *Self, dst: []u8) !usize {
+            return self.read(dst);
+        }
+
         pub fn bytesInto(self: *Self, dst: []const u8) !usize {
             try self.shrink();
             const bs = self.bytes();
@@ -640,7 +660,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             }
 
             fn readFn(self: *Self, m: []u8) !usize {
-                return try self.buffer.read(m);
+                return try self.read(m);
             }
 
             pub fn writer(self: *Self) Writer {
@@ -648,7 +668,7 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             }
 
             fn appendWrite(self: *Self, m: []const u8) !usize {
-                return try self.buffer.write(m);
+                return try self.write(m);
             }
         };
 

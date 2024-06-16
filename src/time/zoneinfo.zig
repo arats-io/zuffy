@@ -345,8 +345,8 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     try std.compress.gzip.decompress(in_stream.reader(), gzip_data.writer());
 
-    var entries = try archive.zip.reader.Entries(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
-    defer entries.deinit();
+    var zipFile = archive.zip.fromBufferStream(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
+    defer zipFile.deinit();
 
     const Collector = struct {
         const Self = @This();
@@ -377,7 +377,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     var collector = Collector.init(allocator);
     defer collector.deinit();
-    _ = try entries.readWithFilters(filters, collector.content().receiver());
+    _ = try zipFile.readWithFilters(filters, collector.content().receiver());
 
     if (collector.arr.getLastOrNull()) |item| {
         return item;
