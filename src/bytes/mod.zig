@@ -9,4 +9,4 @@ pub const Utf8BufferManaged = @import("utf8_buffer.zig").Utf8BufferManaged;
 pub const Utf8BufferPool = @import("utf8_buffer.zig").Utf8BufferPool;
 pub const Utf8BufferPoolManaged = @import("utf8_buffer.zig").Utf8BufferPoolManaged;
 
-pub const stream = @import("flexible_buffer_stream.zig");
+pub const FlexibleBufferStream = @import("flexible_buffer_stream.zig").FlexibleBufferStream;

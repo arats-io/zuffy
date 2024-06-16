@@ -10,7 +10,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var fbs = xstd.bytes.stream.FlexibleBufferStream().init(arena.allocator());
+    var fbs = xstd.bytes.FlexibleBufferStream().init(arena.allocator());
     defer fbs.deinit();
 
     const stream = fbs.writer();
@@ -25,7 +25,6 @@ pub fn main() !void {
 
     var dest: [4]u8 = undefined;
 
-    fbs.reset();
     var size = try reader.read(&dest);
     std.debug.print("Result - {s}\n", .{dest[0..size]});
 

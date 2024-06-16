@@ -8,8 +8,8 @@ pub const extrafield = @import("extra_field.zig");
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
 
-pub fn fromBufferStream(allocator: mem.Allocator, buffer: anytype) File(@TypeOf(buffer)) {
-    return File(@TypeOf(buffer)).init(allocator, buffer);
+pub fn fromBufferStream(allocator: mem.Allocator, stream: anytype) File(@TypeOf(stream)) {
+    return File(@TypeOf(stream)).init(allocator, stream);
 }
 
 pub fn File(comptime ParseSource: type) type {

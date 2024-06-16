@@ -75,9 +75,7 @@ pub fn FlexibleBufferStream() type {
         }
 
         pub fn write(self: *Self, data: []const u8) WriteError!usize {
-            const n = try self.buffer.write(data);
-            self.pos += n;
-            return n;
+            return try self.buffer.write(data);
         }
 
         pub fn seekTo(self: *Self, pos: u64) SeekError!void {
@@ -144,8 +142,6 @@ test "input" {
     _ = try writer.write(&bytes);
 
     var reader = fbs.reader();
-
-    fbs.reset();
 
     var dest: [4]u8 = undefined;
 

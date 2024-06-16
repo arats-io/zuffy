@@ -12,12 +12,12 @@ pub fn main() !void {
 
     var in_stream = std.io.fixedBufferStream(data);
 
-    var gzip_data = xstd.bytes.Buffer.init(allocator);
-    defer gzip_data.deinit();
+    var fbs = xstd.bytes.FlexibleBufferStream().init(arena.allocator());
+    defer fbs.deinit();
 
-    try std.compress.gzip.decompress(in_stream.reader(), gzip_data.writer());
+    try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());
 
-    var zipFile = xstd.archive.zip.fromBufferStream(allocator, std.io.fixedBufferStream(gzip_data.bytes()));
+    var zipFile = xstd.archive.zip.fromBufferStream(allocator, fbs);
     defer zipFile.deinit();
 
     var filters = std.ArrayList([]const u8).init(allocator);
