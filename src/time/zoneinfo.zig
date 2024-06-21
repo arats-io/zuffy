@@ -320,6 +320,8 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
     var arr = sources;
     while (arr.popOrNull()) |item| {
         const zoneData = loadTzinfo(allocator, name, item) catch "";
+        defer allocator.free(zoneData);
+
         if (zoneData.len == 0) continue;
 
         var buff = std.io.fixedBufferStream(zoneData);
@@ -395,13 +397,9 @@ fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8
         return loadTzinfoFromZip(allocator, name);
     }
     if (!std.mem.eql(u8, source, "")) {
-        var buf = Buffer.init(allocator);
-        defer buf.deinit();
-        _ = try buf.write(source);
-        _ = try buf.write("/");
-        _ = try buf.write(name);
-        const res = buf.bytes();
-        return try std.fs.cwd().readFileAlloc(allocator, res[0..], 50 * 1024);
+        var buf: [3 * 1024]u8 = undefined;
+        const res = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ source, name });
+        return try std.fs.cwd().readFileAlloc(allocator, res, 50 * 1024);
     }
 
     return try std.fs.cwd().readFileAlloc(allocator, name, 1 * 1024 * 1024);

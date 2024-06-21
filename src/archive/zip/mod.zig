@@ -1,4 +1,5 @@
 const std = @import("std");
+const fs = std.fs;
 const mem = std.mem;
 const io = std.io;
 
@@ -65,18 +66,30 @@ pub fn File(comptime ParseSource: type) type {
             }
         }
 
-        fn matches(filename: Buffer, filters: std.ArrayList([]const u8)) bool {
-            if (filters.items.len == 0) {
-                return true;
-            }
+        pub fn addEntry(self: *Self, name: []const u8, content: []const u8) !void {
+            _ = name;
 
-            var b = Utf8Buffer.initWithBuffer(filename);
-            defer b.deinit();
+            self.source.clear();
+            _ = try self.source.writer().write(content);
+        }
 
-            for (filters.items) |item| {
-                if (b.contains(item)) return true;
-            }
-            return false;
+        pub fn addFile(self: *Self, path: []const u8) !void {
+            const source_file = try fs.Dir.openFile(path, .{});
+            var file_closed = false;
+            errdefer if (!file_closed) source_file.close();
+
+            const stat = try source_file.stat();
+
+            if (stat.kind == .directory)
+                return error.IsDir;
+
+            const source_code = try std.fs.cwd().readFileAlloc(self.allocator, path, stat.size);
+            defer self.allocator.free(source_code);
+
+            source_file.close();
+            file_closed = true;
+
+            try self.addEntry(fs.path.basename(path), source_code);
         }
 
         pub fn read(self: *Self, provider: anytype) !void {
@@ -87,9 +100,7 @@ pub fn File(comptime ParseSource: type) type {
         }
 
         pub fn readWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
-            if (self.central_directory == null) {
-                self.central_directory = try metadata.exract(self.allocator, self.source);
-            }
+            self.central_directory = try metadata.exract(self.allocator, self.source);
 
             for (self.central_directory.?.headers.items) |item| {
                 const entry_name = @constCast(&item.filename.?).bytes();
@@ -234,6 +245,20 @@ pub fn File(comptime ParseSource: type) type {
                     }
                 }
             }
+        }
+
+        fn matches(filename: Buffer, filters: std.ArrayList([]const u8)) bool {
+            if (filters.items.len == 0) {
+                return true;
+            }
+
+            var b = Utf8Buffer.initWithBuffer(filename);
+            defer b.deinit();
+
+            for (filters.items) |item| {
+                if (b.contains(item)) return true;
+            }
+            return false;
         }
     };
 }
