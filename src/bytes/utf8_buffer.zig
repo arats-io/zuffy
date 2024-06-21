@@ -64,6 +64,8 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
 
         pub fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
             var d = init(allocator);
+            errdefer d.deinit();
+
             try d.buffer.resize(size);
             return d;
         }
@@ -405,6 +407,8 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
 
             if (self.split(delimiters, index)) |block| {
                 var s = Self{ .buffer = BufferManaged(threadsafe).init(self.buffer.allocator) };
+                errdefer s.deinit();
+
                 try s.append(block);
                 return s;
             }

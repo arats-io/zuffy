@@ -252,6 +252,8 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
             }
 
             var buf = init(allocator);
+            errdefer buf.deinit();
+
             _ = try buf.write(self.ptr[0..self.len]);
             return buf;
         }

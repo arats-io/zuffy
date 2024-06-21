@@ -1,4 +1,4 @@
-pub const int = @import("int.zig");
+pub const ints = @import("ints.zig");
 pub const arrays = @import("arrays.zig");
 
 pub const atomic = @import("atomic/mod.zig");

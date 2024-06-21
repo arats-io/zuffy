@@ -1,7 +1,7 @@
 const std = @import("std");
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 
-const int = @import("../../int.zig");
+const ints = @import("../../ints.zig");
 
 pub const ExtraFieldHeaderID = enum(u16) {
     Zip64ExtendedInfo = 0x0001,
@@ -162,56 +162,56 @@ pub fn decodeExtraFields(buffer: Buffer, handler: anytype) !void {
                         });
                     },
                     else => {
-                        std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ int.toHexBytes(u16, .lower, header), version });
+                        std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ ints.toHexBytes(u16, .lower, header), version });
                     },
                 }
             },
             else => {
-                std.debug.panic("header {s} decoder not handled\n", .{int.toHexBytes(u16, .lower, header)});
+                std.debug.panic("header {s} decoder not handled\n", .{ints.toHexBytes(u16, .lower, header)});
             },
         }
     }
 }
 
 pub fn encodeExtraFields(buffer: Buffer, data: anytype) !void {
-    _ = try buffer.write(int.toBytes(u16, data.CODE, .little));
+    _ = try buffer.write(ints.toBytes(u16, data.CODE, .little));
 
     const header = ExtraFieldHeaderID.from(data.CODE);
     switch (header) {
         .Zip64ExtendedInfo => {
             const s = @as(Zip64ExtendedInfo, data);
-            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
-            _ = try buffer.write(int.toBytes(u64, s.original_size, .little));
-            _ = try buffer.write(int.toBytes(u64, s.compressed_size, .little));
-            _ = try buffer.write(int.toBytes(u64, s.relative_header_offset, .little));
-            _ = try buffer.write(int.toBytes(u32, s.disk_start_number, .little));
+            _ = try buffer.write(ints.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(ints.toBytes(u64, s.original_size, .little));
+            _ = try buffer.write(ints.toBytes(u64, s.compressed_size, .little));
+            _ = try buffer.write(ints.toBytes(u64, s.relative_header_offset, .little));
+            _ = try buffer.write(ints.toBytes(u32, s.disk_start_number, .little));
         },
         .ExtendedTimestamp => {
             const s = @as(ExtendedTimestamp, data);
-            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
-            _ = try buffer.write(int.toBytes(u8, s.flags, .little));
-            _ = try buffer.write(int.toBytes(u32, s.tolm, .little));
+            _ = try buffer.write(ints.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(ints.toBytes(u8, s.flags, .little));
+            _ = try buffer.write(ints.toBytes(u32, s.tolm, .little));
         },
         .ZIPUNIX3rdGenerationGenericUIDGIDInfo => {
             const s = @as(ZIPUNIX3rdGenerationGenericUIDGIDInfo, data);
-            _ = try buffer.write(int.toBytes(u16, s.data_size, .little));
-            _ = try buffer.write(int.toBytes(u8, s.version, .little));
+            _ = try buffer.write(ints.toBytes(u16, s.data_size, .little));
+            _ = try buffer.write(ints.toBytes(u8, s.version, .little));
 
             switch (s.version) {
                 1 => {
-                    _ = try buffer.write(int.toBytes(u8, s.uid_size, .little));
-                    _ = try buffer.write(int.toBytes(u32, s.uid, .little));
+                    _ = try buffer.write(ints.toBytes(u8, s.uid_size, .little));
+                    _ = try buffer.write(ints.toBytes(u32, s.uid, .little));
 
-                    _ = try buffer.write(int.toBytes(u8, s.gid_size, .little));
-                    _ = try buffer.write(int.toBytes(u32, s.gid, .little));
+                    _ = try buffer.write(ints.toBytes(u8, s.gid_size, .little));
+                    _ = try buffer.write(ints.toBytes(u32, s.gid, .little));
                 },
                 else => {
-                    std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ int.toHexBytes(u16, .lower, header), s.version });
+                    std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ ints.toHexBytes(u16, .lower, header), s.version });
                 },
             }
         },
         else => {
-            std.debug.panic("header {s} decoder not handled\n", .{int.toHexBytes(u16, .lower, header)});
+            std.debug.panic("header {s} decoder not handled\n", .{ints.toHexBytes(u16, .lower, header)});
         },
     }
 }
