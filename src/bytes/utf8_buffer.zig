@@ -515,6 +515,59 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             };
         }
 
+        /// Returns an iterator that iterates over the slices of `buffer` that are not
+        /// any of the items in `delimiters`.
+        ///
+        /// `tokenizeAny(u8, "   abc|def ||  ghi  ", " |")` will return slices
+        /// for "abc", "def", "ghi", null, in that order.
+        ///
+        /// If `buffer` is empty, the iterator will return null.
+        /// If none of `delimiters` exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiters,
+            };
+        }
+
+        /// Returns an iterator that iterates over the slices of `buffer` that are not
+        /// the sequence in `delimiter`.
+        ///
+        /// `tokenizeSequence(u8, "<>abc><def<><>ghi", "<>")` will return slices
+        /// for "abc><def", "ghi", null, in that order.
+        ///
+        /// If `buffer` is empty, the iterator will return null.
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        /// The delimiter length must not be zero.
+        pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterator(u8, .sequence) {
+            assert(delimiter.len != 0);
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiter,
+            };
+        }
+
+        /// Returns an iterator that iterates over the slices of `buffer` that are not
+        /// `delimiter`.
+        ///
+        /// `tokenizeScalar(u8, "   abc def     ghi  ", ' ')` will return slices
+        /// for "abc", "def", "ghi", null, in that order.
+        ///
+        /// If `buffer` is empty, the iterator will return null.
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiter,
+            };
+        }
+
         pub fn toLowercase(self: *Self) void {
             if (threadsafe) {
                 self.buffer.mu.lock();

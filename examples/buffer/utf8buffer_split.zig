@@ -19,6 +19,7 @@ pub fn main() !void {
 
     var iter = buffer.splitSequence("💯");
 
+    std.debug.print("\n ----- Elements ----- \n", .{});
     std.debug.print("1 - [{s}]\n", .{iter.next().?});
     std.debug.print("2 - [{s}]\n", .{iter.next().?});
     std.debug.print("3 - [{s}]\n", .{iter.next().?});
@@ -26,4 +27,10 @@ pub fn main() !void {
     std.debug.print("5 - [{s}]\n", .{iter.next().?});
     std.debug.print("6 - [{s}]\n", .{iter.next().?});
     std.debug.print("7 - [{s}]\n", .{iter.next().?});
+
+    var tokens = buffer.tokenizeSequence("💯");
+    std.debug.print("\n ----- Tokens ----- \n", .{});
+    std.debug.print("1 - [{s}]\n", .{tokens.next().?});
+    std.debug.print("2 - [{s}]\n", .{tokens.next().?});
+    std.debug.print("3 - [{s}]\n", .{tokens.next().?});
 }
