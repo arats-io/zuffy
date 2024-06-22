@@ -416,6 +416,105 @@ pub fn Utf8BufferManaged(comptime threadsafe: bool) type {
             return null;
         }
 
+        /// Returns an iterator that iterates over the slices of `buffer` that
+        /// are separated by the byte sequence in `delimiter`.
+        ///
+        /// `splitSequence(u8, "abc||def||||ghi", "||")` will return slices
+        /// for "abc", "def", "", "ghi", null, in that order.
+        ///
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        /// The delimiter length must not be zero.
+        pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .sequence) {
+            assert(delimiters.len != 0);
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiters,
+            };
+        }
+
+        /// Returns an iterator that iterates over the slices of `buffer` that
+        /// are separated by any item in `delimiters`.
+        ///
+        /// `splitAny(u8, "abc,def||ghi", "|,")` will return slices
+        /// for "abc", "def", "", "ghi", null, in that order.
+        ///
+        /// If none of `delimiters` exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiters,
+            };
+        }
+
+        /// Returns an iterator that iterates over the slices of `buffer` that
+        /// are separated by `delimiter`.
+        ///
+        /// `splitScalar(u8, "abc|def||ghi", '|')` will return slices
+        /// for "abc", "def", "", "ghi", null, in that order.
+        ///
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
+            return .{
+                .index = 0,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiter,
+            };
+        }
+        /// Returns an iterator that iterates backwards over the slices of `buffer` that
+        /// are separated by the sequence in `delimiter`.
+        ///
+        /// `splitBackwardsSequence(u8, "abc||def||||ghi", "||")` will return slices
+        /// for "ghi", "", "def", "abc", null, in that order.
+        ///
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        /// The delimiter length must not be zero.
+        pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
+            assert(delimiters.len != 0);
+            return .{
+                .index = self.buffer.len,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiters,
+            };
+        }
+
+        /// Returns an iterator that iterates backwards over the slices of `buffer` that
+        /// are separated by any item in `delimiters`.
+        ///
+        /// `splitBackwardsAny(u8, "abc,def||ghi", "|,")` will return slices
+        /// for "ghi", "", "def", "abc", null, in that order.
+        ///
+        /// If none of `delimiters` exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
+            return .{
+                .index = self.buffer.len,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiters,
+            };
+        }
+
+        /// Returns an iterator that iterates backwards over the slices of `buffer` that
+        /// are separated by `delimiter`.
+        ///
+        /// `splitBackwardsScalar(u8, "abc|def||ghi", '|')` will return slices
+        /// for "ghi", "", "def", "abc", null, in that order.
+        ///
+        /// If `delimiter` does not exist in buffer,
+        /// the iterator will return `buffer`, null, in that order.
+        pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
+            return .{
+                .index = self.buffer.len,
+                .buffer = self.buffer.bytes(),
+                .delimiter = delimiter,
+            };
+        }
+
         pub fn toLowercase(self: *Self) void {
             if (threadsafe) {
                 self.buffer.mu.lock();
@@ -951,4 +1050,26 @@ test "UTF8 Buffer Tests" {
 
     try buffer.appendN("VaselicaPuiu", 8);
     assert(buffer.compare("💯Hello💯Vaselica"));
+}
+
+test "UTF8 Buffer Split Tests" {
+    // Allocator for the String
+    const page_allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(page_allocator);
+    defer arena.deinit();
+
+    var buffer = Utf8BufferManaged(true).init(arena.allocator());
+    defer buffer.deinit();
+
+    try buffer.append("💯Hello💯💯Hello💯💯Hello💯");
+
+    var iter = buffer.splitSequence("💯");
+
+    assert(std.mem.eql(u8, "", iter.next().?));
+    assert(std.mem.eql(u8, "Hello", iter.next().?));
+    assert(std.mem.eql(u8, "", iter.next().?));
+    assert(std.mem.eql(u8, "Hello", iter.next().?));
+    assert(std.mem.eql(u8, "", iter.next().?));
+    assert(std.mem.eql(u8, "Hello", iter.next().?));
+    assert(std.mem.eql(u8, "", iter.next().?));
 }

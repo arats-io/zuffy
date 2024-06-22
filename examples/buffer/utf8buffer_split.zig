@@ -1,0 +1,29 @@
+const std = @import("std");
+const xstd = @import("xstd");
+
+const math = std.math;
+const Allocator = std.mem.Allocator;
+
+pub fn main() !void {
+    std.debug.print("Starting application.\n", .{});
+
+    // Allocator for the String
+    const page_allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(page_allocator);
+    defer arena.deinit();
+
+    var buffer = xstd.bytes.Utf8BufferManaged(true).init(arena.allocator());
+    defer buffer.deinit();
+
+    try buffer.append("💯Hello💯💯Hello💯💯Hello💯");
+
+    var iter = buffer.splitSequence("💯");
+
+    std.debug.print("1 - [{s}]\n", .{iter.next().?});
+    std.debug.print("2 - [{s}]\n", .{iter.next().?});
+    std.debug.print("3 - [{s}]\n", .{iter.next().?});
+    std.debug.print("4 - [{s}]\n", .{iter.next().?});
+    std.debug.print("5 - [{s}]\n", .{iter.next().?});
+    std.debug.print("6 - [{s}]\n", .{iter.next().?});
+    std.debug.print("7 - [{s}]\n", .{iter.next().?});
+}

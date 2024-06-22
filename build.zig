@@ -26,6 +26,8 @@ pub fn build(b: *std.Build) !void {
         .{ .name = "time-zoneinfo", .src = "examples/time/zoneinfo.zig" },
         .{ .name = "zip", .src = "examples/archive/zip.zig" },
         .{ .name = "buffer-stream", .src = "examples/buffer/flexible_stream.zig" },
+        .{ .name = "utf8buffer_split", .src = "examples/buffer/utf8buffer_split.zig" },
+        .{ .name = "alignment", .src = "examples/alignment/alignment.zig" },
     }) |excfg| {
         const ex_name = excfg.name;
         const ex_src = excfg.src;
