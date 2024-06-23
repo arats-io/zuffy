@@ -39,7 +39,7 @@ pub fn main() !void {
 
     var collector = Collector.init(allocator);
 
-    _ = try zipFile.read(collector.content().receiver());
+    _ = try zipFile.deccompress(collector.content().receiver());
 
     for (collector.arr.items) |item| {
         std.debug.print("\n-----------------------------------------\n", .{});

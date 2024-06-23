@@ -263,7 +263,7 @@ pub const LocalFileEntry = struct {
     content: ?Buffer,
     data_descriptor: ?DataDescriptor,
 
-    extra: struct {
+    @"$extra": struct {
         external_file: ?std.fs.File,
         external_bytes: ?[]const u8,
         content_length: u64,
@@ -577,7 +577,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
         .encryption_header = null,
         .data_descriptor = null,
 
-        .extra = .{
+        .@"$extra" = .{
             .external_file = null,
             .external_bytes = null,
             .content_length = content_size,

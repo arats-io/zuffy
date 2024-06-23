@@ -177,7 +177,7 @@ pub fn File(comptime ParseSource: type) type {
         pub fn saveAs(self: *Self, file_path: []const u8) !void {
             _ = self;
 
-            const archive_file = try fs.openFileAbsolute(file_path, .{ .mode = .write_only });
+            const archive_file = try fs.createFileAbsolute(file_path, .{ .mode = .write_only });
             var file_closed = false;
             errdefer if (!file_closed) archive_file.close();
 
@@ -254,7 +254,9 @@ pub fn File(comptime ParseSource: type) type {
         }
 
         pub fn deccompressWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
-            self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source));
+            if (self.archive.local_file_entries.items.len == 0) {
+                self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source));
+            }
 
             for (self.archive.central_diectory_headers.items) |cdheader| {
                 const entry_name = @constCast(&cdheader.filename.?).bytes();
@@ -271,40 +273,30 @@ pub fn File(comptime ParseSource: type) type {
                 if (content_size > 0) {
                     const cm = metadata.CompressionMethod.from(lfentry.file_header.compression_method);
 
-                    try seekableStream.seekTo(lfentry.extra.content_startpos);
+                    try seekableStream.seekTo(lfentry.@"$extra".content_startpos);
 
                     var content = Buffer.initWithFactor(self.allocator, 5);
                     defer content.deinit();
                     errdefer content.deinit();
 
-                    for (0..lfentry.extra.content_length) |_| {
+                    for (0..lfentry.@"$extra".content_length) |_| {
                         const byte: u8 = try reader.readByte();
                         try content.writeByte(byte);
                     }
 
-                    const bytes = content.bytes();
-
                     switch (cm) {
                         .NoCompression => {
-                            try receiver.entryContent(entry_name, bytes);
+                            try receiver.entryContent(entry_name, content.bytes());
                         },
                         .Deflated => {
-                            var in_stream = std.io.fixedBufferStream(bytes);
-
-                            var deflator = std.compress.flate.decompressor(in_stream.reader());
-
                             var decoded_content = Buffer.initWithFactor(self.allocator, 5);
                             defer decoded_content.deinit();
                             errdefer decoded_content.deinit();
 
-                            const deflator_reader = deflator.reader();
-                            while (true) {
-                                if (deflator_reader.readByte()) |byte| {
-                                    try decoded_content.writeByte(byte);
-                                } else |_| {
-                                    break;
-                                }
-                            }
+                            var in_stream = std.io.fixedBufferStream(content.bytes());
+                            var deflator = std.compress.flate.decompressor(in_stream.reader());
+                            try deflator.decompress(decoded_content.writer());
+
                             try receiver.entryContent(entry_name, decoded_content.bytes());
                         },
 
