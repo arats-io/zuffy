@@ -380,7 +380,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     var collector = Collector.init(allocator);
     errdefer collector.deinit();
     defer collector.deinit();
-    _ = try zipFile.readWithFilters(filters, collector.content().receiver());
+    _ = try zipFile.deccompressWithFilters(filters, collector.content().receiver());
 
     if (collector.arr.getLastOrNull()) |item| {
         return item;

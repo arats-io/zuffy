@@ -260,8 +260,15 @@ pub const LocalFileEntry = struct {
 
     file_header: LocalFileHeader,
     encryption_header: ?[]const u8,
-    content: Buffer,
+    content: ?Buffer,
     data_descriptor: ?DataDescriptor,
+
+    extra: struct {
+        external_file: ?std.fs.File,
+        external_bytes: ?[]const u8,
+        content_length: u64,
+        content_startpos: u64,
+    },
 };
 
 pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
@@ -555,17 +562,27 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
     };
 
     const content_size = if (header.compression_method == 0) header.uncompressed_size else header.compressed_size;
-    var content = Buffer.initWithFactor(allocator, 5);
-    for (0..content_size) |_| {
-        const byte: u8 = try in_reader.readByte();
-        try content.writeByte(byte);
-    }
+    //var content = Buffer.initWithFactor(allocator, 5);
+
+    const start = try seekableStream.getPos();
+    try in_reader.skipBytes(content_size, .{});
+    //for (0..content_size) |_| {
+    //    const byte: u8 = try in_reader.readByte();
+    //    try content.writeByte(byte);
+    //}
 
     var fileentry = LocalFileEntry{
         .file_header = header,
-        .content = content,
+        .content = null,
         .encryption_header = null,
         .data_descriptor = null,
+
+        .extra = .{
+            .external_file = null,
+            .external_bytes = null,
+            .content_length = content_size,
+            .content_startpos = start,
+        },
     };
 
     const bitflag = cdheader.bitFlagToBitSet();

@@ -51,7 +51,7 @@ pub fn main() !void {
 
     var collector = Collector.init(allocator);
 
-    _ = try zipFile.readWithFilters(filters, collector.content().receiver());
+    _ = try zipFile.deccompressWithFilters(filters, collector.content().receiver());
 
     for (collector.arr.items) |item| {
         std.debug.print("\n-----------------------------------------\n", .{});

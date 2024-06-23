@@ -54,7 +54,9 @@ pub fn File(comptime ParseSource: type) type {
                 if (entry.encryption_header) |_| {
                     self.allocator.free(entry.encryption_header.?);
                 }
-                @constCast(&entry.content).deinit();
+                if (entry.content) |b| {
+                    @constCast(&b).deinit();
+                }
             }
             self.archive.local_file_entries.clearAndFree();
 
@@ -240,33 +242,48 @@ pub fn File(comptime ParseSource: type) type {
             try self.read(collector.content().receiver());
         }
 
-        pub fn read(self: *Self, receiver: anytype) !void {
+        pub fn deccompress(self: *Self, receiver: anytype) !void {
             var filters = std.ArrayList([]const u8).init(self.allocator);
             defer filters.deinit();
             errdefer filters.deinit();
 
-            self.readWithFilters(filters, receiver) catch |err| switch (err) {
+            self.deccompressWithFilters(filters, receiver) catch |err| switch (err) {
                 error.IsEmpty => return Error.NotArchiveEmptySource,
                 else => return err,
             };
         }
 
-        pub fn readWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
+        pub fn deccompressWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
             self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source));
 
-            for (self.archive.central_diectory_headers.items) |item| {
-                const entry_name = @constCast(&item.filename.?).bytes();
+            for (self.archive.central_diectory_headers.items) |cdheader| {
+                const entry_name = @constCast(&cdheader.filename.?).bytes();
 
-                if (!matches(item.filename.?, filters)) continue;
+                if (!matches(cdheader.filename.?, filters)) continue;
 
-                const lfheader = try metadata.readLocalFileEntry(self.allocator, item, self.source.seekableStream(), self.source.reader());
+                var seekableStream = self.source.seekableStream();
+                var reader = self.source.reader();
+                const lfentry = try metadata.readLocalFileEntry(self.allocator, cdheader, seekableStream, reader);
 
-                const content_size = if (lfheader.file_header.compression_method == 0) lfheader.file_header.uncompressed_size else lfheader.file_header.compressed_size;
+                const content_size = if (lfentry.file_header.compression_method == 0) lfentry.file_header.uncompressed_size else lfentry.file_header.compressed_size;
 
                 // decide what to do with the ziped file content
                 if (content_size > 0) {
-                    const cm = metadata.CompressionMethod.from(lfheader.file_header.compression_method);
-                    const bytes = @constCast(&lfheader).content.bytes();
+                    const cm = metadata.CompressionMethod.from(lfentry.file_header.compression_method);
+
+                    try seekableStream.seekTo(lfentry.extra.content_startpos);
+
+                    var content = Buffer.initWithFactor(self.allocator, 5);
+                    defer content.deinit();
+                    errdefer content.deinit();
+
+                    for (0..lfentry.extra.content_length) |_| {
+                        const byte: u8 = try reader.readByte();
+                        try content.writeByte(byte);
+                    }
+
+                    const bytes = content.bytes();
+
                     switch (cm) {
                         .NoCompression => {
                             try receiver.entryContent(entry_name, bytes);
@@ -280,8 +297,9 @@ pub fn File(comptime ParseSource: type) type {
                             defer decoded_content.deinit();
                             errdefer decoded_content.deinit();
 
+                            const deflator_reader = deflator.reader();
                             while (true) {
-                                if (deflator.reader().readByte()) |byte| {
+                                if (deflator_reader.readByte()) |byte| {
                                     try decoded_content.writeByte(byte);
                                 } else |_| {
                                     break;
