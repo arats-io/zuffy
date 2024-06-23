@@ -60,7 +60,7 @@ pub fn main() !void {
 
     // --------------- Extract the Extra Fields ----------------------------
     var ef = ExtraField.init();
-    for (zipFile.central_directory.?.headers.items) |item| {
+    for (zipFile.archive.central_diectory_headers.items) |item| {
         try item.decodeExtraFields(ef.generic().handler());
     }
 }

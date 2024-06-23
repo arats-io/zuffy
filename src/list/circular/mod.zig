@@ -1,6 +1,7 @@
-pub const Error = @import("circular.zig").Error;
-pub const Type = @import("circular.zig").Type;
-pub const Lifo = @import("circular.zig").CircularLifoList;
-pub const Fifo = @import("circular.zig").CircularFifoList;
-pub const List = @import("circular.zig").CircularList;
-pub const AlignedList = @import("circular.zig").CircularListAligned;
+const circular = @import("circular.zig");
+pub const Error = circular.Error;
+pub const Type = circular.Type;
+pub const Lifo = circular.CircularLifoList;
+pub const Fifo = circular.CircularFifoList;
+pub const List = circular.CircularList;
+pub const AlignedList = circular.CircularListAligned;

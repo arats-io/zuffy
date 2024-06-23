@@ -67,8 +67,35 @@ pub const CompressionMethod = enum(u16) {
     }
 };
 
-pub const CentralDirectory = struct {
-    headers: std.ArrayList(CentralDirectoryHeader),
+///   ZIP Archive structure
+///      [local file header 1]
+///      [encryption header 1]
+///      [file data 1]
+///      [data descriptor 1]
+///      .
+///      .
+///      .
+///      [local file header n]
+///      [encryption header n]
+///      [file data n]
+///      [data descriptor n]
+///      [archive decryption header]
+///      [archive extra data record]
+///      [central directory header 1]
+///      .
+///      .
+///      .
+///     [central directory header n]
+///     [zip64 end of central directory record]
+///     [zip64 end of central directory locator]
+///     [end of central directory record]
+pub const ZipArchive = struct {
+    const Self = @This();
+
+    local_file_entries: std.ArrayList(LocalFileEntry),
+    archive_decryption_header: ?ArchiveDecryptionHeader,
+    archive_extra_data_record: ?ArchiveExtraDataRecord,
+    central_diectory_headers: std.ArrayList(CentralDirectoryHeader),
     digital_signature: ?DigitalSignature,
     zip64_eocd_record: ?Zip64EocdRecord,
     zip64_eocd_locator: ?Zip64EocdLocator,
@@ -237,7 +264,7 @@ pub const LocalFileEntry = struct {
     data_descriptor: ?DataDescriptor,
 };
 
-pub fn exract(allocator: mem.Allocator, source: anytype) !CentralDirectory {
+pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
     var parse_source = source;
     var eocd: ?EocdRecord = null;
 
@@ -459,13 +486,118 @@ pub fn exract(allocator: mem.Allocator, source: anytype) !CentralDirectory {
     }
     // end of parsing the zip64 end of central directory record & locator
 
-    return CentralDirectory{
-        .headers = cdheaders,
+    return ZipArchive{
+        .local_file_entries = std.ArrayList(LocalFileEntry).init(allocator),
+        .archive_decryption_header = null,
+        .archive_extra_data_record = null,
+        .central_diectory_headers = cdheaders,
         .digital_signature = ds,
         .zip64_eocd_record = zip64_eocd_record,
         .zip64_eocd_locator = zip64_eocd_locator,
         .eocd_record = eocd.?,
     };
+}
+
+pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype) !LocalFileEntry {
+    try seekableStream.seekTo(cdheader.offset_local_header);
+
+    const signature = try in_reader.readInt(u32, .little);
+    const version = try in_reader.readInt(u16, .little);
+    const bit_flag = try in_reader.readInt(u16, .little);
+    const compression_method = try in_reader.readInt(u16, .little);
+    const last_modification_time = try in_reader.readInt(u16, .little);
+    const last_modification_date = try in_reader.readInt(u16, .little);
+    const crc32 = try in_reader.readInt(u32, .little);
+    const compressed_size = try in_reader.readInt(u32, .little);
+    const uncompressed_size = try in_reader.readInt(u32, .little);
+    const filename_len = try in_reader.readInt(u16, .little);
+    const extra_field_len = try in_reader.readInt(u16, .little);
+
+    if (signature != 0x04034b50)
+        return error.BadHeader;
+
+    const filename = if (filename_len > 0) blk: {
+        var tmp = Buffer.initWithFactor(allocator, 5);
+        errdefer tmp.deinit();
+
+        for (0..filename_len) |_| {
+            const byte: u8 = try in_reader.readByte();
+            try tmp.writeByte(byte);
+        }
+        break :blk tmp;
+    } else null;
+
+    const extra_field = if (extra_field_len > 0) blk: {
+        var tmp = Buffer.initWithFactor(allocator, 5);
+        errdefer tmp.deinit();
+
+        for (0..extra_field_len) |_| {
+            const byte: u8 = try in_reader.readByte();
+            try tmp.writeByte(byte);
+        }
+        break :blk tmp;
+    } else null;
+
+    const header = LocalFileHeader{
+        .signature = signature,
+        .version = version,
+        .bit_flag = bit_flag,
+        .compression_method = compression_method,
+        .last_modification_time = last_modification_time,
+        .last_modification_date = last_modification_date,
+        .crc32 = crc32,
+        .compressed_size = compressed_size,
+        .uncompressed_size = uncompressed_size,
+        .filename_len = filename_len,
+        .extra_field_len = extra_field_len,
+        .filename = filename,
+        .extra_field = extra_field,
+    };
+
+    const content_size = if (header.compression_method == 0) header.uncompressed_size else header.compressed_size;
+    var content = Buffer.initWithFactor(allocator, 5);
+    for (0..content_size) |_| {
+        const byte: u8 = try in_reader.readByte();
+        try content.writeByte(byte);
+    }
+
+    var fileentry = LocalFileEntry{
+        .file_header = header,
+        .content = content,
+        .encryption_header = null,
+        .data_descriptor = null,
+    };
+
+    const bitflag = cdheader.bitFlagToBitSet();
+
+    // Archive decryption Encription Header
+    if (bitflag.isSet(0)) {
+        // should come here
+        // [archive decryption header]
+        // [archive extra data record]
+
+        const password = "";
+        _ = password;
+        fileentry.encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
+        const encrption_keys = [3]u32{ 305419896, 591751049, 878082192 };
+        _ = encrption_keys;
+    }
+    if (bitflag.isSet(6)) {
+        std.debug.print("Strong encryption\n", .{});
+    }
+    if (bitflag.isSet(3)) {
+        var CRC32: u32 = try in_reader.readInt(u32, .little);
+        if (CRC32 == DataDescriptor.SIGNATURE) {
+            CRC32 = try in_reader.readInt(u32, .little);
+        }
+        fileentry.data_descriptor = DataDescriptor{
+            .crc32 = CRC32,
+            .compressed_size = try in_reader.readInt(u32, .little),
+            .uncompressed_size = try in_reader.readInt(u32, .little),
+        };
+    }
+
+    return fileentry;
 }
 
 fn toBitSet(bit_flag: u16) std.StaticBitSet(@bitSizeOf(u16)) {

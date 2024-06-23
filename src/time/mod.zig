@@ -1,9 +1,10 @@
 pub const zoneinfo = @import("zoneinfo.zig");
 
-pub const Time = @import("time.zig").Time;
-pub const Measure = @import("time.zig").Measure;
-pub const Month = @import("time.zig").Month;
-pub const Weekday = @import("time.zig").Weekday;
+const time = @import("time.zig");
+pub const Time = time.Time;
+pub const Measure = time.Measure;
+pub const Month = time.Month;
+pub const Weekday = time.Weekday;
 
 pub fn now() Time {
     return Time.new(.seconds);

@@ -17,7 +17,9 @@ pub fn FlexibleBufferStream() type {
         pub const ReadError = error{} || mb.BufferError;
         pub const WriteError = error{} || mb.BufferError;
         pub const SeekError = error{};
-        pub const GetSeekPosError = error{};
+        pub const GetSeekPosError = error{IsEmpty};
+
+        pub const Error = ReadError || WriteError || SeekError || GetSeekPosError;
 
         pub const Reader = io.Reader(*Self, ReadError, read);
         pub const Writer = io.Writer(*Self, WriteError, write);
@@ -104,10 +106,12 @@ pub fn FlexibleBufferStream() type {
         }
 
         pub fn getEndPos(self: *Self) GetSeekPosError!u64 {
+            if (self.buffer.len == 0) return GetSeekPosError.IsEmpty;
             return self.buffer.len;
         }
 
         pub fn getPos(self: *Self) GetSeekPosError!u64 {
+            if (self.buffer.len == 0) return GetSeekPosError.IsEmpty;
             return self.pos;
         }
 

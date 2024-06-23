@@ -337,7 +337,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     defer filters.deinit();
 
-    const data = @embedFile("zoneinfo.zip");
+    const data = @embedFile("zoneinfo.gz.zip");
     var in_stream = std.io.fixedBufferStream(data);
 
     const FlexibleBufferStream = @import("../bytes/mod.zig").FlexibleBufferStream;
@@ -378,6 +378,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     };
 
     var collector = Collector.init(allocator);
+    errdefer collector.deinit();
     defer collector.deinit();
     _ = try zipFile.readWithFilters(filters, collector.content().receiver());
 
