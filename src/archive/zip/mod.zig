@@ -5,6 +5,7 @@ const io = std.io;
 
 const metadata = @import("metadata.zig");
 pub const extrafield = @import("extra_field.zig");
+pub const options = @import("options.zig");
 
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
@@ -51,11 +52,23 @@ pub fn File(comptime ParseSource: type) type {
                 if (entry.file_header.extra_field) |b| {
                     @constCast(&b).deinit();
                 }
-                if (entry.encryption_header) |_| {
-                    self.allocator.free(entry.encryption_header.?);
+                if (entry.encryption_header) |b| {
+                    self.allocator.free(b);
                 }
                 if (entry.content) |b| {
                     @constCast(&b).deinit();
+                }
+                if (entry.encryption_key) |b| {
+                    @constCast(&b).deinit();
+                }
+                if (entry.@"$extra".external_file) |b| {
+                    b.close();
+                }
+                if (entry.@"$extra".external_bytes) |b| {
+                    @constCast(&b).deinit();
+                }
+                if (entry.@"$extra".crypt_password) |b| {
+                    self.allocator.free(b);
                 }
             }
             self.archive.local_file_entries.clearAndFree();
@@ -149,10 +162,81 @@ pub fn File(comptime ParseSource: type) type {
             try eocd.comment.?.writeAll(comment);
         }
 
-        fn addEntry(self: *Self, filename: []const u8, content: []const u8) !void {
-            _ = self;
-            _ = filename;
-            _ = content;
+        fn addEntry(self: *Self, filename: []const u8, content: []const u8, comment: []const u8, add_optons: options.AddOptions) !void {
+            // create the CentralDirectoryHeader entry
+            {
+                var filename_content = Buffer.init(self.allocator);
+                errdefer filename_content.deinit();
+                try filename_content.writeAll(filename);
+
+                var comment_content = Buffer.init(self.allocator);
+                errdefer comment_content.deinit();
+                try comment_content.writeAll(comment);
+
+                const cdh = metadata.CentralDirectoryHeader{
+                    .signature = metadata.CentralDirectoryHeader.SIGNATURE,
+                    .version_made_by = add_optons.version_made_by,
+                    .version_extract_file = add_optons.version_extract_file,
+                    .bit_flag = 0,
+                    .compressed_method = add_optons.compression_method,
+                    .last_modification_time = 0,
+                    .last_modification_date = 0,
+                    .crc32 = 0,
+                    .compressed_size = 0,
+                    .uncompressed_size = 0,
+                    .filename_len = 0,
+                    .extra_field_len = 0,
+                    .comment_len = 0,
+                    .disk_file_start = 0,
+                    .internal_attributes = 0,
+                    .external_attributes = 0,
+                    .offset_local_header = 0,
+                    .filename = filename_content,
+                    .extra_field = null,
+                    .comment = comment_content,
+                };
+                self.archive.central_diectory_headers.append(cdh);
+            }
+
+            // create the LocalFileEntry entry
+            {
+                var filename_content = Buffer.init(self.allocator);
+                errdefer filename_content.deinit();
+                try filename_content.writeAll(filename);
+
+                var entry_content = Buffer.init(self.allocator);
+                errdefer entry_content.deinit();
+                try entry_content.writeAll(content);
+
+                const lfe = metadata.LocalFileEntry{
+                    .file_header = metadata.LocalFileHeader{
+                        .signature = metadata.LocalFileHeader.SIGNATURE,
+                        .version = 0,
+                        .bit_flag = 0,
+                        .compression_method = 0,
+                        .last_modification_time = 0,
+                        .last_modification_date = 0,
+                        .crc32 = 0,
+                        .compressed_size = 0,
+                        .uncompressed_size = 0,
+                        .filename_len = 0,
+                        .extra_field_len = 0,
+                        .filename = filename_content,
+                        .extra_field = null,
+                    },
+                    .encryption_header = null,
+                    .content = null,
+                    .data_descriptor = null,
+
+                    .@"$extra" = .{
+                        .external_file = null,
+                        .external_bytes = entry_content,
+                        .content_length = 0,
+                        .content_startpos = 0,
+                    },
+                };
+                self.archive.local_file_entries.append(lfe);
+            }
         }
 
         pub fn addFile(self: *Self, sourcefile_path: []const u8, archivefile_path: []const u8) !void {
@@ -271,7 +355,7 @@ pub fn File(comptime ParseSource: type) type {
 
                 // decide what to do with the ziped file content
                 if (content_size > 0) {
-                    const cm = metadata.CompressionMethod.from(lfentry.file_header.compression_method);
+                    const cm = options.CompressionMethod.from(lfentry.file_header.compression_method);
 
                     try seekableStream.seekTo(lfentry.@"$extra".content_startpos);
 

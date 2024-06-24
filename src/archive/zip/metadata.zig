@@ -1,71 +1,11 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const mem = std.mem;
 
+const ints = @import("../../ints.zig");
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 
 const eftypes = @import("extra_field_types.zig");
-
-// [local file header 1]
-// [encryption header 1]
-// [file data 1]
-// [data descriptor 1]
-// .
-// .
-// .
-// [local file header n]
-// [encryption header n]
-// [file data n]
-// [data descriptor n]
-// [archive decryption header]
-// [archive extra data record]
-// [central directory header 1]
-// .
-// .
-// .
-// [central directory header n]
-// [zip64 end of central directory record]
-// [zip64 end of central directory locator]
-// [end of central directory record]
-
-pub const CompressionMethod = enum(u16) {
-    NoCompression = 0,
-    Shrunk = 1,
-    ReducedUsingSompressionFactor1 = 2,
-    ReducedUsingSompressionFactor2 = 3,
-    ReducedUsingSompressionFactor3 = 4,
-    ReducedUsingSompressionFactor4 = 5,
-    Imploded = 6,
-    ReservedTokenizingCompressionAlgorithm = 7,
-    Deflated = 8,
-    EnhancedDeflate64 = 9,
-    PKWareDCLImploded = 10,
-    Reserved01 = 11,
-    BZIP2 = 12,
-    Reserved02 = 13,
-    LZMA = 14,
-    Reserved03 = 15,
-    IBMCMPSCCompression = 16,
-    Reserved04 = 17,
-    IBMTerse = 18,
-    IBMLZ77Architecture = 19,
-    Deprecated = 20,
-    ZStandard = 93,
-    MP3Compression = 94,
-    XZCompression = 95,
-    JPEG = 96,
-    WavPack = 97,
-    PPMd = 98,
-    AExEncryption = 99,
-
-    const Self = @This();
-    pub fn from(v: u16) Self {
-        return @enumFromInt(v);
-    }
-
-    pub fn toInt(self: Self) u16 {
-        return @as(u16, @intFromEnum(self));
-    }
-};
 
 ///   ZIP Archive structure
 ///      [local file header 1]
@@ -135,7 +75,7 @@ pub const CentralDirectoryHeader = struct {
     comment: ?Buffer,
 
     pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
-        return toBitSet(self.bit_flag);
+        return ints.toBitSet(u16, self.bit_flag);
     }
 
     pub fn decodeExtraFields(self: Self, handler: anytype) !void {
@@ -197,6 +137,7 @@ pub const Zip64EocdLocator = struct {
 
 pub const LocalFileHeader = struct {
     const Self = @This();
+    pub const SIGNATURE = 0x04034b50;
 
     signature: u32,
     version: u16,
@@ -213,7 +154,7 @@ pub const LocalFileHeader = struct {
     extra_field: ?Buffer,
 
     pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
-        return toBitSet(self.bit_flag);
+        return ints.toBitSet(u16, self.bit_flag);
     }
 
     pub fn decodeExtraFields(self: Self, handler: anytype) !void {
@@ -222,6 +163,8 @@ pub const LocalFileHeader = struct {
         }
     }
 };
+
+pub const EncryptionHeader = struct {};
 
 pub const DataDescriptor = struct {
     pub const SIGNATURE = 0x08074b50;
@@ -256,18 +199,18 @@ pub const ArchiveDecryptionHeader = struct {
 };
 
 pub const LocalFileEntry = struct {
-    pub const SIGNATURE = 0x04034b50;
-
     file_header: LocalFileHeader,
-    encryption_header: ?[]const u8,
-    content: ?Buffer,
-    data_descriptor: ?DataDescriptor,
+    encryption_header: ?[]const u8 = null,
+    encryption_key: ?Buffer = null,
+    content: ?Buffer = null,
+    data_descriptor: ?DataDescriptor = null,
 
     @"$extra": struct {
-        external_file: ?std.fs.File,
-        external_bytes: ?[]const u8,
-        content_length: u64,
-        content_startpos: u64,
+        external_file: ?std.fs.File = null,
+        external_bytes: ?Buffer = null,
+        content_length: u64 = 0,
+        content_startpos: u64 = 0,
+        crypt_password: ?[]const u8 = null,
     },
 };
 
@@ -571,33 +514,32 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
     //    try content.writeByte(byte);
     //}
 
+    const password = "";
+
     var fileentry = LocalFileEntry{
         .file_header = header,
-        .content = null,
-        .encryption_header = null,
-        .data_descriptor = null,
 
         .@"$extra" = .{
-            .external_file = null,
-            .external_bytes = null,
             .content_length = content_size,
             .content_startpos = start,
+            .crypt_password = password,
         },
     };
 
-    const bitflag = cdheader.bitFlagToBitSet();
+    const bitflag = header.bitFlagToBitSet();
 
-    // Archive decryption Encription Header
+    // Local file encryption header
     if (bitflag.isSet(0)) {
-        // should come here
-        // [archive decryption header]
-        // [archive extra data record]
-
-        const password = "";
-        _ = password;
         fileentry.encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
-        const encrption_keys = [3]u32{ 305419896, 591751049, 878082192 };
-        _ = encrption_keys;
+
+        var encryption_key = Buffer.init(allocator);
+        errdefer encryption_key.deinit();
+
+        var crypto = Crypto.init(password);
+        var decryptor = crypto.decriptor();
+        try decryptor.decrypt(fileentry.encryption_header.?, encryption_key.writer());
+
+        fileentry.encryption_key = encryption_key;
     }
     if (bitflag.isSet(6)) {
         std.debug.print("Strong encryption\n", .{});
@@ -617,19 +559,75 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
     return fileentry;
 }
 
-fn toBitSet(bit_flag: u16) std.StaticBitSet(@bitSizeOf(u16)) {
-    var bitset = std.StaticBitSet(@bitSizeOf(u16)).initEmpty();
-    if (bit_flag == 0) return bitset;
+const Crypto = struct {
+    const Self = @This();
 
-    var bf = bit_flag;
-    for (1..17) |idx| {
-        const m = 16 - @as(u5, @intCast(idx));
-        if (bf >> @as(u4, @intCast(m)) == 1) bitset.setValue(idx, true);
+    pub const Decryptor = struct {
+        keys: [3]u32,
 
-        bf >>= 1;
+        pub fn decrypt(self: *Decryptor, chiper: []const u8, writer: anytype) !void {
+            for (chiper) |ch| {
+                const v = ch ^ magicByte(&self.keys);
+                updatekeys(&self.keys, v);
+                try writer.writeByte(v);
+            }
+        }
+    };
 
-        if (bf == 0) break;
+    pub const Encryptor = struct {
+        keys: [3]u32,
+
+        pub fn encrypt(self: *Encryptor, data: []const u8, writer: anytype) !void {
+            for (data) |ch| {
+                try writer.writeByte(ch ^ magicByte(&self.keys));
+                updatekeys(&self.keys, ch);
+            }
+        }
+    };
+
+    keys: [3]u32,
+
+    pub fn init(password: []const u8) Self {
+        const self = Self{ .keys = [3]u32{ 0x12345678, 0x23456789, 0x34567890 } };
+        for (password) |ch| {
+            updatekeys(@constCast(&self.keys), ch);
+        }
+        return self;
     }
 
-    return bitset;
+    pub fn encryptor(self: *Self) Encryptor {
+        return Encryptor{ .keys = [3]u32{ self.keys[0], self.keys[1], self.keys[2] } };
+    }
+
+    pub fn decriptor(self: *Self) Decryptor {
+        return Decryptor{ .keys = [3]u32{ self.keys[0], self.keys[1], self.keys[2] } };
+    }
+};
+
+const Crc32IEEE = std.hash.crc.Crc(u32, .{
+    .polynomial = 0xedb88320,
+    .initial = 0xffffffff,
+    .reflect_input = false,
+    .reflect_output = false,
+    .xor_output = 0x00000000,
+});
+
+fn updatekeys(keys: *[3]u32, byteValue: u8) void {
+    keys.*[0] = crc32update(keys.*[0], byteValue);
+    keys.*[1] += keys.*[0] & 0xff;
+    keys.*[1] = keys.*[1] * 134775813 + 1;
+
+    const t = keys.*[1] >> 24;
+    keys.*[2] = crc32update(keys.*[2], @as(u8, @intCast(t)));
+}
+
+fn crc32update(pCrc32: u32, bval: u8) u32 {
+    const t = ints.toBytes(u32, (pCrc32 ^ bval) & 0xff, .big);
+    return Crc32IEEE.hash(&t) ^ (pCrc32 >> 8);
+}
+
+fn magicByte(keys: *[3]u32) u8 {
+    const t = keys.*[2] | 2;
+    const res = (t * (t ^ 1)) >> 8;
+    return @as(u8, @intCast(res));
 }
