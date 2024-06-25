@@ -48,7 +48,7 @@ pub const Crypto = struct {
     }
 };
 
-const Crc32IEEE = std.hash.crc.Crc(u32, .{
+pub const Crc32IEEE = std.hash.crc.Crc(u32, .{
     .polynomial = 0xedb88320,
     .initial = 0xffffffff,
     .reflect_input = false,
