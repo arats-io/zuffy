@@ -35,97 +35,12 @@ pub fn File(comptime ParseSource: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            self.cleanZipArchive();
+            self.archive.destroy(self.allocator);
         }
 
         fn cleanAndReplaceZipArchive(self: *Self, arch: metadata.ZipArchive) void {
-            self.cleanZipArchive();
+            self.deinit();
             self.archive = arch;
-        }
-
-        fn cleanZipArchive(self: *Self) void {
-            // local_file_entries
-            for (self.archive.local_file_entries.items) |entry| {
-                if (entry.file_header.filename) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (entry.file_header.extra_field) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (entry.encryption_header.key) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (entry.encryption_header.value) |_| {
-                    self.allocator.free(entry.encryption_header.value.?);
-                }
-
-                if (entry.content) |b| {
-                    @constCast(&b).deinit();
-                }
-
-                if (entry.@"$extra".external_file) |b| {
-                    b.close();
-                }
-                if (entry.@"$extra".external_bytes) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-            self.archive.local_file_entries.clearAndFree();
-
-            // archive_decryption_header
-            if (self.archive.archive_decryption_header) |entry| {
-                if (entry.value) |_| {
-                    self.allocator.free(entry.value.?);
-                }
-                if (entry.key) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-
-            // archive_extra_data_record
-            if (self.archive.archive_extra_data_record) |entry| {
-                if (entry.extra_field) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-
-            // central_diectory_headers
-            for (self.archive.central_diectory_headers.items) |header| {
-                if (header.filename) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (header.extra_field) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (header.comment) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-            self.archive.central_diectory_headers.clearAndFree();
-
-            // digital_signature
-            if (self.archive.digital_signature) |ds| {
-                if (ds.signature_data) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-
-            // zip64_eocd_record
-            if (self.archive.zip64_eocd_record) |r| {
-                if (r.extenssion_data) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (r.extenssion_v2) |v2| {
-                    if (v2.hash_data) |b| {
-                        @constCast(&b).deinit();
-                    }
-                }
-            }
-
-            // eocd_record
-            if (self.archive.eocd_record.comment) |b| {
-                @constCast(&b).deinit();
-            }
         }
 
         fn empty(allocator: mem.Allocator) metadata.ZipArchive {

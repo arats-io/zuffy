@@ -40,7 +40,94 @@ pub const ZipArchive = struct {
     digital_signature: ?DigitalSignature = null,
     zip64_eocd_record: ?Zip64EocdRecord = null,
     zip64_eocd_locator: ?Zip64EocdLocator = null,
-    eocd_record: EocdRecord,
+    eocd_record: ?EocdRecord = null,
+
+    pub fn destroy(self: *Self, allocator: mem.Allocator) void {
+        // local_file_entries
+        for (self.local_file_entries.items) |entry| {
+            if (entry.file_header.filename) |b| {
+                @constCast(&b).deinit();
+            }
+            if (entry.file_header.extra_field) |b| {
+                @constCast(&b).deinit();
+            }
+            if (entry.encryption_header.key) |b| {
+                @constCast(&b).deinit();
+            }
+            if (entry.encryption_header.value) |_| {
+                allocator.free(entry.encryption_header.value.?);
+            }
+
+            if (entry.content) |b| {
+                @constCast(&b).deinit();
+            }
+
+            if (entry.@"$extra".external_file) |b| {
+                b.close();
+            }
+            if (entry.@"$extra".external_bytes) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+        self.local_file_entries.clearAndFree();
+
+        // archive_decryption_header
+        if (self.archive_decryption_header) |entry| {
+            if (entry.value) |_| {
+                allocator.free(entry.value.?);
+            }
+            if (entry.key) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+
+        // archive_extra_data_record
+        if (self.archive_extra_data_record) |entry| {
+            if (entry.extra_field) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+
+        // central_diectory_headers
+        for (self.central_diectory_headers.items) |header| {
+            if (header.filename) |b| {
+                @constCast(&b).deinit();
+            }
+            if (header.extra_field) |b| {
+                @constCast(&b).deinit();
+            }
+            if (header.comment) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+        self.central_diectory_headers.clearAndFree();
+
+        // digital_signature
+        if (self.digital_signature) |ds| {
+            if (ds.signature_data) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+
+        // zip64_eocd_record
+        if (self.zip64_eocd_record) |r| {
+            if (r.extenssion_data) |b| {
+                @constCast(&b).deinit();
+            }
+            if (r.extenssion_v2) |v2| {
+                if (v2.hash_data) |b| {
+                    @constCast(&b).deinit();
+                }
+            }
+        }
+
+        // eocd_record
+        if (self.eocd_record) |r| {
+            if (r.comment) |b| {
+                @constCast(&b).deinit();
+            }
+        }
+    }
 };
 pub const DigitalSignature = struct {
     const SIGNATURE = 0x05054b50;
@@ -400,49 +487,11 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
     var parse_source = source;
     var reader = parse_source.reader();
 
-    var eocd: ?EocdRecord = null;
-    var zip64_eocd_record: ?Zip64EocdRecord = null;
-    var zip64_eocd_locator: ?Zip64EocdLocator = null;
-    var ds: ?DigitalSignature = null;
-    var archive_decryption_header: ?EncryptionHeader = null;
-    var archive_extra_data_record: ?ArchiveExtraDataRecord = null;
-
-    errdefer {
-        if (eocd) |item| {
-            if (item.comment) |b| {
-                @constCast(&b).deinit();
-            }
-        }
-        if (zip64_eocd_record) |item| {
-            if (item.extenssion_data) |b| {
-                @constCast(&b).deinit();
-            }
-
-            if (item.extenssion_v2) |itemv2| {
-                if (itemv2.hash_data) |b| {
-                    @constCast(&b).deinit();
-                }
-            }
-        }
-        if (ds) |item| {
-            if (item.signature_data) |b| {
-                @constCast(&b).deinit();
-            }
-        }
-        if (archive_decryption_header) |item| {
-            if (item.value) |b| {
-                allocator.free(b);
-            }
-            if (item.key) |b| {
-                @constCast(&b).deinit();
-            }
-        }
-        if (archive_extra_data_record) |item| {
-            if (item.extra_field) |b| {
-                @constCast(&b).deinit();
-            }
-        }
-    }
+    var archive = ZipArchive{
+        .local_file_entries = std.ArrayList(LocalFileEntry).init(allocator),
+        .central_diectory_headers = std.ArrayList(CentralDirectoryHeader).init(allocator),
+    };
+    errdefer archive.destroy(allocator);
 
     var pos = try parse_source.seekableStream().getEndPos() - 4;
     while (pos > 0) : (pos -= 1) {
@@ -450,17 +499,25 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
 
         const signature = try reader.readInt(u32, .little);
         switch (signature) {
-            EocdRecord.SIGNATURE => eocd = try extractEocdRecord(allocator, reader, signature),
-            Zip64EocdRecord.SIGNATURE => zip64_eocd_record = try extractZip64EocdRecord(allocator, reader, signature),
-            Zip64EocdLocator.SIGNATURE => zip64_eocd_locator = try extractZip64EocdLocator(reader, signature),
-            DigitalSignature.SIGNATURE => ds = try extractDigitalSignature(allocator, reader, signature),
+            EocdRecord.SIGNATURE => {
+                archive.eocd_record = try extractEocdRecord(allocator, reader, signature);
+            },
+            Zip64EocdRecord.SIGNATURE => {
+                archive.zip64_eocd_record = try extractZip64EocdRecord(allocator, reader, signature);
+            },
+            Zip64EocdLocator.SIGNATURE => {
+                archive.zip64_eocd_locator = try extractZip64EocdLocator(reader, signature);
+            },
+            DigitalSignature.SIGNATURE => {
+                archive.digital_signature = try extractDigitalSignature(allocator, reader, signature);
+            },
             ArchiveExtraDataRecord.SIGNATURE => {
                 const current_pos = try parse_source.seekableStream().getPos();
                 try parse_source.seekableStream().seekTo(current_pos - 16);
 
                 const aed = try extractArchiveExtraData(allocator, reader, signature, read_options);
-                archive_decryption_header = aed.archive_decryption_header;
-                archive_extra_data_record = aed.archive_extra_data_record;
+                archive.archive_decryption_header = aed.archive_decryption_header;
+                archive.archive_extra_data_record = aed.archive_extra_data_record;
             },
             else => {},
         }
@@ -468,24 +525,24 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
 
     // parsing the central directory
 
-    const start_pos = eocd.?.offset_start + eocd.?.num_disk_cd_start;
+    const start_pos = archive.eocd_record.?.offset_start + archive.eocd_record.?.num_disk_cd_start;
     try parse_source.seekableStream().seekTo(start_pos);
 
     var cd_content = Buffer.initWithFactor(allocator, 5);
     errdefer cd_content.deinit();
     defer cd_content.deinit();
 
-    for (0..eocd.?.cd_size) |_| {
+    for (0..archive.eocd_record.?.cd_size) |_| {
         const ch = try reader.readByte();
         try cd_content.writeByte(ch);
     }
 
-    if (ds) |_| {
+    if (archive.digital_signature) |ds| {
         const cr = @import("crypto.zig");
         const chash = cr.Crc32IEEE.hash(cd_content.bytes());
 
         std.debug.print("\n", .{});
-        std.debug.print("Cntent DigitalSignature - {any}", .{ds.?.signature_data});
+        std.debug.print("Cntent DigitalSignature - {any}", .{ds.signature_data});
         std.debug.print("Content Hash - {any}\n", .{chash});
     }
 
@@ -500,8 +557,7 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
         else => {},
     }
 
-    var cdheaders = std.ArrayList(CentralDirectoryHeader).init(allocator);
-    for (0..eocd.?.cd_records_total) |idx| {
+    for (0..archive.eocd_record.?.cd_records_total) |idx| {
         _ = idx;
         const signature = try new_reader.readInt(u32, .little);
         const version_made_by = try new_reader.readInt(u16, .little);
@@ -573,20 +629,11 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
             .comment = comment,
         };
 
-        try cdheaders.append(item);
+        try archive.central_diectory_headers.append(item);
     }
     // ending of parsing the central directory
 
-    return ZipArchive{
-        .local_file_entries = std.ArrayList(LocalFileEntry).init(allocator),
-        .archive_decryption_header = archive_decryption_header,
-        .archive_extra_data_record = archive_extra_data_record,
-        .central_diectory_headers = cdheaders,
-        .digital_signature = ds,
-        .zip64_eocd_record = zip64_eocd_record,
-        .zip64_eocd_locator = zip64_eocd_locator,
-        .eocd_record = eocd.?,
-    };
+    return archive;
 }
 
 pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype, read_options: types.ReadOptions) !LocalFileEntry {
