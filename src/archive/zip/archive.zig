@@ -5,9 +5,9 @@ const mem = std.mem;
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 
 const types = @import("types.zig");
-const internaltypes = @import("internal_types.zig");
+const zarchive_types = @import("archive_types.zig");
 
-fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !internaltypes.EocdRecord {
+fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.EocdRecord {
     const num_disk = try reader.readInt(u16, .little);
     const num_disk_cd_start = try reader.readInt(u16, .little);
     const cd_records_total_on_disk = try reader.readInt(u16, .little);
@@ -27,7 +27,7 @@ fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) 
         break :cblk tmp;
     } else null;
 
-    return internaltypes.EocdRecord{
+    return zarchive_types.EocdRecord{
         .signature = signature,
         .num_disk = num_disk,
         .num_disk_cd_start = num_disk_cd_start,
@@ -40,8 +40,8 @@ fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) 
     };
 }
 
-fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !internaltypes.Zip64EocdRecord {
-    var zip64_eocd_record = internaltypes.Zip64EocdRecord{
+fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.Zip64EocdRecord {
+    var zip64_eocd_record = zarchive_types.Zip64EocdRecord{
         .signature = signature, // 4
         .size = try reader.readInt(u64, .little), // 8
         .version_made_by = try reader.readInt(u16, .little), // 2
@@ -56,7 +56,7 @@ fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: 
 
     // version 2
     if (zip64_eocd_record.version_made_by == 2) {
-        zip64_eocd_record.extenssion_v2 = internaltypes.Zip64EocdRecordExtenssionV2{
+        zip64_eocd_record.extenssion_v2 = zarchive_types.Zip64EocdRecordExtenssionV2{
             .compression_method = try reader.readInt(u64, .little), // 8
             .compressed_size = try reader.readInt(u64, .little), // 8
             .original_size = try reader.readInt(u64, .little), // 8
@@ -100,8 +100,8 @@ fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: 
     return zip64_eocd_record;
 }
 
-fn extractZip64EocdLocator(reader: anytype, signature: u32) !internaltypes.Zip64EocdLocator {
-    return internaltypes.Zip64EocdLocator{
+fn extractZip64EocdLocator(reader: anytype, signature: u32) !zarchive_types.Zip64EocdLocator {
+    return zarchive_types.Zip64EocdLocator{
         .signature = signature,
         .num_disk_zip64_eocd_start = try reader.readInt(u32, .little),
         .offset_zip64_eocd_record = try reader.readInt(u64, .little),
@@ -109,7 +109,7 @@ fn extractZip64EocdLocator(reader: anytype, signature: u32) !internaltypes.Zip64
     };
 }
 
-fn extractDigitalSignature(allocator: mem.Allocator, reader: anytype, signature: u32) !internaltypes.DigitalSignature {
+fn extractDigitalSignature(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.DigitalSignature {
     const signature_data_legth = try reader.readInt(u16, .little);
     const signature_data = if (signature_data_legth > 0) blk: {
         var tmp = Buffer.initWithFactor(allocator, 5);
@@ -122,7 +122,7 @@ fn extractDigitalSignature(allocator: mem.Allocator, reader: anytype, signature:
         break :blk tmp;
     } else null;
 
-    return internaltypes.DigitalSignature{
+    return zarchive_types.DigitalSignature{
         .signature = signature,
         .signature_data_legth = signature_data_legth,
         .signature_data = signature_data,
@@ -130,13 +130,13 @@ fn extractDigitalSignature(allocator: mem.Allocator, reader: anytype, signature:
 }
 
 const ArchiveExtraData = struct {
-    archive_decryption_header: internaltypes.EncryptionHeader,
-    archive_extra_data_record: internaltypes.ArchiveExtraDataRecord,
+    archive_decryption_header: zarchive_types.EncryptionHeader,
+    archive_extra_data_record: zarchive_types.ArchiveExtraDataRecord,
 };
 fn extractArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature: u32, read_options: types.ReadOptions) !ArchiveExtraData {
     // read the archive_decryption_header
     const raw_archive_decryption_header = (try reader.readBoundedBytes(12)).constSlice();
-    var archive_decryption_header = internaltypes.EncryptionHeader{
+    var archive_decryption_header = zarchive_types.EncryptionHeader{
         .options = read_options.encryption,
     };
 
@@ -178,7 +178,7 @@ fn extractArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature:
 
     return ArchiveExtraData{
         .archive_decryption_header = archive_decryption_header,
-        .archive_extra_data_record = internaltypes.ArchiveExtraDataRecord{
+        .archive_extra_data_record = zarchive_types.ArchiveExtraDataRecord{
             .signature = signature,
             .extra_field_len = extra_field_len,
             .extra_field = extra_field,
@@ -186,13 +186,13 @@ fn extractArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature:
     };
 }
 
-pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.ReadOptions) !internaltypes.ZipArchive {
+pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.ReadOptions) !zarchive_types.ZipArchive {
     var parse_source = source;
     var reader = parse_source.reader();
 
-    var archive = internaltypes.ZipArchive{
-        .local_file_entries = std.ArrayList(internaltypes.LocalFileEntry).init(allocator),
-        .central_diectory_headers = std.ArrayList(internaltypes.CentralDirectoryHeader).init(allocator),
+    var archive = zarchive_types.ZipArchive{
+        .local_file_entries = std.ArrayList(zarchive_types.LocalFileEntry).init(allocator),
+        .central_diectory_headers = std.ArrayList(zarchive_types.CentralDirectoryHeader).init(allocator),
     };
     errdefer archive.destroy(allocator);
 
@@ -202,19 +202,19 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
 
         const signature = try reader.readInt(u32, .little);
         switch (signature) {
-            internaltypes.EocdRecord.SIGNATURE => {
+            zarchive_types.EocdRecord.SIGNATURE => {
                 archive.eocd_record = try extractEocdRecord(allocator, reader, signature);
             },
-            internaltypes.Zip64EocdRecord.SIGNATURE => {
+            zarchive_types.Zip64EocdRecord.SIGNATURE => {
                 archive.zip64_eocd_record = try extractZip64EocdRecord(allocator, reader, signature);
             },
-            internaltypes.Zip64EocdLocator.SIGNATURE => {
+            zarchive_types.Zip64EocdLocator.SIGNATURE => {
                 archive.zip64_eocd_locator = try extractZip64EocdLocator(reader, signature);
             },
-            internaltypes.DigitalSignature.SIGNATURE => {
+            zarchive_types.DigitalSignature.SIGNATURE => {
                 archive.digital_signature = try extractDigitalSignature(allocator, reader, signature);
             },
-            internaltypes.ArchiveExtraDataRecord.SIGNATURE => {
+            zarchive_types.ArchiveExtraDataRecord.SIGNATURE => {
                 const current_pos = try parse_source.seekableStream().getPos();
                 try parse_source.seekableStream().seekTo(current_pos - 16);
 
@@ -307,9 +307,9 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
             break :blk tmp;
         } else null;
 
-        if (signature != internaltypes.CentralDirectoryHeader.SIGNATURE) return error.BadData;
+        if (signature != zarchive_types.CentralDirectoryHeader.SIGNATURE) return error.BadData;
 
-        const item = internaltypes.CentralDirectoryHeader{
+        const item = zarchive_types.CentralDirectoryHeader{
             .signature = signature,
             .version_made_by = version_made_by,
             .version_extract_file = version_extract_file,
@@ -339,7 +339,7 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
     return archive;
 }
 
-pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: internaltypes.CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype, read_options: types.ReadOptions) !internaltypes.LocalFileEntry {
+pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype, read_options: types.ReadOptions) !zarchive_types.LocalFileEntry {
     try seekableStream.seekTo(cdheader.offset_local_header);
 
     const signature = try in_reader.readInt(u32, .little);
@@ -379,7 +379,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: internaltypes.Cent
         break :blk tmp;
     } else null;
 
-    const header = internaltypes.LocalFileHeader{
+    const header = zarchive_types.LocalFileHeader{
         .signature = signature,
         .version = version,
         .bit_flag = bit_flag,
@@ -405,7 +405,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: internaltypes.Cent
     //    try content.writeByte(byte);
     //}
 
-    var fileentry = internaltypes.LocalFileEntry{
+    var fileentry = zarchive_types.LocalFileEntry{
         .file_header = header,
         .encryption_header = .{
             .options = read_options.encryption,
@@ -450,10 +450,10 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: internaltypes.Cent
 
     if (bitflag.isSet(3)) {
         var CRC32: u32 = try in_reader.readInt(u32, .little);
-        if (CRC32 == internaltypes.DataDescriptor.SIGNATURE) {
+        if (CRC32 == zarchive_types.DataDescriptor.SIGNATURE) {
             CRC32 = try in_reader.readInt(u32, .little);
         }
-        fileentry.data_descriptor = internaltypes.DataDescriptor{
+        fileentry.data_descriptor = zarchive_types.DataDescriptor{
             .crc32 = CRC32,
             .compressed_size = try in_reader.readInt(u32, .little),
             .uncompressed_size = try in_reader.readInt(u32, .little),
