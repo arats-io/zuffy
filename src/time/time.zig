@@ -58,101 +58,6 @@ pub const DateTime = struct {
     sec: u6,
 };
 
-pub fn absDate(seconds: i128) DateTime {
-    // Split into time and day.
-    var d = @divFloor(seconds, std.time.s_per_day);
-
-    // Account for 400 year cycles.
-    var n = @divFloor(d, days_per_400_years);
-    var y = 400 * n;
-    d -= days_per_400_years * n;
-
-    // Cut off 100-year cycles.
-    // The last cycle has one extra leap year, so on the last day
-    // of that year, day / daysPer100Years will be 4 instead of 3.
-    // Cut it back down to 3 by subtracting n>>2.
-    n = @divFloor(d, days_per_100_years);
-    n -= n >> 2;
-    y += 100 * n;
-    d -= days_per_100_years * n;
-
-    // Cut off 4-year cycles.
-    // The last cycle has a missing leap year, which does not
-    // affect the computation.
-    n = @divFloor(d, days_per_4_years);
-    y += 4 * n;
-    d -= days_per_4_years * n;
-
-    // Cut off years within a 4-year cycle.
-    // The last year is a leap year, so on the last day of that year,
-    // day / 365 will be 4 instead of 3. Cut it back down to 3
-    // by subtracting n>>2.
-    n = @divFloor(d, days_per_year);
-    n -= n >> 2;
-    y += n;
-    d -= days_per_year * n;
-
-    var sec = @rem(seconds, std.time.s_per_day);
-    const hour = @divFloor(sec, std.time.s_per_hour);
-    sec -= hour * std.time.s_per_hour;
-    const min = @divFloor(sec, std.time.s_per_min);
-    sec -= min * std.time.s_per_min;
-
-    const year = y + absolute_zero_year;
-
-    var day = d;
-
-    // Estimate month on assumption that every month has 31 days.
-    // The estimate may be too low by at most one month, so adjust.
-    var month = @divFloor(day, 31);
-    if (isLeap(year)) {
-        // Leap year
-        if (day > 31 + 29 - 1) {
-            day -= 1;
-        }
-        if (day == 31 + 29 - 1) {
-            day -= 1;
-            // Leap day.
-            month = 2; // February
-            day = 29;
-
-            return DateTime{
-                .year = @as(u16, @intCast(year)),
-                .month = @as(u5, @intCast(month)),
-                .yday = @as(u9, @intCast(d)),
-                .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
-                .day = @as(u5, @intCast(day)),
-                .hour = @as(u6, @intCast(hour)),
-                .min = @as(u6, @intCast(min)),
-                .sec = @as(u6, @intCast(sec)),
-            };
-        }
-    }
-
-    const i = @as(usize, @intCast(month));
-    var begin = daysBefore[i];
-    const end = daysBefore[i + 1];
-
-    if (day >= end) {
-        month += 1;
-        begin = end;
-    }
-
-    month += 1; // because January is 1
-    day = day - begin + 1;
-
-    return DateTime{
-        .year = @as(u16, @intCast(year)),
-        .month = @as(u5, @intCast(month)),
-        .yday = @as(u9, @intCast(d)),
-        .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
-        .day = @as(u5, @intCast(day)),
-        .hour = @as(u6, @intCast(hour)),
-        .min = @as(u6, @intCast(min)),
-        .sec = @as(u6, @intCast(sec)),
-    };
-}
-
 pub const Time = struct {
     const Self = @This();
 
@@ -641,4 +546,99 @@ pub fn daysSinceEpoch(year: i32) i64 {
     d += 365 * n;
 
     return @as(i64, @intCast(d));
+}
+
+pub fn absDate(seconds: i128) DateTime {
+    // Split into time and day.
+    var d = @divFloor(seconds, std.time.s_per_day);
+
+    // Account for 400 year cycles.
+    var n = @divFloor(d, days_per_400_years);
+    var y = 400 * n;
+    d -= days_per_400_years * n;
+
+    // Cut off 100-year cycles.
+    // The last cycle has one extra leap year, so on the last day
+    // of that year, day / daysPer100Years will be 4 instead of 3.
+    // Cut it back down to 3 by subtracting n>>2.
+    n = @divFloor(d, days_per_100_years);
+    n -= n >> 2;
+    y += 100 * n;
+    d -= days_per_100_years * n;
+
+    // Cut off 4-year cycles.
+    // The last cycle has a missing leap year, which does not
+    // affect the computation.
+    n = @divFloor(d, days_per_4_years);
+    y += 4 * n;
+    d -= days_per_4_years * n;
+
+    // Cut off years within a 4-year cycle.
+    // The last year is a leap year, so on the last day of that year,
+    // day / 365 will be 4 instead of 3. Cut it back down to 3
+    // by subtracting n>>2.
+    n = @divFloor(d, days_per_year);
+    n -= n >> 2;
+    y += n;
+    d -= days_per_year * n;
+
+    var sec = @rem(seconds, std.time.s_per_day);
+    const hour = @divFloor(sec, std.time.s_per_hour);
+    sec -= hour * std.time.s_per_hour;
+    const min = @divFloor(sec, std.time.s_per_min);
+    sec -= min * std.time.s_per_min;
+
+    const year = y + absolute_zero_year;
+
+    var day = d;
+
+    // Estimate month on assumption that every month has 31 days.
+    // The estimate may be too low by at most one month, so adjust.
+    var month = @divFloor(day, 31);
+    if (isLeap(year)) {
+        // Leap year
+        if (day > 31 + 29 - 1) {
+            day -= 1;
+        }
+        if (day == 31 + 29 - 1) {
+            day -= 1;
+            // Leap day.
+            month = 2; // February
+            day = 29;
+
+            return DateTime{
+                .year = @as(u16, @intCast(year)),
+                .month = @as(u5, @intCast(month)),
+                .yday = @as(u9, @intCast(d)),
+                .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
+                .day = @as(u5, @intCast(day)),
+                .hour = @as(u6, @intCast(hour)),
+                .min = @as(u6, @intCast(min)),
+                .sec = @as(u6, @intCast(sec)),
+            };
+        }
+    }
+
+    const i = @as(usize, @intCast(month));
+    var begin = daysBefore[i];
+    const end = daysBefore[i + 1];
+
+    if (day >= end) {
+        month += 1;
+        begin = end;
+    }
+
+    month += 1; // because January is 1
+    day = day - begin + 1;
+
+    return DateTime{
+        .year = @as(u16, @intCast(year)),
+        .month = @as(u5, @intCast(month)),
+        .yday = @as(u9, @intCast(d)),
+        .wday = @as(u3, @intCast(weekday(@as(u16, @intCast(year)), @as(u5, @intCast(month)), @as(u5, @intCast(day))))),
+        .day = @as(u5, @intCast(day)),
+        .hour = @as(u6, @intCast(hour)),
+        .min = @as(u6, @intCast(min)),
+        .sec = @as(u6, @intCast(sec)),
+    };
 }
