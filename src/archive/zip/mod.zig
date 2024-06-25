@@ -5,7 +5,7 @@ const io = std.io;
 
 const metadata = @import("metadata.zig");
 pub const extrafield = @import("extra_field.zig");
-pub const options = @import("options.zig");
+pub const types = @import("types.zig");
 
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
@@ -52,46 +52,41 @@ pub fn File(comptime ParseSource: type) type {
                 if (entry.file_header.extra_field) |b| {
                     @constCast(&b).deinit();
                 }
-                if (entry.encryption_header) |b| {
-                    self.allocator.free(b);
+                if (entry.encryption_header.key) |b| {
+                    @constCast(&b).deinit();
                 }
+                if (entry.encryption_header.value) |_| {
+                    self.allocator.free(entry.encryption_header.value.?);
+                }
+
                 if (entry.content) |b| {
                     @constCast(&b).deinit();
                 }
-                if (entry.encryption_key) |b| {
-                    @constCast(&b).deinit();
-                }
+
                 if (entry.@"$extra".external_file) |b| {
                     b.close();
                 }
                 if (entry.@"$extra".external_bytes) |b| {
                     @constCast(&b).deinit();
                 }
-                if (entry.@"$extra".crypt_password) |b| {
-                    self.allocator.free(b);
-                }
             }
             self.archive.local_file_entries.clearAndFree();
 
             // archive_decryption_header
             if (self.archive.archive_decryption_header) |entry| {
-                if (entry.iv_data) |b| {
-                    @constCast(&b).deinit();
+                if (entry.value) |_| {
+                    self.allocator.free(entry.value.?);
                 }
-                if (entry.erd_data) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (entry.reserved02) |b| {
-                    @constCast(&b).deinit();
-                }
-                if (entry.v_data) |b| {
+                if (entry.key) |b| {
                     @constCast(&b).deinit();
                 }
             }
 
             // archive_extra_data_record
             if (self.archive.archive_extra_data_record) |entry| {
-                @constCast(&entry.extra_field).deinit();
+                if (entry.extra_field) |b| {
+                    @constCast(&b).deinit();
+                }
             }
 
             // central_diectory_headers
@@ -162,7 +157,7 @@ pub fn File(comptime ParseSource: type) type {
             try eocd.comment.?.writeAll(comment);
         }
 
-        fn addEntry(self: *Self, filename: []const u8, content: []const u8, comment: []const u8, add_optons: options.AddOptions) !void {
+        fn addEntry(self: *Self, filename: []const u8, content: []const u8, comment: []const u8, add_optons: types.AddOptions) !void {
             // create the CentralDirectoryHeader entry
             {
                 var filename_content = Buffer.init(self.allocator);
@@ -339,7 +334,7 @@ pub fn File(comptime ParseSource: type) type {
 
         pub fn deccompressWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
             if (self.archive.local_file_entries.items.len == 0) {
-                self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source));
+                self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source, .{}));
             }
 
             for (self.archive.central_diectory_headers.items) |cdheader| {
@@ -349,13 +344,13 @@ pub fn File(comptime ParseSource: type) type {
 
                 var seekableStream = self.source.seekableStream();
                 var reader = self.source.reader();
-                const lfentry = try metadata.readLocalFileEntry(self.allocator, cdheader, seekableStream, reader);
+                const lfentry = try metadata.readLocalFileEntry(self.allocator, cdheader, seekableStream, reader, .{});
 
                 const content_size = if (lfentry.file_header.compression_method == 0) lfentry.file_header.uncompressed_size else lfentry.file_header.compressed_size;
 
                 // decide what to do with the ziped file content
                 if (content_size > 0) {
-                    const cm = options.CompressionMethod.from(lfentry.file_header.compression_method);
+                    const cm = types.CompressionMethod.from(lfentry.file_header.compression_method);
 
                     try seekableStream.seekTo(lfentry.@"$extra".content_startpos);
 

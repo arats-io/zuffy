@@ -95,3 +95,18 @@ pub const AddOptions = struct {
     version_extract_file: VersionExtractFile = VersionExtractFile.Default,
     compression_method: CompressionMethod = CompressionMethod.NoCompression,
 };
+
+pub const EncryptionMethod = enum(u3) {
+    none = 0,
+    password = 1,
+    x509 = 2,
+};
+
+pub const Encryption = struct {
+    method: EncryptionMethod = .none,
+    secret: ?[]const u8 = null,
+};
+
+pub const ReadOptions = struct {
+    encryption: Encryption = .{},
+};

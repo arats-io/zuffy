@@ -6,6 +6,7 @@ const ints = @import("../../ints.zig");
 const Buffer = @import("../../bytes/buffer.zig").Buffer;
 
 const eftypes = @import("extra_field_types.zig");
+const types = @import("types.zig");
 
 ///   ZIP Archive structure
 ///      [local file header 1]
@@ -33,12 +34,12 @@ pub const ZipArchive = struct {
     const Self = @This();
 
     local_file_entries: std.ArrayList(LocalFileEntry),
-    archive_decryption_header: ?ArchiveDecryptionHeader,
-    archive_extra_data_record: ?ArchiveExtraDataRecord,
+    archive_decryption_header: ?EncryptionHeader = null,
+    archive_extra_data_record: ?ArchiveExtraDataRecord = null,
     central_diectory_headers: std.ArrayList(CentralDirectoryHeader),
-    digital_signature: ?DigitalSignature,
-    zip64_eocd_record: ?Zip64EocdRecord,
-    zip64_eocd_locator: ?Zip64EocdLocator,
+    digital_signature: ?DigitalSignature = null,
+    zip64_eocd_record: ?Zip64EocdRecord = null,
+    zip64_eocd_locator: ?Zip64EocdLocator = null,
     eocd_record: EocdRecord,
 };
 pub const DigitalSignature = struct {
@@ -46,7 +47,7 @@ pub const DigitalSignature = struct {
 
     signature: u32,
     size_of_data: u16,
-    signature_data: ?Buffer,
+    signature_data: ?Buffer = null,
 };
 
 pub const CentralDirectoryHeader = struct {
@@ -70,9 +71,9 @@ pub const CentralDirectoryHeader = struct {
     internal_attributes: u16,
     external_attributes: u32,
     offset_local_header: u32,
-    filename: ?Buffer,
-    extra_field: ?Buffer,
-    comment: ?Buffer,
+    filename: ?Buffer = null,
+    extra_field: ?Buffer = null,
+    comment: ?Buffer = null,
 
     pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
         return ints.toBitSet(u16, self.bit_flag);
@@ -96,7 +97,7 @@ pub const EocdRecord = struct {
     cd_size: u32,
     offset_start: u32,
     comment_len: u16,
-    comment: ?Buffer,
+    comment: ?Buffer = null,
 };
 
 pub const Zip64EocdRecord = struct {
@@ -112,8 +113,8 @@ pub const Zip64EocdRecord = struct {
     cd_records_total: u64,
     cd_size: u64,
     offset_start: u64,
-    extenssion_v2: ?Zip64EocdRecordExtenssionV2,
-    extenssion_data: ?Buffer,
+    extenssion_v2: ?Zip64EocdRecordExtenssionV2 = null,
+    extenssion_data: ?Buffer = null,
 };
 pub const Zip64EocdRecordExtenssionV2 = struct {
     compression_method: u64,
@@ -124,7 +125,7 @@ pub const Zip64EocdRecordExtenssionV2 = struct {
     flags: u16,
     hash_id: u16,
     hash_length: u16,
-    hash_data: ?Buffer,
+    hash_data: ?Buffer = null,
 };
 
 pub const Zip64EocdLocator = struct {
@@ -150,8 +151,8 @@ pub const LocalFileHeader = struct {
     uncompressed_size: u32,
     filename_len: u16,
     extra_field_len: u16,
-    filename: ?Buffer,
-    extra_field: ?Buffer,
+    filename: ?Buffer = null,
+    extra_field: ?Buffer = null,
 
     pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
         return ints.toBitSet(u16, self.bit_flag);
@@ -164,7 +165,11 @@ pub const LocalFileHeader = struct {
     }
 };
 
-pub const EncryptionHeader = struct {};
+pub const EncryptionHeader = struct {
+    value: ?[]const u8 = null,
+    key: ?Buffer = null,
+    options: types.Encryption = .{},
+};
 
 pub const DataDescriptor = struct {
     pub const SIGNATURE = 0x08074b50;
@@ -177,31 +182,31 @@ pub const DataDescriptor = struct {
 pub const ArchiveExtraDataRecord = struct {
     pub const SIGNATURE = 0x08064b50;
 
+    signature: u32,
     extra_field_len: u16,
-    extra_field: Buffer,
+    extra_field: ?Buffer = null,
 };
 
-pub const ArchiveDecryptionHeader = struct {
-    iv_size: u16,
-    iv_data: ?Buffer,
-    size: u32,
-    format: u16,
-    alg_id: u16,
-    bit_len: u16,
-    flags: u16,
-    erd_size: u16,
-    erd_data: ?Buffer,
-    reserved01: u32,
-    reserved02: ?Buffer,
-    v_size: u16,
-    v_data: ?Buffer,
-    v_crc32: u32,
-};
+// pub const ArchiveDecryptionHeader = struct {
+//     iv_size: u16,
+//     iv_data: ?Buffer = null,
+//     size: u32,
+//     format: u16,
+//     alg_id: u16,
+//     bit_len: u16,
+//     flags: u16,
+//     erd_size: u16,
+//     erd_data: ?Buffer = null,
+//     reserved01: u32,
+//     reserved02: ?Buffer = null,
+//     v_size: u16,
+//     v_data: ?Buffer = null,
+//     v_crc32: u32,
+// };
 
 pub const LocalFileEntry = struct {
     file_header: LocalFileHeader,
-    encryption_header: ?[]const u8 = null,
-    encryption_key: ?Buffer = null,
+    encryption_header: EncryptionHeader = .{},
     content: ?Buffer = null,
     data_descriptor: ?DataDescriptor = null,
 
@@ -210,12 +215,12 @@ pub const LocalFileEntry = struct {
         external_bytes: ?Buffer = null,
         content_length: u64 = 0,
         content_startpos: u64 = 0,
-        crypt_password: ?[]const u8 = null,
     },
 };
 
-pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
+pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.ReadOptions) !ZipArchive {
     var parse_source = source;
+
     var eocd: ?EocdRecord = null;
 
     // parsing the end of central directory record, which is only one
@@ -260,6 +265,69 @@ pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
     }
     if (eocd.?.signature != EocdRecord.SIGNATURE) return error.BadData;
     // end of parsing the end of central directory record
+
+    // Lookup for archive_decryption_header and archive_extra_data_record
+    var archive_decryption_header: ?EncryptionHeader = null;
+    var archive_extra_data_record: ?ArchiveExtraDataRecord = null;
+    while (pos > 0) : (pos -= 1) {
+        try parse_source.seekableStream().seekTo(pos);
+
+        var signature = try parse_source.reader().readInt(u32, .little);
+        if (signature != ArchiveExtraDataRecord.SIGNATURE) {
+            continue;
+        }
+
+        pos = pos - 16;
+        try parse_source.seekableStream().seekTo(pos);
+
+        // read the archive_decryption_header
+        const raw_archive_decryption_header = (try parse_source.reader().readBoundedBytes(12)).constSlice();
+        archive_decryption_header = .{
+            .options = read_options.encryption,
+        };
+
+        const cr = @import("crypto.zig");
+        switch (read_options.encryption.method) {
+            .password => {
+                var decryption_key = Buffer.init(allocator);
+                errdefer decryption_key.deinit();
+
+                var crypto = cr.Crypto.init(archive_decryption_header.?.options.secret.?);
+                var decryptor = crypto.decriptor();
+                try decryptor.decrypt(raw_archive_decryption_header, decryption_key.writer());
+
+                archive_decryption_header.?.value = raw_archive_decryption_header;
+                archive_decryption_header.?.key = decryption_key;
+            },
+            .x509 => {
+                //TODO: to be done
+            },
+            else => {},
+        }
+        // end readinf the archive_decryption_header
+
+        // read the archive_extra_data_record
+        signature = try parse_source.reader().readInt(u32, .little);
+        const extra_field_len = try parse_source.reader().readInt(u16, .little);
+
+        const extra_field = if (extra_field_len > 0) cblk: {
+            var tmp = Buffer.initWithFactor(allocator, 5);
+            for (0..extra_field_len) |_| {
+                const byte: u8 = try parse_source.reader().readByte();
+                try tmp.writeByte(byte);
+            }
+            break :cblk tmp;
+        } else null;
+
+        archive_extra_data_record = ArchiveExtraDataRecord{
+            .signature = signature,
+            .extra_field_len = extra_field_len,
+            .extra_field = extra_field,
+        };
+        // end reading archive_extra_data_record
+
+        break;
+    }
 
     // parsing the central directory header n
     var cdheaders = std.ArrayList(CentralDirectoryHeader).init(allocator);
@@ -438,8 +506,8 @@ pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
 
     return ZipArchive{
         .local_file_entries = std.ArrayList(LocalFileEntry).init(allocator),
-        .archive_decryption_header = null,
-        .archive_extra_data_record = null,
+        .archive_decryption_header = archive_decryption_header,
+        .archive_extra_data_record = archive_extra_data_record,
         .central_diectory_headers = cdheaders,
         .digital_signature = ds,
         .zip64_eocd_record = zip64_eocd_record,
@@ -448,7 +516,7 @@ pub fn extract(allocator: mem.Allocator, source: anytype) !ZipArchive {
     };
 }
 
-pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype) !LocalFileEntry {
+pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHeader, seekableStream: anytype, in_reader: anytype, read_options: types.ReadOptions) !LocalFileEntry {
     try seekableStream.seekTo(cdheader.offset_local_header);
 
     const signature = try in_reader.readInt(u32, .little);
@@ -514,36 +582,49 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
     //    try content.writeByte(byte);
     //}
 
-    const password = "";
-
     var fileentry = LocalFileEntry{
         .file_header = header,
+        .encryption_header = .{
+            .options = read_options.encryption,
+        },
 
         .@"$extra" = .{
             .content_length = content_size,
             .content_startpos = start,
-            .crypt_password = password,
         },
     };
 
     const bitflag = header.bitFlagToBitSet();
 
-    // Local file encryption header
-    if (bitflag.isSet(0)) {
-        fileentry.encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
+    if (bitflag.isSet(0) and bitflag.isSet(6)) {
+        //TODO: to be done
+    } else {
+        // Local file encryption header
+        if (bitflag.isSet(0)) {
+            const raw_encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
 
-        var encryption_key = Buffer.init(allocator);
-        errdefer encryption_key.deinit();
+            const cr = @import("crypto.zig");
+            switch (read_options.encryption.method) {
+                .password => {
+                    var encryption_key = Buffer.init(allocator);
+                    errdefer encryption_key.deinit();
 
-        var crypto = Crypto.init(password);
-        var decryptor = crypto.decriptor();
-        try decryptor.decrypt(fileentry.encryption_header.?, encryption_key.writer());
+                    var crypto = cr.Crypto.init(fileentry.encryption_header.options.secret.?);
+                    var decryptor = crypto.decriptor();
+                    try decryptor.decrypt(raw_encryption_header, encryption_key.writer());
 
-        fileentry.encryption_key = encryption_key;
+                    fileentry.encryption_header.value = raw_encryption_header;
+                    fileentry.encryption_header.key = encryption_key;
+                },
+                .x509 => {
+                    //TODO: to be done
+                },
+                else => {},
+            }
+        }
+        if (bitflag.isSet(6)) {}
     }
-    if (bitflag.isSet(6)) {
-        std.debug.print("Strong encryption\n", .{});
-    }
+
     if (bitflag.isSet(3)) {
         var CRC32: u32 = try in_reader.readInt(u32, .little);
         if (CRC32 == DataDescriptor.SIGNATURE) {
@@ -557,77 +638,4 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: CentralDirectoryHe
     }
 
     return fileentry;
-}
-
-const Crypto = struct {
-    const Self = @This();
-
-    pub const Decryptor = struct {
-        keys: [3]u32,
-
-        pub fn decrypt(self: *Decryptor, chiper: []const u8, writer: anytype) !void {
-            for (chiper) |ch| {
-                const v = ch ^ magicByte(&self.keys);
-                updatekeys(&self.keys, v);
-                try writer.writeByte(v);
-            }
-        }
-    };
-
-    pub const Encryptor = struct {
-        keys: [3]u32,
-
-        pub fn encrypt(self: *Encryptor, data: []const u8, writer: anytype) !void {
-            for (data) |ch| {
-                try writer.writeByte(ch ^ magicByte(&self.keys));
-                updatekeys(&self.keys, ch);
-            }
-        }
-    };
-
-    keys: [3]u32,
-
-    pub fn init(password: []const u8) Self {
-        const self = Self{ .keys = [3]u32{ 0x12345678, 0x23456789, 0x34567890 } };
-        for (password) |ch| {
-            updatekeys(@constCast(&self.keys), ch);
-        }
-        return self;
-    }
-
-    pub fn encryptor(self: *Self) Encryptor {
-        return Encryptor{ .keys = [3]u32{ self.keys[0], self.keys[1], self.keys[2] } };
-    }
-
-    pub fn decriptor(self: *Self) Decryptor {
-        return Decryptor{ .keys = [3]u32{ self.keys[0], self.keys[1], self.keys[2] } };
-    }
-};
-
-const Crc32IEEE = std.hash.crc.Crc(u32, .{
-    .polynomial = 0xedb88320,
-    .initial = 0xffffffff,
-    .reflect_input = false,
-    .reflect_output = false,
-    .xor_output = 0x00000000,
-});
-
-fn updatekeys(keys: *[3]u32, byteValue: u8) void {
-    keys.*[0] = crc32update(keys.*[0], byteValue);
-    keys.*[1] += keys.*[0] & 0xff;
-    keys.*[1] = keys.*[1] * 134775813 + 1;
-
-    const t = keys.*[1] >> 24;
-    keys.*[2] = crc32update(keys.*[2], @as(u8, @intCast(t)));
-}
-
-fn crc32update(pCrc32: u32, bval: u8) u32 {
-    const t = ints.toBytes(u32, (pCrc32 ^ bval) & 0xff, .big);
-    return Crc32IEEE.hash(&t) ^ (pCrc32 >> 8);
-}
-
-fn magicByte(keys: *[3]u32) u8 {
-    const t = keys.*[2] | 2;
-    const res = (t * (t ^ 1)) >> 8;
-    return @as(u8, @intCast(res));
 }
