@@ -267,7 +267,7 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
         const signature = try new_reader.readInt(u32, .little);
         const version_made_by = try new_reader.readInt(u16, .little);
         const version_extract_file = try new_reader.readInt(u16, .little);
-        const bit_flag = try new_reader.readInt(u16, .little);
+        const flags = try new_reader.readStruct(zarchive_types.Flags);
         const compressed_method = try new_reader.readInt(u16, .little);
         const last_modification_time = try new_reader.readInt(u16, .little);
         const last_modification_date = try new_reader.readInt(u16, .little);
@@ -315,7 +315,7 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
             .signature = signature,
             .version_made_by = version_made_by,
             .version_extract_file = version_extract_file,
-            .bit_flag = bit_flag,
+            .flags = flags,
             .compressed_method = compressed_method,
             .last_modification_time = last_modification_time,
             .last_modification_date = last_modification_date,
@@ -346,7 +346,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
 
     const signature = try in_reader.readInt(u32, .little);
     const version = try in_reader.readInt(u16, .little);
-    const bit_flag = try in_reader.readInt(u16, .little);
+    const flags = try in_reader.readStruct(zarchive_types.Flags);
     const compression_method = try in_reader.readInt(u16, .little);
     const last_modification_time = try in_reader.readInt(u16, .little);
     const last_modification_date = try in_reader.readInt(u16, .little);
@@ -384,7 +384,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
     const header = zarchive_types.LocalFileHeader{
         .signature = signature,
         .version = version,
-        .bit_flag = bit_flag,
+        .flags = flags,
         .compression_method = compression_method,
         .last_modification_time = last_modification_time,
         .last_modification_date = last_modification_date,
@@ -419,13 +419,11 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
         },
     };
 
-    const bitflag = header.bitFlagToBitSet();
-
-    if (bitflag.isSet(0) and bitflag.isSet(6)) {
+    if (header.flags.EncryptedFile and header.flags.StrongEncryption) {
         //TODO: to be done
     } else {
         // Local file encryption header
-        if (bitflag.isSet(0)) {
+        if (header.flags.EncryptedFile) {
             const raw_encryption_header = (try in_reader.readBoundedBytes(12)).constSlice();
 
             const cr = @import("crypto.zig");
@@ -447,10 +445,10 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
                 else => {},
             }
         }
-        if (bitflag.isSet(6)) {}
+        if (header.flags.StrongEncryption) {}
     }
 
-    if (bitflag.isSet(3)) {
+    if (header.flags.DataDescriptor) {
         var CRC32: u32 = try in_reader.readInt(u32, .little);
         if (CRC32 == zarchive_types.DataDescriptor.SIGNATURE) {
             CRC32 = try in_reader.readInt(u32, .little);

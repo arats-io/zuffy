@@ -144,7 +144,7 @@ pub const CentralDirectoryHeader = struct {
     signature: u32,
     version_made_by: u16,
     version_extract_file: u16,
-    bit_flag: u16,
+    flags: Flags,
     compressed_method: u16,
     last_modification_time: u16,
     last_modification_date: u16,
@@ -162,14 +162,50 @@ pub const CentralDirectoryHeader = struct {
     extra_field: ?Buffer = null,
     comment: ?Buffer = null,
 
-    pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
-        return ints.toBitSet(u16, self.bit_flag);
-    }
-
     pub fn decodeExtraFields(self: Self, handler: anytype) !void {
         if (self.extra_field) |buffer| {
             try eftypes.decodeExtraFields(buffer, handler);
         }
+    }
+};
+
+const pointers = @import("../../pointers.zig");
+pub const Flags = packed struct(u16) {
+    pub const Self = @This();
+
+    EncryptedFile: bool = false,
+    CompressionOption01: bool = false,
+    CompressionOption02: bool = false,
+    DataDescriptor: bool = true,
+    EnhancedDeflation: bool = false,
+    CompressedPatchedData: bool = false,
+    StrongEncryption: bool = false,
+    _unused_07: bool = false,
+    _unused_08: bool = false,
+    _unused_09: bool = false,
+    _unused_10: bool = false,
+    LanguageEncoding: bool = false,
+    _reserved_12: bool = false,
+    MaskHeaderValues: bool = false,
+    _reserved_14: bool = false,
+    _reserved_15: bool = false,
+
+    pub fn toStaticBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
+        const v = pointers.fromOpaque(@constCast(&self), *u16);
+        return ints.toBitSet(u16, v.*);
+    }
+
+    pub fn fromStaticBitSet(bitset: std.StaticBitSet(@bitSizeOf(u16))) u16 {
+        return ints.fromBitSet(u16, bitset);
+    }
+
+    pub fn fromInt(value: u16) Self {
+        return @bitCast(@as(u16, value));
+    }
+
+    pub fn toInt(self: Self) Self {
+        const v = pointers.fromOpaque(@constCast(&self), *u16);
+        return v.*;
     }
 };
 
@@ -229,7 +265,7 @@ pub const LocalFileHeader = struct {
 
     signature: u32,
     version: u16,
-    bit_flag: u16,
+    flags: Flags,
     compression_method: u16,
     last_modification_time: u16,
     last_modification_date: u16,
@@ -240,10 +276,6 @@ pub const LocalFileHeader = struct {
     extra_field_len: u16,
     filename: ?Buffer = null,
     extra_field: ?Buffer = null,
-
-    pub fn bitFlagToBitSet(self: Self) std.StaticBitSet(@bitSizeOf(u16)) {
-        return ints.toBitSet(u16, self.bit_flag);
-    }
 
     pub fn decodeExtraFields(self: Self, handler: anytype) !void {
         if (self.extra_field) |buffer| {
