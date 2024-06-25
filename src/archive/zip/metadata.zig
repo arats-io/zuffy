@@ -220,68 +220,25 @@ pub const LocalFileEntry = struct {
 
 pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.ReadOptions) !ZipArchive {
     var parse_source = source;
+    var reader = parse_source.reader();
 
-    var eocd: ?EocdRecord = null;
-
-    // parsing the end of central directory record, which is only one
-    var pos = try parse_source.seekableStream().getEndPos() - 4;
-    while (pos > 0) : (pos -= 1) {
-        try parse_source.seekableStream().seekTo(pos);
-
-        const signature = try parse_source.reader().readInt(u32, .little);
-        if (signature != EocdRecord.SIGNATURE) {
-            continue;
-        }
-
-        const num_disk = try parse_source.reader().readInt(u16, .little);
-        const num_disk_cd_start = try parse_source.reader().readInt(u16, .little);
-        const cd_records_total_on_disk = try parse_source.reader().readInt(u16, .little);
-        const cd_records_total = try parse_source.reader().readInt(u16, .little);
-        const cd_size = try parse_source.reader().readInt(u32, .little);
-        const offset_start = try parse_source.reader().readInt(u32, .little);
-        const comment_len = try parse_source.reader().readInt(u16, .little);
-
-        const comment = if (comment_len > 0) cblk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
-            for (0..comment_len) |_| {
-                const byte: u8 = try parse_source.reader().readByte();
-                try tmp.writeByte(byte);
-            }
-            break :cblk tmp;
-        } else null;
-
-        eocd = EocdRecord{
-            .signature = signature,
-            .num_disk = num_disk,
-            .num_disk_cd_start = num_disk_cd_start,
-            .cd_records_total_on_disk = cd_records_total_on_disk,
-            .cd_records_total = cd_records_total,
-            .cd_size = cd_size,
-            .offset_start = offset_start,
-            .comment_len = comment_len,
-            .comment = comment,
-        };
-        break;
-    }
-    if (eocd.?.signature != EocdRecord.SIGNATURE) return error.BadData;
-    // end of parsing the end of central directory record
-
-    // Lookup for archive_decryption_header and archive_extra_data_record
+    // lookup for archive_decryption_header and archive_extra_data_record
     var archive_decryption_header: ?EncryptionHeader = null;
     var archive_extra_data_record: ?ArchiveExtraDataRecord = null;
-    while (pos > 0) : (pos -= 1) {
+    var pos: usize = 0;
+    while (pos > 0) : (pos += 4) {
         try parse_source.seekableStream().seekTo(pos);
 
-        var signature = try parse_source.reader().readInt(u32, .little);
-        if (signature != ArchiveExtraDataRecord.SIGNATURE) {
+        var archive_extra_data_signature = try reader.readInt(u32, .little);
+        if (archive_extra_data_signature != ArchiveExtraDataRecord.SIGNATURE) {
             continue;
         }
 
-        pos = pos - 16;
-        try parse_source.seekableStream().seekTo(pos);
+        const current_pos = try parse_source.seekableStream().getPos();
+        try parse_source.seekableStream().seekTo(current_pos - 16);
 
         // read the archive_decryption_header
-        const raw_archive_decryption_header = (try parse_source.reader().readBoundedBytes(12)).constSlice();
+        const raw_archive_decryption_header = (try reader.readBoundedBytes(12)).constSlice();
         archive_decryption_header = .{
             .options = read_options.encryption,
         };
@@ -307,20 +264,20 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
         // end readinf the archive_decryption_header
 
         // read the archive_extra_data_record
-        signature = try parse_source.reader().readInt(u32, .little);
-        const extra_field_len = try parse_source.reader().readInt(u16, .little);
+        archive_extra_data_signature = try reader.readInt(u32, .little);
+        const extra_field_len = try reader.readInt(u16, .little);
 
         const extra_field = if (extra_field_len > 0) cblk: {
             var tmp = Buffer.initWithFactor(allocator, 5);
             for (0..extra_field_len) |_| {
-                const byte: u8 = try parse_source.reader().readByte();
+                const byte: u8 = try reader.readByte();
                 try tmp.writeByte(byte);
             }
             break :cblk tmp;
         } else null;
 
         archive_extra_data_record = ArchiveExtraDataRecord{
-            .signature = signature,
+            .signature = archive_extra_data_signature,
             .extra_field_len = extra_field_len,
             .extra_field = extra_field,
         };
@@ -328,13 +285,175 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
 
         break;
     }
+    // end lookup for archive_decryption_header and archive_extra_data_record
 
-    // parsing the central directory header n
+    // parsing digital signature
+    var ds: ?DigitalSignature = null;
+    while (pos > 0) : (pos += 4) {
+        try parse_source.seekableStream().seekTo(pos);
+
+        const ds_signature = try reader.readInt(u32, .little);
+        if (ds_signature != DigitalSignature.SIGNATURE) {
+            continue;
+        }
+
+        const size_of_data = try reader.readInt(u16, .little);
+        const signature_data = if (size_of_data > 0) blk: {
+            var tmp = Buffer.initWithFactor(allocator, 5);
+            for (0..size_of_data) |_| {
+                const byte: u8 = try reader.readByte();
+                try tmp.writeByte(byte);
+            }
+            break :blk tmp;
+        } else null;
+
+        ds = DigitalSignature{
+            .signature = ds_signature,
+            .size_of_data = size_of_data,
+            .signature_data = signature_data,
+        };
+
+        break;
+    }
+    // ending of parsing digital signature
+
+    // parsing the zip64 end of central directory record & locator
+    var zip64_eocd_record: ?Zip64EocdRecord = null;
+    var zip64_eocd_locator: ?Zip64EocdLocator = null;
+    while (pos > 0) : (pos += 4) {
+        try parse_source.seekableStream().seekTo(pos);
+
+        const zip64_eocd_record_signature = try reader.readInt(u32, .little);
+        if (zip64_eocd_record_signature != Zip64EocdRecord.SIGNATURE) {
+            continue;
+        }
+
+        zip64_eocd_record = Zip64EocdRecord{
+            .signature = zip64_eocd_record_signature,
+            .size = try reader.readInt(u64, .little),
+            .version_made_by = try reader.readInt(u16, .little),
+            .version_extract_file = try reader.readInt(u16, .little),
+            .num_disk = try reader.readInt(u32, .little),
+            .num_disk_cd_start = try reader.readInt(u32, .little),
+            .cd_records_on_disk = try reader.readInt(u64, .little),
+            .cd_records_total = try reader.readInt(u64, .little),
+            .cd_size = try reader.readInt(u64, .little),
+            .offset_start = try reader.readInt(u64, .little),
+            .extenssion_v2 = null,
+            .extenssion_data = null,
+        };
+        // version 1
+        if (zip64_eocd_record.?.version_made_by == 1) {
+            // Size = SizeOfFixedFields + SizeOfVariableData - 12.
+            const extensible_data_len = zip64_eocd_record.?.size - 56 - 12;
+            zip64_eocd_record.?.extenssion_data = if (extensible_data_len > 0) blk: {
+                var tmp = Buffer.initWithFactor(allocator, 5);
+                for (0..extensible_data_len) |_| {
+                    const byte: u8 = try reader.readByte();
+                    try tmp.writeByte(byte);
+                }
+                break :blk tmp;
+            } else null;
+        }
+        // version 2
+        if (zip64_eocd_record.?.version_made_by == 2) {
+            zip64_eocd_record.?.extenssion_v2 = Zip64EocdRecordExtenssionV2{
+                .compression_method = try reader.readInt(u64, .little),
+                .compressed_size = try reader.readInt(u64, .little),
+                .original_size = try reader.readInt(u64, .little),
+                .alg_id = try reader.readInt(u16, .little),
+                .bit_len = try reader.readInt(u16, .little),
+                .flags = try reader.readInt(u16, .little),
+                .hash_id = try reader.readInt(u16, .little),
+                .hash_length = try reader.readInt(u16, .little),
+                .hash_data = null,
+            };
+            const size = zip64_eocd_record.?.extenssion_v2.?.hash_length;
+            zip64_eocd_record.?.extenssion_v2.?.hash_data = if (size > 0) blk: {
+                var tmp = Buffer.initWithFactor(allocator, 5);
+                for (0..size) |_| {
+                    const byte: u8 = try reader.readByte();
+                    try tmp.writeByte(byte);
+                }
+                break :blk tmp;
+            } else null;
+        }
+
+        zip64_eocd_locator = Zip64EocdLocator{
+            .signature = try reader.readInt(u32, .little),
+            .num_disk_zip64_eocd_start = try reader.readInt(u32, .little),
+            .offset_zip64_eocd_record = try reader.readInt(u64, .little),
+            .num_disk = try reader.readInt(u32, .little),
+        };
+
+        break;
+    }
+    // end of parsing the zip64 end of central directory record & locator
+
+    // parsing the end of central directory record, which is only one
+    var eocd: ?EocdRecord = null;
+
+    pos = try parse_source.seekableStream().getEndPos() - 4;
+    while (pos > 0) : (pos -= 1) {
+        try parse_source.seekableStream().seekTo(pos);
+
+        const signature = try reader.readInt(u32, .little);
+        if (signature != EocdRecord.SIGNATURE) {
+            continue;
+        }
+
+        const num_disk = try reader.readInt(u16, .little);
+        const num_disk_cd_start = try reader.readInt(u16, .little);
+        const cd_records_total_on_disk = try reader.readInt(u16, .little);
+        const cd_records_total = try reader.readInt(u16, .little);
+        const cd_size = try reader.readInt(u32, .little);
+        const offset_start = try reader.readInt(u32, .little);
+        const comment_len = try reader.readInt(u16, .little);
+
+        const comment = if (comment_len > 0) cblk: {
+            var tmp = Buffer.initWithFactor(allocator, 5);
+            for (0..comment_len) |_| {
+                const byte: u8 = try reader.readByte();
+                try tmp.writeByte(byte);
+            }
+            break :cblk tmp;
+        } else null;
+
+        eocd = EocdRecord{
+            .signature = signature,
+            .num_disk = num_disk,
+            .num_disk_cd_start = num_disk_cd_start,
+            .cd_records_total_on_disk = cd_records_total_on_disk,
+            .cd_records_total = cd_records_total,
+            .cd_size = cd_size,
+            .offset_start = offset_start,
+            .comment_len = comment_len,
+            .comment = comment,
+        };
+        break;
+    }
+    if (eocd.?.signature != EocdRecord.SIGNATURE) return error.BadData;
+    // end of parsing the end of central directory record
+
+    // parsing the central directory
     var cdheaders = std.ArrayList(CentralDirectoryHeader).init(allocator);
 
     const start_pos = eocd.?.offset_start + eocd.?.num_disk_cd_start;
     try parse_source.seekableStream().seekTo(start_pos);
-    const reader = parse_source.reader();
+
+    reader = if (archive_decryption_header) |adh| io: {
+        _ = adh.key; // decryption key
+        _ = std.io.limitedReader(reader, eocd.?.cd_size);
+
+        switch (read_options.encryption.method) {
+            .password => {},
+            .x509 => {
+                //TODO: to be done
+            },
+            else => {},
+        }
+        break :io parse_source.reader();
+    } else parse_source.reader();
 
     for (0..eocd.?.cd_records_total) |idx| {
         _ = idx;
@@ -410,99 +529,7 @@ pub fn extract(allocator: mem.Allocator, source: anytype, read_options: types.Re
 
         try cdheaders.append(item);
     }
-    // ending of parsing the central directory header n
-
-    // parsing digital signature
-    const signature = try reader.readInt(u32, .little);
-    if (signature != EocdRecord.SIGNATURE and signature != DigitalSignature.SIGNATURE) {
-        return error.BadData;
-    }
-
-    const ds = if (signature == DigitalSignature.SIGNATURE) blkds: {
-        const size_of_data = try reader.readInt(u16, .little);
-        const signature_data = if (size_of_data > 0) blk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
-            for (0..size_of_data) |_| {
-                const byte: u8 = try reader.readByte();
-                try tmp.writeByte(byte);
-            }
-            break :blk tmp;
-        } else null;
-
-        break :blkds DigitalSignature{
-            .signature = signature,
-            .size_of_data = size_of_data,
-            .signature_data = signature_data,
-        };
-    } else null;
-    // ending of parsing digital signature
-
-    // parsing the zip64 end of central directory record & locator
-    var zip64_eocd_record: ?Zip64EocdRecord = null;
-    var zip64_eocd_locator: ?Zip64EocdLocator = null;
-    if (eocd.?.num_disk == 0xffff) {
-        zip64_eocd_record = Zip64EocdRecord{
-            .signature = try reader.readInt(u32, .little),
-            .size = try reader.readInt(u64, .little),
-            .version_made_by = try reader.readInt(u16, .little),
-            .version_extract_file = try reader.readInt(u16, .little),
-            .num_disk = try reader.readInt(u32, .little),
-            .num_disk_cd_start = try reader.readInt(u32, .little),
-            .cd_records_on_disk = try reader.readInt(u64, .little),
-            .cd_records_total = try reader.readInt(u64, .little),
-            .cd_size = try reader.readInt(u64, .little),
-            .offset_start = try reader.readInt(u64, .little),
-            .extenssion_v2 = null,
-            .extenssion_data = null,
-        };
-        // version 1
-        if (zip64_eocd_record.?.version_made_by == 1) {
-            // Size = SizeOfFixedFields + SizeOfVariableData - 12.
-            const extensible_data_len = zip64_eocd_record.?.size - 56 - 12;
-            zip64_eocd_record.?.extenssion_data = if (extensible_data_len > 0) blk: {
-                var tmp = Buffer.initWithFactor(allocator, 5);
-                for (0..extensible_data_len) |_| {
-                    const byte: u8 = try reader.readByte();
-                    try tmp.writeByte(byte);
-                }
-                break :blk tmp;
-            } else null;
-        }
-        // version 2
-        if (zip64_eocd_record.?.version_made_by == 2) {
-            zip64_eocd_record.?.extenssion_v2 = Zip64EocdRecordExtenssionV2{
-                .compression_method = try reader.readInt(u64, .little),
-                .compressed_size = try reader.readInt(u64, .little),
-                .original_size = try reader.readInt(u64, .little),
-                .alg_id = try reader.readInt(u16, .little),
-                .bit_len = try reader.readInt(u16, .little),
-                .flags = try reader.readInt(u16, .little),
-                .hash_id = try reader.readInt(u16, .little),
-                .hash_length = try reader.readInt(u16, .little),
-                .hash_data = null,
-            };
-            const size = zip64_eocd_record.?.extenssion_v2.?.hash_length;
-            zip64_eocd_record.?.extenssion_v2.?.hash_data = if (size > 0) blk: {
-                var tmp = Buffer.initWithFactor(allocator, 5);
-                for (0..size) |_| {
-                    const byte: u8 = try reader.readByte();
-                    try tmp.writeByte(byte);
-                }
-                break :blk tmp;
-            } else null;
-        }
-
-        if (zip64_eocd_record.?.signature != Zip64EocdRecord.SIGNATURE) return error.BadData;
-
-        zip64_eocd_locator = Zip64EocdLocator{
-            .signature = try reader.readInt(u32, .little),
-            .num_disk_zip64_eocd_start = try reader.readInt(u32, .little),
-            .offset_zip64_eocd_record = try reader.readInt(u64, .little),
-            .num_disk = try reader.readInt(u32, .little),
-        };
-        if (zip64_eocd_locator.?.signature != Zip64EocdLocator.SIGNATURE) return error.BadData;
-    }
-    // end of parsing the zip64 end of central directory record & locator
+    // ending of parsing the central directory
 
     return ZipArchive{
         .local_file_entries = std.ArrayList(LocalFileEntry).init(allocator),
