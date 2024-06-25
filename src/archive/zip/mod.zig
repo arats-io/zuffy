@@ -3,7 +3,9 @@ const fs = std.fs;
 const mem = std.mem;
 const io = std.io;
 
-const metadata = @import("metadata.zig");
+const internal_type = @import("internal_types.zig");
+const internal = @import("internal.zig");
+
 pub const extrafield = @import("extra_field.zig");
 pub const types = @import("types.zig");
 
@@ -24,7 +26,7 @@ pub fn File(comptime ParseSource: type) type {
 
         allocator: mem.Allocator,
         source: ParseSource,
-        archive: metadata.ZipArchive,
+        archive: internal_type.ZipArchive,
 
         fn init(allocator: mem.Allocator, source: ParseSource) Self {
             return Self{
@@ -38,22 +40,22 @@ pub fn File(comptime ParseSource: type) type {
             self.archive.destroy(self.allocator);
         }
 
-        fn cleanAndReplaceZipArchive(self: *Self, arch: metadata.ZipArchive) void {
+        fn cleanAndReplaceZipArchive(self: *Self, arch: internal_type.ZipArchive) void {
             self.deinit();
             self.archive = arch;
         }
 
-        fn empty(allocator: mem.Allocator) metadata.ZipArchive {
-            return metadata.ZipArchive{
-                .local_file_entries = std.ArrayList(metadata.LocalFileEntry).init(allocator),
+        fn empty(allocator: mem.Allocator) internal_type.ZipArchive {
+            return internal_type.ZipArchive{
+                .local_file_entries = std.ArrayList(internal_type.LocalFileEntry).init(allocator),
                 .archive_decryption_header = null,
                 .archive_extra_data_record = null,
-                .central_diectory_headers = std.ArrayList(metadata.CentralDirectoryHeader).init(allocator),
+                .central_diectory_headers = std.ArrayList(internal_type.CentralDirectoryHeader).init(allocator),
                 .digital_signature = null,
                 .zip64_eocd_record = null,
                 .zip64_eocd_locator = null,
-                .eocd_record = metadata.EocdRecord{
-                    .signature = metadata.EocdRecord.SIGNATURE,
+                .eocd_record = internal_type.EocdRecord{
+                    .signature = internal_type.EocdRecord.SIGNATURE,
                     .num_disk = 0,
                     .num_disk_cd_start = 0,
                     .cd_records_total_on_disk = 0,
@@ -83,8 +85,8 @@ pub fn File(comptime ParseSource: type) type {
                 errdefer comment_content.deinit();
                 try comment_content.writeAll(comment);
 
-                const cdh = metadata.CentralDirectoryHeader{
-                    .signature = metadata.CentralDirectoryHeader.SIGNATURE,
+                const cdh = internal_type.CentralDirectoryHeader{
+                    .signature = internal_type.CentralDirectoryHeader.SIGNATURE,
                     .version_made_by = add_optons.version_made_by,
                     .version_extract_file = add_optons.version_extract_file,
                     .bit_flag = 0,
@@ -118,9 +120,9 @@ pub fn File(comptime ParseSource: type) type {
                 errdefer entry_content.deinit();
                 try entry_content.writeAll(content);
 
-                const lfe = metadata.LocalFileEntry{
-                    .file_header = metadata.LocalFileHeader{
-                        .signature = metadata.LocalFileHeader.SIGNATURE,
+                const lfe = internal_type.LocalFileEntry{
+                    .file_header = internal_type.LocalFileHeader{
+                        .signature = internal_type.LocalFileHeader.SIGNATURE,
                         .version = 0,
                         .bit_flag = 0,
                         .compression_method = 0,
@@ -249,7 +251,7 @@ pub fn File(comptime ParseSource: type) type {
 
         pub fn deccompressWithFilters(self: *Self, filters: std.ArrayList([]const u8), receiver: anytype) !void {
             if (self.archive.local_file_entries.items.len == 0) {
-                self.cleanAndReplaceZipArchive(try metadata.extract(self.allocator, self.source, .{}));
+                self.cleanAndReplaceZipArchive(try internal.extract(self.allocator, self.source, .{}));
             }
 
             for (self.archive.central_diectory_headers.items) |cdheader| {
@@ -259,7 +261,7 @@ pub fn File(comptime ParseSource: type) type {
 
                 var seekableStream = self.source.seekableStream();
                 var reader = self.source.reader();
-                const lfentry = try metadata.readLocalFileEntry(self.allocator, cdheader, seekableStream, reader, .{});
+                const lfentry = try internal.readLocalFileEntry(self.allocator, cdheader, seekableStream, reader, .{});
 
                 const content_size = if (lfentry.file_header.compression_method == 0) lfentry.file_header.uncompressed_size else lfentry.file_header.compressed_size;
 
