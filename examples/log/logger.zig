@@ -40,7 +40,8 @@ pub fn main() !void {
     const start = std.time.microTimestamp();
     for (0..max) |_| {
         var startTime = std.time.microTimestamp();
-        try @constCast(&logger.Trace())
+        var trace = logger.Trace();
+        try trace
             .Message("Initialization...")
             .Source(@src())
             .Attr("attribute-null", null)
@@ -51,7 +52,7 @@ pub fn main() !void {
         m += (std.time.microTimestamp() - startTime);
 
         startTime = std.time.microTimestamp();
-        try @constCast(&logger.Debug())
+        try @as(*Logger.Entry, @constCast(&logger.Debug()))
             .Message("Initialization...")
             .Source(@src())
             .Attr("database", "mydb")
