@@ -27,12 +27,15 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var d = try CircularLifoList(i32).init(allocator, 5);
+    var d = CircularLifoList(i32).init(allocator, 3);
     defer d.deinit();
 
     _ = d.push(1);
     _ = d.push(2);
     _ = d.push(3);
+
+    printList(d);
+
     _ = d.push(4);
 
     printList(d);
@@ -82,7 +85,7 @@ pub fn main() !void {
     printList(d);
     std.debug.print("\n", .{});
 
-    try d.resize(10);
+    //try d.resize(10);
     std.debug.print("Resized to 10 =>", .{});
 
     _ = d.push(18);

@@ -21,13 +21,13 @@ pub fn Pool(comptime T: type) type {
 
         counter: usize = 0,
 
-        pub fn initWithCapacity(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T, cap: usize) !Self {
-            const cl = try CircularLifoList(usize).init(allocator, cap);
+        pub fn initWithCapacity(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T, cap: usize) Self {
+            const cl = CircularLifoList(usize).init(allocator, cap);
             return Self{ .allocator = allocator, .queue = cl, .create = createFn };
         }
 
-        pub fn init(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) !Self {
-            return initWithCapacity(allocator, createFn, std.math.maxInt(u16));
+        pub fn init(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) Self {
+            return initWithCapacity(allocator, createFn, 1);
         }
 
         pub fn deinit(self: *const Self) void {
@@ -79,7 +79,7 @@ test "Pool Usage" {
         }
     }.f;
 
-    var utf8BufferPool = try Pool(StringBuilder).init(arena.allocator(), NewUtf8Buffer);
+    var utf8BufferPool = Pool(StringBuilder).init(arena.allocator(), NewUtf8Buffer);
     defer utf8BufferPool.deinit();
 
     {

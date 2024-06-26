@@ -40,24 +40,24 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
         const Slice = if (alignment) |a| ([]align(a) T) else []T;
 
         mu: std.Thread.Mutex = std.Thread.Mutex{},
-        items: Slice,
+        items: Slice = &[_]T{},
 
-        tail: usize,
-        head: usize,
-        cap: usize,
-        len: usize,
+        tail: usize = 0,
+        head: usize = 0,
+        cap: usize = 0,
+        len: usize = 0,
 
         allocator: Allocator,
 
-        pub fn init(allocator: Allocator, cap: usize) !Self {
-            return Self{
-                .items = try allocator.alignedAlloc(T, alignment, cap),
-                .tail = 0,
-                .head = 0,
-                .cap = cap,
-                .len = 0,
+        pub fn init(allocator: Allocator, cap: usize) Self {
+            var self = Self{
                 .allocator = allocator,
             };
+            self.resize(cap) catch |err| {
+                std.debug.panic("Fatal: can't be resized {any}", .{err});
+            };
+
+            return self;
         }
 
         pub fn deinit(self: *Self) void {
@@ -78,7 +78,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 defer self.mu.unlock();
             }
 
-            if (cap < self.cap) {
+            if (self.cap > cap) {
                 return Error.CapacityLessThenCurrrent;
             }
 
@@ -91,11 +91,20 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .allocator = self.allocator,
             };
 
-            while (self.pop()) |x| {
-                _ = new.push(x);
+            while (true) {
+                if (self.len == 0) {
+                    break;
+                }
+                const item = switch (LType) {
+                    .LIFO => self.popFifo(),
+                    .FIFO => self.popLifo(),
+                };
+                _ = new.push(item);
             }
 
-            self.deinit();
+            if (self.cap > 0) {
+                self.allocator.free(self.items.ptr[0..self.cap]);
+            }
 
             self.items = new.items;
             @atomicStore(usize, &self.tail, new.tail, .monotonic);
@@ -108,6 +117,12 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             if (threadsafe) {
                 self.mu.lock();
                 defer self.mu.unlock();
+            }
+
+            if (self.len >= self.cap) {
+                self.resize(self.cap * 2) catch |err| {
+                    std.debug.panic("Fatal: can't be resized {any}", .{err});
+                };
             }
 
             return switch (LType) {
@@ -209,7 +224,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
 const testing = std.testing;
 
 test "fifo/push 1 element" {
-    var cl = try CircularFifoList(i32).init(testing.allocator, 5);
+    var cl = CircularFifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
@@ -226,7 +241,7 @@ test "fifo/push 1 element" {
 }
 
 test "fifo/push 5 elements" {
-    var cl = try CircularFifoList(i32).init(testing.allocator, 5);
+    var cl = CircularFifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
@@ -249,7 +264,7 @@ test "fifo/push 5 elements" {
 }
 
 test "fifo/push 6 elements" {
-    var cl = try CircularFifoList(i32).init(testing.allocator, 5);
+    var cl = CircularFifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
@@ -273,7 +288,7 @@ test "fifo/push 6 elements" {
 }
 
 test "lifo/push 1 element" {
-    var cl = try CircularLifoList(i32).init(testing.allocator, 5);
+    var cl = CircularLifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
@@ -290,7 +305,7 @@ test "lifo/push 1 element" {
 }
 
 test "lifo/push 5 elements" {
-    var cl = try CircularLifoList(i32).init(testing.allocator, 5);
+    var cl = CircularLifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
@@ -313,7 +328,7 @@ test "lifo/push 5 elements" {
 }
 
 test "lifo/push 6 elements" {
-    var cl = try CircularLifoList(i32).init(testing.allocator, 5);
+    var cl = CircularLifoList(i32).init(testing.allocator, 5);
     defer cl.deinit();
 
     try testing.expectEqual(cl.len, 0);
