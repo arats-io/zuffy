@@ -60,11 +60,15 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             };
         }
 
-        pub fn deinit(self: Self) void {
+        pub fn deinit(self: *Self) void {
             self.allocator.free(self.items.ptr[0..self.cap]);
+            self.tail = 0;
+            self.head = 0;
+            self.cap = 0;
+            self.len = 0;
         }
 
-        pub fn isFull(self: Self) bool {
+        pub fn isFull(self: *Self) bool {
             return self.len == self.cap;
         }
 

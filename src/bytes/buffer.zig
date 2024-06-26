@@ -312,9 +312,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            for (0..self.len) |i| {
-                self.ptr[i] = 0;
-            }
+            @memset(self.ptr[0..self.len], 0);
             self.len = 0;
         }
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const Pool = @import("../pool.zig").Pool;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 const Time = @import("../time/mod.zig").Time;
@@ -99,11 +100,21 @@ pub const StructUnionOptions = struct {
 
 pub const Logger = struct {
     allocator: std.mem.Allocator,
+    buffer_pool: ?*const Pool(Utf8Buffer),
     options: Options,
 
-    pub fn init(allocator: std.mem.Allocator, options: Options) Logger {
+    pub fn init(allocator: std.mem.Allocator, options: Options) !Logger {
         return .{
             .allocator = allocator,
+            .buffer_pool = null,
+            .options = options,
+        };
+    }
+
+    pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const Pool(Utf8Buffer), options: Options) !Logger {
+        return .{
+            .allocator = allocator,
+            .buffer_pool = buffer_pool,
             .options = options,
         };
     }
@@ -111,6 +122,7 @@ pub const Logger = struct {
     inline fn entry(self: Logger, comptime op: Level) Entry {
         return Entry.init(
             self.allocator,
+            if (self.buffer_pool) |pool| pool else null,
             op,
             if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
         );
@@ -142,15 +154,11 @@ pub const Logger = struct {
         options: ?Options = null,
         opLevel: Level = .Disabled,
 
+        pool: ?*const Pool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, opLevel: Level, options: ?Options) Self {
-            var self = Self{
-                .allocator = allocator,
-                .options = options,
-                .opLevel = opLevel,
-                .data = Utf8Buffer.initWithFactor(allocator, 10),
-            };
+        fn init(allocator: std.mem.Allocator, pool: ?*const Pool(Utf8Buffer), opLevel: Level, options: ?Options) Self {
+            var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
                     inline .simple => {
@@ -158,7 +166,7 @@ pub const Logger = struct {
                             const t = Time.new(opts.time_measure);
                             switch (opts.time_formating) {
                                 .timestamp => {
-                                    self.data.appendf("{}", .{t.value}) catch |err| {
+                                    data.appendf("{}", .{t.value}) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
@@ -168,18 +176,18 @@ pub const Logger = struct {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
-                                    self.data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
                             }
                         }
-                        self.data.appendf(" {s}", .{opLevel.String().ptr[0..4]}) catch |err| {
+                        data.appendf(" {s}", .{opLevel.String().ptr[0..4]}) catch |err| {
                             failureFn(opts.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
                         };
                     },
                     inline .json => {
-                        self.data.append("{") catch |err| {
+                        data.append("{") catch |err| {
                             failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                         };
                         if (opts.time_enabled) {
@@ -187,7 +195,7 @@ pub const Logger = struct {
 
                             switch (opts.time_formating) {
                                 .timestamp => {
-                                    self.data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
+                                    data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
@@ -197,23 +205,36 @@ pub const Logger = struct {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
-                                    self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
                             }
                         }
-                        self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
+                        data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
                             failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                         };
                     },
                 }
             }
-            return self;
+            return Self{
+                .allocator = allocator,
+                .options = options,
+                .opLevel = opLevel,
+                .pool = if (pool) |p| p else null,
+                .data = data,
+            };
         }
 
         pub fn deinit(self: *Self) void {
-            self.data.deinit();
+            if (self.pool) |pool| {
+                self.data.clear();
+                pool.push(&self.data) catch |err| {
+                    std.debug.print("Error - {any}", .{err});
+                };
+            } else {
+                self.data.deinit();
+            }
         }
 
         pub fn Attr(self: *Self, key: []const u8, value: anytype) *Self {

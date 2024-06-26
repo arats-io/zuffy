@@ -32,7 +32,11 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = try Logger.init(arena.allocator(), .{
+    var pool = &(try Pool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+    defer pool.deinit();
+    errdefer pool.deinit();
+
+    const logger = try Logger.initWithPool(arena.allocator(), pool, .{
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
