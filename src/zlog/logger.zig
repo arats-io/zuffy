@@ -1,6 +1,5 @@
 const std = @import("std");
 
-const Buffer = @import("../bytes/mod.zig").Buffer;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 const Time = @import("../time/mod.zig").Time;
@@ -150,7 +149,7 @@ pub const Logger = struct {
                 .allocator = allocator,
                 .options = options,
                 .opLevel = opLevel,
-                .data = Utf8Buffer.init(allocator),
+                .data = Utf8Buffer.initWithFactor(allocator, 10),
             };
             if (options) |opts| {
                 switch (opts.format) {

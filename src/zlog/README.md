@@ -1,10 +1,14 @@
 # Zig logger
 
-Is providing a more flexible way to deal with the logs.
+Is providing a more flexible way to deal with the logs, with a following average performance:
 
-# Usage
+- in debug mode ~60 μs per entry to be produced on the console
+- in release safe mode ~9 μs per entry to be produced on the console
+- in release fast mode ~8 μs per entry to be produced on the console
 
-Usage based on default options:
+# Configuration
+
+## Default configuration:
 
 ```zig
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -13,7 +17,7 @@ defer arena.deinit();
 const logger = Logger.init(arena.allocator(), .{});
 ```
 
-Usage based on custom options:
+## Custom options:
 
 ```zig
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -31,7 +35,7 @@ const logger = Logger.init(arena.allocator(), .{
 });
 ```
 
-Usage Examples:
+## Examples:
 
 ```zig
     try @constCast(&logger.Trace())
