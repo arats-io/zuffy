@@ -169,8 +169,8 @@ pub const CentralDirectoryHeader = struct {
     }
 };
 
-const pointers = @import("../../pointers.zig");
 pub const Flags = packed struct(u16) {
+    const pointers = @import("../../pointers.zig");
     pub const Self = @This();
 
     EncryptedFile: bool = false,

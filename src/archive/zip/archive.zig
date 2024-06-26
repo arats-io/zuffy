@@ -9,7 +9,7 @@ const Buffer = @import("../../bytes/buffer.zig").Buffer;
 const types = @import("types.zig");
 const zarchive_types = @import("archive_types.zig");
 
-fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.EocdRecord {
+fn parseEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.EocdRecord {
     const num_disk = try reader.readInt(u16, .little);
     const num_disk_cd_start = try reader.readInt(u16, .little);
     const cd_records_total_on_disk = try reader.readInt(u16, .little);
@@ -42,7 +42,7 @@ fn extractEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) 
     };
 }
 
-fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.Zip64EocdRecord {
+fn parseZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.Zip64EocdRecord {
     var zip64_eocd_record = zarchive_types.Zip64EocdRecord{
         .signature = signature, // 4
         .size = try reader.readInt(u64, .little), // 8
@@ -102,7 +102,7 @@ fn extractZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: 
     return zip64_eocd_record;
 }
 
-fn extractZip64EocdLocator(reader: anytype, signature: u32) !zarchive_types.Zip64EocdLocator {
+fn parseZip64EocdLocator(reader: anytype, signature: u32) !zarchive_types.Zip64EocdLocator {
     return zarchive_types.Zip64EocdLocator{
         .signature = signature,
         .num_disk_zip64_eocd_start = try reader.readInt(u32, .little),
@@ -111,7 +111,7 @@ fn extractZip64EocdLocator(reader: anytype, signature: u32) !zarchive_types.Zip6
     };
 }
 
-fn extractDigitalSignature(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.DigitalSignature {
+fn parseDigitalSignature(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.DigitalSignature {
     const signature_data_legth = try reader.readInt(u16, .little);
     const signature_data = if (signature_data_legth > 0) blk: {
         var tmp = Buffer.initWithFactor(allocator, 5);
@@ -135,7 +135,7 @@ const ArchiveExtraData = struct {
     archive_decryption_header: zarchive_types.EncryptionHeader,
     archive_extra_data_record: zarchive_types.ArchiveExtraDataRecord,
 };
-fn extractArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature: u32, read_options: types.ReadOptions) !ArchiveExtraData {
+fn parseArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature: u32, read_options: types.ReadOptions) !ArchiveExtraData {
     // read the archive_decryption_header
     const raw_archive_decryption_header = (try reader.readBoundedBytes(12)).constSlice();
     var archive_decryption_header = zarchive_types.EncryptionHeader{
@@ -188,6 +188,81 @@ fn extractArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature:
     };
 }
 
+fn parseCentralDirectoryHeader(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.CentralDirectoryHeader {
+    const version_made_by = try reader.readInt(u16, .little);
+    const version_extract_file = try reader.readInt(u16, .little);
+    const flags = try reader.readStruct(zarchive_types.Flags);
+    const compressed_method = try reader.readInt(u16, .little);
+    const last_modification_time = try reader.readInt(u16, .little);
+    const last_modification_date = try reader.readInt(u16, .little);
+    const crc32 = try reader.readInt(u32, .little);
+    const compressed_size = try reader.readInt(u32, .little);
+    const uncompressed_size = try reader.readInt(u32, .little);
+    const filename_len = try reader.readInt(u16, .little);
+    const extra_field_len = try reader.readInt(u16, .little);
+    const comment_len = try reader.readInt(u16, .little);
+    const disk_file_start = try reader.readInt(u16, .little);
+    const internal_attributes = try reader.readInt(u16, .little);
+    const external_attributes = try reader.readInt(u32, .little);
+    const offset_local_header = try reader.readInt(u32, .little);
+
+    const filename = if (filename_len > 0) blk: {
+        var tmp = Buffer.initWithFactor(allocator, 5);
+        errdefer tmp.deinit();
+
+        for (0..filename_len) |_| {
+            const byte: u8 = try reader.readByte();
+            try tmp.writeByte(byte);
+        }
+        break :blk tmp;
+    } else null;
+
+    const extra_field = if (extra_field_len > 0) blk: {
+        var tmp = Buffer.initWithFactor(allocator, 5);
+        errdefer tmp.deinit();
+
+        for (0..extra_field_len) |_| {
+            const byte: u8 = try reader.readByte();
+            try tmp.writeByte(byte);
+        }
+        break :blk tmp;
+    } else null;
+
+    const comment = if (comment_len > 0) blk: {
+        var tmp = Buffer.initWithFactor(allocator, 5);
+        errdefer tmp.deinit();
+
+        for (0..comment_len) |_| {
+            const byte: u8 = try reader.readByte();
+            try tmp.writeByte(byte);
+        }
+        break :blk tmp;
+    } else null;
+
+    return zarchive_types.CentralDirectoryHeader{
+        .signature = signature,
+        .version_made_by = version_made_by,
+        .version_extract_file = version_extract_file,
+        .flags = flags,
+        .compressed_method = compressed_method,
+        .last_modification_time = last_modification_time,
+        .last_modification_date = last_modification_date,
+        .crc32 = crc32,
+        .compressed_size = compressed_size,
+        .uncompressed_size = uncompressed_size,
+        .filename_len = filename_len,
+        .extra_field_len = extra_field_len,
+        .comment_len = comment_len,
+        .disk_file_start = disk_file_start,
+        .internal_attributes = internal_attributes,
+        .external_attributes = external_attributes,
+        .offset_local_header = offset_local_header,
+        .filename = filename,
+        .extra_field = extra_field,
+        .comment = comment,
+    };
+}
+
 pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.ReadOptions) !zarchive_types.ZipArchive {
     var parse_source = source;
     var reader = parse_source.reader();
@@ -205,22 +280,22 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
         const signature = try reader.readInt(u32, .little);
         switch (signature) {
             zarchive_types.EocdRecord.SIGNATURE => {
-                archive.eocd_record = try extractEocdRecord(allocator, reader, signature);
+                archive.eocd_record = try parseEocdRecord(allocator, reader, signature);
             },
             zarchive_types.Zip64EocdRecord.SIGNATURE => {
-                archive.zip64_eocd_record = try extractZip64EocdRecord(allocator, reader, signature);
+                archive.zip64_eocd_record = try parseZip64EocdRecord(allocator, reader, signature);
             },
             zarchive_types.Zip64EocdLocator.SIGNATURE => {
-                archive.zip64_eocd_locator = try extractZip64EocdLocator(reader, signature);
+                archive.zip64_eocd_locator = try parseZip64EocdLocator(reader, signature);
             },
             zarchive_types.DigitalSignature.SIGNATURE => {
-                archive.digital_signature = try extractDigitalSignature(allocator, reader, signature);
+                archive.digital_signature = try parseDigitalSignature(allocator, reader, signature);
             },
             zarchive_types.ArchiveExtraDataRecord.SIGNATURE => {
                 const current_pos = try parse_source.seekableStream().getPos();
                 try parse_source.seekableStream().seekTo(current_pos - 16);
 
-                const aed = try extractArchiveExtraData(allocator, reader, signature, read_options);
+                const aed = try parseArchiveExtraData(allocator, reader, signature, read_options);
                 archive.archive_decryption_header = aed.archive_decryption_header;
                 archive.archive_extra_data_record = aed.archive_extra_data_record;
             },
@@ -229,7 +304,6 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
     }
 
     // parsing the central directory
-
     const start_pos = archive.eocd_record.?.offset_start + archive.eocd_record.?.num_disk_cd_start;
     try parse_source.seekableStream().seekTo(start_pos);
 
@@ -262,79 +336,15 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
         else => {},
     }
 
-    for (0..archive.eocd_record.?.cd_records_total) |idx| {
-        _ = idx;
+    for (0..archive.eocd_record.?.cd_records_total) |_| {
         const signature = try new_reader.readInt(u32, .little);
-        const version_made_by = try new_reader.readInt(u16, .little);
-        const version_extract_file = try new_reader.readInt(u16, .little);
-        const flags = try new_reader.readStruct(zarchive_types.Flags);
-        const compressed_method = try new_reader.readInt(u16, .little);
-        const last_modification_time = try new_reader.readInt(u16, .little);
-        const last_modification_date = try new_reader.readInt(u16, .little);
-        const crc32 = try new_reader.readInt(u32, .little);
-        const compressed_size = try new_reader.readInt(u32, .little);
-        const uncompressed_size = try new_reader.readInt(u32, .little);
-        const filename_len = try new_reader.readInt(u16, .little);
-        const extra_field_len = try new_reader.readInt(u16, .little);
-        const comment_len = try new_reader.readInt(u16, .little);
-        const disk_file_start = try new_reader.readInt(u16, .little);
-        const internal_attributes = try new_reader.readInt(u16, .little);
-        const external_attributes = try new_reader.readInt(u32, .little);
-        const offset_local_header = try new_reader.readInt(u32, .little);
-
-        const filename = if (filename_len > 0) blk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
-            for (0..filename_len) |_| {
-                const byte: u8 = try new_reader.readByte();
-                try tmp.writeByte(byte);
-            }
-            break :blk tmp;
-        } else null;
-
-        const extra_field = if (extra_field_len > 0) blk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
-            for (0..extra_field_len) |_| {
-                const byte: u8 = try new_reader.readByte();
-                try tmp.writeByte(byte);
-            }
-            break :blk tmp;
-        } else null;
-
-        const comment = if (comment_len > 0) blk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
-            for (0..comment_len) |_| {
-                const byte: u8 = try new_reader.readByte();
-                try tmp.writeByte(byte);
-            }
-            break :blk tmp;
-        } else null;
-
-        if (signature != zarchive_types.CentralDirectoryHeader.SIGNATURE) return error.BadData;
-
-        const item = zarchive_types.CentralDirectoryHeader{
-            .signature = signature,
-            .version_made_by = version_made_by,
-            .version_extract_file = version_extract_file,
-            .flags = flags,
-            .compressed_method = compressed_method,
-            .last_modification_time = last_modification_time,
-            .last_modification_date = last_modification_date,
-            .crc32 = crc32,
-            .compressed_size = compressed_size,
-            .uncompressed_size = uncompressed_size,
-            .filename_len = filename_len,
-            .extra_field_len = extra_field_len,
-            .comment_len = comment_len,
-            .disk_file_start = disk_file_start,
-            .internal_attributes = internal_attributes,
-            .external_attributes = external_attributes,
-            .offset_local_header = offset_local_header,
-            .filename = filename,
-            .extra_field = extra_field,
-            .comment = comment,
-        };
-
-        try archive.central_diectory_headers.append(item);
+        switch (signature) {
+            zarchive_types.CentralDirectoryHeader.SIGNATURE => {
+                const cdh = try parseCentralDirectoryHeader(allocator, new_reader, signature);
+                try archive.central_diectory_headers.append(cdh);
+            },
+            else => {},
+        }
     }
     // ending of parsing the central directory
 
@@ -729,6 +739,18 @@ pub fn Archive(comptime ParseSource: type) type {
                         try content.writeByte(byte);
                     }
 
+                    // decrypt the file content
+                    switch (lfentry.encryption_header.options.method) {
+                        .password => {
+                            //TODO: to be done
+                        },
+                        .x509 => {
+                            //TODO: to be done
+                        },
+                        else => {},
+                    }
+
+                    // decompress the file content
                     switch (cm) {
                         .NoCompression => {
                             try receiver.entryContent(entry_name, content.bytes());
