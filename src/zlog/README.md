@@ -2,9 +2,9 @@
 
 Is providing a more flexible way to deal with the logs, with a following average performance:
 
-- in debug mode ~60 μs per entry to be produced on the console
-- in release safe mode ~9 μs per entry to be produced on the console
-- in release fast mode ~8 μs per entry to be produced on the console
+- in debug mode ~80 μs when using time pattern (as per tests was used: YYYY MMM Do ddd HH:mm:ss.SSS - Qo) and ~19 μs using timestamp as integer per entry to be produced on the console
+- in release safe mode ~9 μs for both type of time formats per entry to be produced on the console
+- in release fast mode ~8 μs for both type of time formats per entry to be produced on the console
 
 # Configuration
 
