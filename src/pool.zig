@@ -25,7 +25,7 @@ pub fn Pool(comptime T: type) type {
         }
 
         pub fn init(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) Self {
-            return initWithCapacity(allocator, createFn, 1);
+            return initWithCapacity(allocator, createFn, 5);
         }
 
         pub fn deinit(self: *const Self) void {

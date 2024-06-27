@@ -66,7 +66,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .options = options,
             };
             self.resize(cap) catch |err| {
-                std.debug.panic("Fatal: can't be resized {any}", .{err});
+                std.debug.panic("can't be resized {any}", .{err});
             };
 
             return self;
@@ -136,7 +136,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .flexible => {
                     if (self.len >= self.cap) {
                         self.resize(self.cap * 2) catch |err| {
-                            std.debug.panic("Fatal: can't be resized {any}", .{err});
+                            std.debug.panic("can't be resized {any}", .{err});
                         };
                     }
                 },
