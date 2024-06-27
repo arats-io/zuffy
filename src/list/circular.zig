@@ -59,17 +59,23 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
         head: usize = 0,
         cap: usize = 0,
         len: usize = 0,
+        maxcap: usize,
 
-        pub fn init(allocator: Allocator, cap: usize, options: Options) Self {
+        pub fn initWithMaxCapacity(allocator: Allocator, cap: usize, maxcap: usize, options: Options) Self {
             var self = Self{
                 .allocator = allocator,
                 .options = options,
+                .maxcap = maxcap,
             };
             self.resize(cap) catch |err| {
                 std.debug.panic("can't be resized {any}", .{err});
             };
 
             return self;
+        }
+
+        pub fn init(allocator: Allocator, cap: usize, options: Options) Self {
+            return Self.initWithMaxCapacity(allocator, cap, std.math.maxInt(usize), options);
         }
 
         pub fn deinit(self: *Self) void {
@@ -100,6 +106,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .head = 0,
                 .cap = cap,
                 .len = 0,
+                .maxcap = 0,
                 .allocator = self.allocator,
                 .options = self.options,
             };
@@ -132,9 +139,15 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             switch (self.options.mode) {
                 .flexible => {
                     if (self.len >= self.cap) {
-                        self.resize(self.cap * 2) catch |err| {
-                            std.debug.panic("can't be resized {any}", .{err});
-                        };
+                        var nextCap = self.cap * 2;
+                        if (nextCap >= self.maxcap) {
+                            nextCap = self.maxcap;
+                        }
+                        if (self.len < nextCap) {
+                            self.resize(nextCap) catch |err| {
+                                std.debug.panic("can't be resized {any}", .{err});
+                            };
+                        }
                     }
                 },
                 else => {},
