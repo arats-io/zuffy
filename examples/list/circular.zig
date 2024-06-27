@@ -11,7 +11,7 @@ const Package = struct {
     value: i128,
 };
 
-fn printList(l: CircularLifoList(i32)) void {
+fn printList(l: anytype) void {
     for (0..l.cap) |i| {
         if (l.read(i)) |x| {
             std.debug.print("{}, ", .{x});
@@ -28,7 +28,7 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var d = CircularLifoList(i32).init(allocator, 3, .{ .mode = .fixed });
+    var d = CircularFifoList(i32).init(allocator, 3, .{ .mode = .fixed });
     defer d.deinit();
 
     _ = d.push(1);

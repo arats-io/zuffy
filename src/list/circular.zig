@@ -110,7 +110,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 }
                 const item = switch (LType) {
                     .LIFO => self.popFifo(.resize),
-                    .FIFO => self.popLifo(.resize),
+                    .FIFO => self.popFifo(.default),
                 };
                 _ = new.push(item);
             }
@@ -186,7 +186,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             }
 
             return switch (LType) {
-                .LIFO => self.popLifo(.default),
+                .LIFO => self.popLifo(),
                 .FIFO => self.popFifo(.default),
             };
         }
@@ -196,15 +196,15 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             resize = 1,
         };
 
-        fn popLifo(self: *Self, way: Way) T {
-            var idx = if (way == .default) self.head else self.tail;
-            var ptr = if (way == .default) &self.head else &self.tail;
-            if (idx == 0 and (if (way == .default) self.tail else self.head) > 0) {
-                idx = if (way == .default) self.tail else self.head;
-                ptr = if (way == .default) &self.tail else &self.head;
+        fn popLifo(self: *Self) T {
+            var idx = self.head;
+            var ptr = &self.head;
+            if (idx == 0 and self.tail > 0) {
+                idx = self.tail;
+                ptr = &self.tail;
             } else if (idx == 0 and self.cap > 0) {
                 idx = self.cap;
-                ptr = if (way == .default) &self.tail else &self.head;
+                ptr = &self.tail;
             }
 
             idx = (idx - 1) % self.cap;
