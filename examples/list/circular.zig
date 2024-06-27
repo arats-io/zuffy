@@ -78,6 +78,7 @@ pub fn main() !void {
     _ = d.push(17);
     _ = d.push(37);
     _ = d.push(18);
+    _ = d.push(19);
 
     printList(d);
 
@@ -92,7 +93,6 @@ pub fn main() !void {
     _ = d.push(22);
     _ = d.push(23);
     _ = d.push(24);
-    _ = d.push(25);
 
     printList(d);
 
