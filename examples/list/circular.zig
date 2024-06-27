@@ -17,6 +17,7 @@ fn printList(l: CircularLifoList(i32)) void {
             std.debug.print("{}, ", .{x});
         }
     }
+    std.debug.print("\n", .{});
 }
 
 pub fn main() !void {
@@ -39,13 +40,11 @@ pub fn main() !void {
     _ = d.push(4);
 
     printList(d);
-    std.debug.print("\n", .{});
 
     if (d.pop()) |x| {
         std.debug.print("\n======== Pop ======== : {}\n", .{x});
 
         printList(d);
-        std.debug.print("\n", .{});
     }
 
     _ = d.push(5);
@@ -53,19 +52,16 @@ pub fn main() !void {
     _ = d.push(7);
 
     printList(d);
-    std.debug.print("\n", .{});
 
     if (d.pop()) |x| {
         std.debug.print("\n======== Pop ======== : {}\n", .{x});
         printList(d);
-        std.debug.print("\n", .{});
     }
 
     _ = d.push(8);
     _ = d.push(9);
 
     printList(d);
-    std.debug.print("\n", .{});
 
     std.debug.print("\n======== Pop ======== : ", .{});
     while (d.pop()) |x| {
@@ -80,24 +76,25 @@ pub fn main() !void {
     _ = d.push(15);
     _ = d.push(16);
     _ = d.push(17);
+    _ = d.push(37);
     _ = d.push(18);
 
     printList(d);
-    std.debug.print("\n", .{});
 
     try d.resize(10);
-    std.debug.print("Resized to 10 =>", .{});
+    std.debug.print("\nResized to 10 =>", .{});
 
-    _ = d.push(18);
+    printList(d);
+
     _ = d.push(19);
     _ = d.push(20);
     _ = d.push(21);
     _ = d.push(22);
     _ = d.push(23);
     _ = d.push(24);
+    _ = d.push(25);
 
     printList(d);
-    std.debug.print("\n", .{});
 
     std.debug.print("\n======== Pop ======== : ", .{});
     while (d.pop()) |x| {

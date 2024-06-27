@@ -109,8 +109,8 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                     break;
                 }
                 const item = switch (LType) {
-                    .LIFO => self.popFifo(),
-                    .FIFO => self.popLifo(),
+                    .LIFO => self.popFifo(.resize),
+                    .FIFO => self.popLifo(.resize),
                 };
                 _ = new.push(item);
             }
@@ -186,20 +186,25 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             }
 
             return switch (LType) {
-                .LIFO => self.popLifo(),
-                .FIFO => self.popFifo(),
+                .LIFO => self.popLifo(.default),
+                .FIFO => self.popFifo(.default),
             };
         }
 
-        fn popLifo(self: *Self) T {
-            var idx = self.head;
-            var ptr = &self.head;
-            if (idx == 0 and self.tail > 0) {
-                idx = self.tail;
-                ptr = &self.tail;
+        const Way = enum(u1) {
+            default = 0,
+            resize = 1,
+        };
+
+        fn popLifo(self: *Self, way: Way) T {
+            var idx = if (way == .default) self.head else self.tail;
+            var ptr = if (way == .default) &self.head else &self.tail;
+            if (idx == 0 and (if (way == .default) self.tail else self.head) > 0) {
+                idx = if (way == .default) self.tail else self.head;
+                ptr = if (way == .default) &self.tail else &self.head;
             } else if (idx == 0 and self.cap > 0) {
                 idx = self.cap;
-                ptr = &self.tail;
+                ptr = if (way == .default) &self.tail else &self.head;
             }
 
             idx = (idx - 1) % self.cap;
@@ -213,12 +218,17 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             return self.items[idx];
         }
 
-        fn popFifo(self: *Self) T {
-            var idx = self.head;
+        fn popFifo(self: *Self, way: Way) T {
+            var idx = if (way == .default) self.head else self.tail;
 
             const res = self.items[idx];
             idx = (idx + 1) % self.cap;
-            @atomicStore(usize, &self.head, idx, .monotonic);
+            if (way == .default) {
+                @atomicStore(usize, &self.head, idx, .monotonic);
+            } else {
+                @atomicStore(usize, &self.tail, idx, .monotonic);
+            }
+
             @atomicStore(usize, &self.len, self.len - 1, .monotonic);
 
             if (self.len == 0) {
