@@ -15,6 +15,11 @@ pub inline fn fromHexBytes(comptime R: type, endian: std.builtin.Endian, input: 
     return s.reader().readInt(R, endian);
 }
 
+pub inline fn fromHexBytes2(comptime size: usize, input: []const u8) ![]u8 {
+    var srcBytes: [size]u8 = undefined;
+    return try std.fmt.hexToBytes(&srcBytes, input);
+}
+
 pub inline fn toBytes(comptime T: type, value: T, endian: std.builtin.Endian) [@divExact(@typeInfo(T).Int.bits, 8)]u8 {
     var bytes: [@divExact(@typeInfo(T).Int.bits, 8)]u8 = undefined;
     mem.writeInt(T, &bytes, value, endian);

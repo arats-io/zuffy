@@ -20,17 +20,23 @@ const Element = struct {
     elem: ?*const Element = null,
 };
 
-pub fn main() !void {
-    _ = xstd.time.zoneinfo.Local.Get() catch |err| {
-        std.debug.panic("{any}", .{err});
-    };
+const NewUtf8Buffer = struct {
+    fn f(allocator: std.mem.Allocator) Utf8Buffer {
+        return Utf8Buffer.init(allocator);
+    }
+}.f;
 
+pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = try Logger.init(arena.allocator(), .{
+    const pool = &(Pool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+    defer pool.deinit();
+    errdefer pool.deinit();
+
+    const logger = try Logger.initWithPool(arena.allocator(), pool, .{
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
@@ -38,7 +44,6 @@ pub fn main() !void {
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
         .format = Format.json,
-        .internal_failure = .panic,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
 

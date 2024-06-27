@@ -1,49 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Stack = @import("../atomic/stack.zig").Stack;
-
 const assert = std.debug.assert;
 
 pub const BufferError = error{
     InvalidRange,
 } || std.mem.Allocator.Error;
-
-pub fn BufferPool(comptime threadsafe: bool) type {
-    return struct {
-        const Self = @This();
-
-        allocator: std.mem.Allocator,
-        queue: Stack(Buffer(threadsafe)),
-
-        pub fn init(allocator: std.mem.Allocator) Self {
-            return Self{ .queue = Stack(Buffer(threadsafe)).init(), .allocator = allocator };
-        }
-
-        pub fn deinit(self: Self) void {
-            while (self.queue.pop()) |n| {
-                var b: Buffer(threadsafe) = n.data;
-                b.deinit();
-            }
-        }
-
-        pub fn pop(self: *Self) !Buffer(threadsafe) {
-            if (self.queue.pop()) |n| {
-                return n.data;
-            }
-
-            return try Buffer(threadsafe).init(self.allocator);
-        }
-
-        pub fn push(self: *Self, data: Buffer(threadsafe)) void {
-            var n = Stack(Buffer(threadsafe)).Node{
-                .data = data,
-                .next = null,
-            };
-            self.queue.push(&n);
-        }
-    };
-}
 
 pub const Buffer = BufferManaged(!builtin.single_threaded);
 
@@ -312,9 +274,7 @@ pub fn BufferManaged(comptime threadsafe: bool) type {
                 defer self.mu.unlock();
             }
 
-            for (0..self.len) |i| {
-                self.ptr[i] = 0;
-            }
+            @memset(self.ptr[0..self.len], 0);
             self.len = 0;
         }
 

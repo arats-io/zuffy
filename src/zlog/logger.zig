@@ -1,12 +1,13 @@
 const std = @import("std");
 
-const Buffer = @import("../bytes/mod.zig").Buffer;
+const Pool = @import("../pool.zig").Pool;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 const Time = @import("../time/mod.zig").Time;
 const Local = @import("../time/mod.zig").zoneinfo.Local;
 const Measure = @import("../time/mod.zig").Measure;
 
+const local = Local.Get();
 const default_caller_marshal_fn = struct {
     fn handler(src: std.builtin.SourceLocation) []const u8 {
         var buf: [10 * 1024]u8 = undefined;
@@ -14,8 +15,6 @@ const default_caller_marshal_fn = struct {
         return data[0..];
     }
 }.handler;
-
-const _ = Local.Get();
 
 pub const InternalFailure = enum {
     nothing,
@@ -68,31 +67,52 @@ pub const Level = enum(u4) {
     }
 };
 
+/// Logger configuration options
 pub const Options = struct {
+    /// log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
     level: Level = Level.Info,
+    /// field name for the log level
     level_field_name: []const u8 = "level",
 
+    /// format for writing logs, possible values (json | simple)
     format: Format = Format.json,
 
+    /// time related configuration options
+    /// flag enabling/disabling the time  for each log record
     time_enabled: bool = false,
+    /// field name for the time
     time_field_name: []const u8 = "time",
+    /// time measumerent, possible values (seconds | millis | micros, nanos)
     time_measure: Measure = Measure.seconds,
+    /// time formating, possible values (timestamp | pattern)
     time_formating: TimeFormating = TimeFormating.timestamp,
+    /// petttern of time representation, applicable when .time_formating is sen on .pattern
     time_pattern: []const u8 = "DD/MM/YYYY'T'HH:mm:ss",
 
+    /// field name for the message
     message_field_name: []const u8 = "message",
+    /// field name for the error
     error_field_name: []const u8 = "error",
 
+    /// indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
     internal_failure: InternalFailure = InternalFailure.nothing,
 
+    /// caller related configuration options
+    /// flag enabling/disabling the caller reporting in the log
     caller_enabled: bool = false,
+    /// field name for the caller source
     caller_field_name: []const u8 = "caller",
+    /// handler processing the source object data
     caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
 
+    /// struct marchalling to string options
     struct_union: StructUnionOptions = StructUnionOptions{},
 };
 
+/// struct marchalling to string options
 pub const StructUnionOptions = struct {
+    // flag enabling/disabling the escapping for marchalled structs
+    // searching for \" and replacing with \\\" as per default values
     escape_enabled: bool = false,
     src_escape_characters: []const u8 = "\"",
     dst_escape_characters: []const u8 = "\\\"",
@@ -100,11 +120,21 @@ pub const StructUnionOptions = struct {
 
 pub const Logger = struct {
     allocator: std.mem.Allocator,
+    buffer_pool: ?*const Pool(Utf8Buffer),
     options: Options,
 
-    pub fn init(allocator: std.mem.Allocator, options: Options) Logger {
+    pub fn init(allocator: std.mem.Allocator, options: Options) !Logger {
         return .{
             .allocator = allocator,
+            .buffer_pool = null,
+            .options = options,
+        };
+    }
+
+    pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const Pool(Utf8Buffer), options: Options) !Logger {
+        return .{
+            .allocator = allocator,
+            .buffer_pool = buffer_pool,
             .options = options,
         };
     }
@@ -112,6 +142,7 @@ pub const Logger = struct {
     inline fn entry(self: Logger, comptime op: Level) Entry {
         return Entry.init(
             self.allocator,
+            if (self.buffer_pool) |pool| pool else null,
             op,
             if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
         );
@@ -143,15 +174,11 @@ pub const Logger = struct {
         options: ?Options = null,
         opLevel: Level = .Disabled,
 
+        pool: ?*const Pool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, opLevel: Level, options: ?Options) Self {
-            var self = Self{
-                .allocator = allocator,
-                .options = options,
-                .opLevel = opLevel,
-                .data = Utf8Buffer.init(allocator),
-            };
+        fn init(allocator: std.mem.Allocator, pool: ?*const Pool(Utf8Buffer), opLevel: Level, options: ?Options) Self {
+            var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
                     inline .simple => {
@@ -159,7 +186,7 @@ pub const Logger = struct {
                             const t = Time.new(opts.time_measure);
                             switch (opts.time_formating) {
                                 .timestamp => {
-                                    self.data.appendf("{}", .{t.value}) catch |err| {
+                                    data.appendf("{}", .{t.value}) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
@@ -169,18 +196,18 @@ pub const Logger = struct {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
-                                    self.data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
                             }
                         }
-                        self.data.appendf(" {s}", .{opLevel.String().ptr[0..4]}) catch |err| {
+                        data.appendf(" {s}", .{opLevel.String().ptr[0..4]}) catch |err| {
                             failureFn(opts.internal_failure, "Failed to insert and unicode code \u{0022}; {}", .{err});
                         };
                     },
                     inline .json => {
-                        self.data.append("{") catch |err| {
+                        data.append("{") catch |err| {
                             failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                         };
                         if (opts.time_enabled) {
@@ -188,7 +215,7 @@ pub const Logger = struct {
 
                             switch (opts.time_formating) {
                                 .timestamp => {
-                                    self.data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
+                                    data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
@@ -198,23 +225,36 @@ pub const Logger = struct {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
-                                    self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
+                                    data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                     };
                                 },
                             }
                         }
-                        self.data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
+                        data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
                             failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                         };
                     },
                 }
             }
-            return self;
+            return Self{
+                .allocator = allocator,
+                .options = options,
+                .opLevel = opLevel,
+                .pool = if (pool) |p| p else null,
+                .data = data,
+            };
         }
 
         pub fn deinit(self: *Self) void {
-            self.data.deinit();
+            if (self.pool) |pool| {
+                self.data.clear();
+                pool.push(&self.data) catch |err| {
+                    std.debug.print("Error - {any}", .{err});
+                };
+            } else {
+                self.data.deinit();
+            }
         }
 
         pub fn Attr(self: *Self, key: []const u8, value: anytype) *Self {

@@ -1,1 +1,1 @@
-pub const circular = @import("circular/mod.zig");
+pub const circular = @import("circular.zig");
