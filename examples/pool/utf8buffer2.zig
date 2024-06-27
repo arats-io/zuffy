@@ -24,7 +24,7 @@ pub fn main() !void {
         }
     }.f;
 
-    const utf8BufferPool = Pool(StringBuilder).init(arena.allocator(), NewUtf8Buffer);
+    const utf8BufferPool = Pool(StringBuilder).initFixed(arena.allocator(), NewUtf8Buffer);
     defer utf8BufferPool.deinit();
 
     {

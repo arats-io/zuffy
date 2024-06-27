@@ -104,10 +104,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .options = self.options,
             };
 
-            while (true) {
-                if (self.len == 0) {
-                    break;
-                }
+            while (self.len > 0) {
                 const item = switch (LType) {
                     .LIFO => self.popFifo(.resize),
                     .FIFO => self.popFifo(.default),

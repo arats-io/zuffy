@@ -7,6 +7,7 @@ const Time = @import("../time/mod.zig").Time;
 const Local = @import("../time/mod.zig").zoneinfo.Local;
 const Measure = @import("../time/mod.zig").Measure;
 
+const local = Local.Get();
 const default_caller_marshal_fn = struct {
     fn handler(src: std.builtin.SourceLocation) []const u8 {
         var buf: [10 * 1024]u8 = undefined;
@@ -14,8 +15,6 @@ const default_caller_marshal_fn = struct {
         return data[0..];
     }
 }.handler;
-
-const _ = Local.Get();
 
 pub const InternalFailure = enum {
     nothing,

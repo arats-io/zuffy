@@ -30,7 +30,7 @@ pub fn main() !void {
     // var sb = try utf8BufferPool.pop();
     // defer sb.deinit();
 
-    var utf8BufferPool = Pool(Utf8Buffer).init(allocator, NewUtf8Buffer);
+    var utf8BufferPool = Pool(Utf8Buffer).initFixed(allocator, NewUtf8Buffer);
     var sb = utf8BufferPool.pop();
 
     try sb.append("SB------");

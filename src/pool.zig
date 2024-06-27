@@ -19,13 +19,21 @@ pub fn Pool(comptime T: type) type {
         mu: std.Thread.Mutex = std.Thread.Mutex{},
         queue: CircularLifoList(usize),
 
+        pub fn init(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) Self {
+            return initWithCapacity(allocator, createFn, 5);
+        }
         pub fn initWithCapacity(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T, cap: usize) Self {
             const cl = CircularLifoList(usize).init(allocator, cap, .{ .mode = .flexible });
             return Self{ .allocator = allocator, .queue = cl, .create = createFn };
         }
 
-        pub fn init(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) Self {
-            return initWithCapacity(allocator, createFn, 5);
+        pub fn initFixed(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T) Self {
+            return initWithCapacityFixed(allocator, createFn, 5);
+        }
+
+        pub fn initWithCapacityFixed(allocator: std.mem.Allocator, createFn: *const fn (allocator: std.mem.Allocator) T, cap: usize) Self {
+            const cl = CircularLifoList(usize).init(allocator, cap, .{ .mode = .fixed });
+            return Self{ .allocator = allocator, .queue = cl, .create = createFn };
         }
 
         pub fn deinit(self: *const Self) void {
