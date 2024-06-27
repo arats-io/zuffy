@@ -108,7 +108,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
                 .len = 0,
                 .maxcap = 0,
                 .allocator = self.allocator,
-                .options = self.options,
+                .options = .{},
             };
 
             while (self.len > 0) {
