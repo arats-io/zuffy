@@ -1,5 +1,4 @@
 pub const ints = @import("ints.zig");
-pub const arrays = @import("arrays.zig");
 pub const pointers = @import("pointers.zig");
 
 pub const atomic = @import("atomic/mod.zig");

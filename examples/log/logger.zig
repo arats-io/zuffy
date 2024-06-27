@@ -21,6 +21,10 @@ const Element = struct {
 };
 
 pub fn main() !void {
+    _ = xstd.time.zoneinfo.Local.Get() catch |err| {
+        std.debug.panic("{any}", .{err});
+    };
+
     std.debug.print("Starting application.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -34,6 +38,7 @@ pub fn main() !void {
         .time_formating = .pattern,
         .level = Level.ParseString("trace"),
         .format = Format.json,
+        .internal_failure = .panic,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
 
