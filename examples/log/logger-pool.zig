@@ -32,7 +32,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var pool = &(Pool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+    const pool = &(Pool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
     defer pool.deinit();
     errdefer pool.deinit();
 

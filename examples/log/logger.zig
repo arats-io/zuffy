@@ -20,12 +20,6 @@ const Element = struct {
     elem: ?*const Element = null,
 };
 
-const NewUtf8Buffer = struct {
-    fn f(allocator: std.mem.Allocator) Utf8Buffer {
-        return Utf8Buffer.init(allocator);
-    }
-}.f;
-
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
