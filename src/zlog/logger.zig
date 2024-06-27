@@ -67,31 +67,52 @@ pub const Level = enum(u4) {
     }
 };
 
+/// Logger configuration options
 pub const Options = struct {
+    /// log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
     level: Level = Level.Info,
+    /// field name for the log level
     level_field_name: []const u8 = "level",
 
+    /// format for writing logs, possible values (json | simple)
     format: Format = Format.json,
 
+    /// time related configuration options
+    /// flag enabling/disabling the time  for each log record
     time_enabled: bool = false,
+    /// field name for the time
     time_field_name: []const u8 = "time",
+    /// time measumerent, possible values (seconds | millis | micros, nanos)
     time_measure: Measure = Measure.seconds,
+    /// time formating, possible values (timestamp | pattern)
     time_formating: TimeFormating = TimeFormating.timestamp,
+    /// petttern of time representation, applicable when .time_formating is sen on .pattern
     time_pattern: []const u8 = "DD/MM/YYYY'T'HH:mm:ss",
 
+    /// field name for the message
     message_field_name: []const u8 = "message",
+    /// field name for the error
     error_field_name: []const u8 = "error",
 
+    /// indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
     internal_failure: InternalFailure = InternalFailure.nothing,
 
+    /// caller related configuration options
+    /// flag enabling/disabling the caller reporting in the log
     caller_enabled: bool = false,
+    /// field name for the caller source
     caller_field_name: []const u8 = "caller",
+    /// handler processing the source object data
     caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
 
+    /// struct marchalling to string options
     struct_union: StructUnionOptions = StructUnionOptions{},
 };
 
+/// struct marchalling to string options
 pub const StructUnionOptions = struct {
+    // flag enabling/disabling the escapping for marchalled structs
+    // searching for \" and replacing with \\\" as per default values
     escape_enabled: bool = false,
     src_escape_characters: []const u8 = "\"",
     dst_escape_characters: []const u8 = "\\\"",

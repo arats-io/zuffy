@@ -8,6 +8,43 @@ Is providing a more flexible way to deal with the logs, with a following average
 
 # Configuration
 
+Configuration options for the logger with default values
+
+```zig
+.{
+    .level = Level.Info, // Log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
+    .level_field_name = "level", // field name for the log level
+    .format = Format.json, // format for writing logs, possible values (json | simple)
+
+    // time related configuration options
+    .time_enabled = false, // flag enabling/disabling the time  for each log record
+    .time_field_name = "time", // field name for the time
+    .time_measure = Measure.seconds, // time measumerent, possible values (seconds | millis | micros, nanos)
+    .time_formating = TimeFormating.timestamp, // time formating, possible values (timestamp | pattern)
+    .time_pattern = "DD/MM/YYYY'T'HH:mm:ss", // petttern of time representation, applicable when .time_formating is sen on .pattern
+
+    .message_field_name: = "message", // field name for the message
+    .error_field_name = "error", // field name for the error
+
+    .internal_failure = InternalFailure.nothing, // indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
+
+    // caller related configuration options
+    .caller_enabled = false,  // flag enabling/disabling the caller reporting in the log
+    .caller_field_name = "caller", // field name for the caller source
+    .caller_marshal_fn = default_caller_marshal_fn, // handler processing the source object data
+
+    // struct marchalling to string options
+    .struct_union: = StructUnionOptions{
+        // flag enabling/disabling the escapping for marchalled structs
+        // searching for \" and replacing with \\\" as per default values
+        .escape_enabled = false,
+        .src_escape_characters = "\"",
+        .dst_escape_characters = "\\\"",
+    },
+}
+
+```
+
 ## Default configuration:
 
 ```zig
