@@ -1,47 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Stack = @import("../atomic/stack.zig").Stack;
-
 pub const Error = @import("buffer.zig").BufferError;
 const BufferManaged = @import("buffer.zig").BufferManaged;
-
-pub const Utf8BufferPool = Utf8BufferPoolManaged(!builtin.single_threaded);
-pub fn Utf8BufferPoolManaged(comptime threadsafe: bool) type {
-    return struct {
-        const Self = @This();
-
-        allocator: std.mem.Allocator,
-        queue: Stack(Utf8BufferManaged(threadsafe)),
-
-        pub fn init(allocator: std.mem.Allocator) Self {
-            return Self{ .queue = Stack(Utf8BufferManaged(threadsafe)).init(), .allocator = allocator };
-        }
-
-        pub fn deinit(self: Self) void {
-            while (self.queue.pop()) |n| {
-                var b: Utf8BufferManaged(threadsafe) = n.data;
-                b.deinit();
-            }
-        }
-
-        pub fn pop(self: *Self) !Utf8BufferManaged(threadsafe) {
-            if (self.queue.pop()) |n| {
-                return n.data;
-            }
-
-            return try Utf8BufferManaged(threadsafe).init(self.allocator);
-        }
-
-        pub fn push(self: *Self, data: Utf8BufferManaged(threadsafe)) void {
-            var n = Stack(Utf8BufferManaged(threadsafe)).Node{
-                .data = data,
-                .next = null,
-            };
-            self.queue.push(&n);
-        }
-    };
-}
 
 pub const Utf8Buffer = Utf8BufferManaged(!builtin.single_threaded);
 pub fn Utf8BufferManaged(comptime threadsafe: bool) type {

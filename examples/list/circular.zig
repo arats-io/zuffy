@@ -4,8 +4,8 @@ const xstd = @import("xstd");
 const math = std.math;
 const Allocator = std.mem.Allocator;
 
-const CircularLifoList = xstd.list.circular.Lifo;
-const CircularFifoList = xstd.list.circular.Fifo;
+const CircularLifoList = xstd.list.circular.CircularLifoList;
+const CircularFifoList = xstd.list.circular.CircularFifoList;
 
 const Package = struct {
     value: i128,
@@ -27,7 +27,7 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var d = CircularLifoList(i32).init(allocator, 3);
+    var d = CircularLifoList(i32).init(allocator, 3, .{ .mode = .fixed });
     defer d.deinit();
 
     _ = d.push(1);
@@ -85,7 +85,7 @@ pub fn main() !void {
     printList(d);
     std.debug.print("\n", .{});
 
-    //try d.resize(10);
+    try d.resize(10);
     std.debug.print("Resized to 10 =>", .{});
 
     _ = d.push(18);
