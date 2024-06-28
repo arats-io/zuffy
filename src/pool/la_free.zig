@@ -48,13 +48,16 @@ pub fn LockAllocationFree(comptime T: type) type {
         sync: Atomic(u32) = Atomic(u32).init(@bitCast(Sync{})),
         main_queue: Node.Queue = .{},
         threads: Atomic(?*Thread) = Atomic(?*Thread).init(null),
+        createFn: ?*const fn () *Entry = null,
 
-        /// Statically initialize the thread pool using the configuration.
+        /// Statically initialize the pool using the configuration.
+        pub fn initWithFn(createFn: ?*const fn () T) Self {
+            return .{ .createFn = createFn };
+        }
         pub fn init() Self {
             return .{};
         }
 
-        /// Wait for a thread to call shutdown() on the thread pool and kill the worker threads.
         pub fn deinit(self: *Self) void {
             self.* = undefined;
         }
@@ -163,6 +166,10 @@ pub fn LockAllocationFree(comptime T: type) type {
             if (self.main_queue.pop()) |node| {
                 const entry: *Entry = @fieldParentPtr("node", node);
                 return entry;
+            }
+
+            if (self.createFn) |Fn| {
+                return Fn();
             }
 
             return null;
