@@ -48,12 +48,8 @@ pub fn LockAllocationFree(comptime T: type) type {
         sync: Atomic(u32) = Atomic(u32).init(@bitCast(Sync{})),
         main_queue: Node.Queue = .{},
         threads: Atomic(?*Thread) = Atomic(?*Thread).init(null),
-        createFn: ?*const fn () *Entry = null,
 
         /// Statically initialize the pool using the configuration.
-        pub fn initWithFn(createFn: ?*const fn () T) Self {
-            return .{ .createFn = createFn };
-        }
         pub fn init() Self {
             return .{};
         }
@@ -168,11 +164,11 @@ pub fn LockAllocationFree(comptime T: type) type {
                 return entry;
             }
 
-            if (self.createFn) |Fn| {
-                return Fn();
-            }
-
             return null;
+        }
+
+        pub fn popWithCreateFn(self: *Self, handler: anytype) *Entry {
+            return self.pop() orelse handler.createFn();
         }
 
         /// A Entry represents a value for the List .
