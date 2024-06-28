@@ -4,7 +4,7 @@ const xstd = @import("xstd");
 const StringBuilder = xstd.bytes.StringBuilder;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const Buffer = xstd.bytes.Buffer;
-const Pool = xstd.Pool;
+const GenericPool = xstd.pool.Generic;
 
 const Logger = xstd.zlog.Logger;
 const Level = xstd.zlog.Level;
@@ -32,7 +32,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const pool = &(Pool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+    const pool = &(GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
     defer pool.deinit();
     errdefer pool.deinit();
 

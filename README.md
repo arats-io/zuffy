@@ -21,6 +21,15 @@ Include the xstd into the `build.zig.zon` file.
 
 ## List of modules
 
+### Pools
+
+- [x] Generic Pool
+      Using allocator and the locker
+- [x] Generic Pool Lock & Memory Free
+      Based on on implementation of @kprotty's from https://github.com/kprotty/zap
+- [x] Thread Pool
+      Copied from @kprotty's from https://github.com/kprotty/zap
+
 ### Bytes
 
 - [x] Buffer

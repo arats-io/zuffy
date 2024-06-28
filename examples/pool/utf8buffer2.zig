@@ -8,7 +8,7 @@ const Error = xstd.bytes.Error;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const StringBuilder = xstd.bytes.StringBuilder;
 
-const Pool = xstd.Pool;
+const GenericPool = xstd.pool.Generic;
 
 const assert = std.debug.assert;
 
@@ -24,7 +24,7 @@ pub fn main() !void {
         }
     }.f;
 
-    const utf8BufferPool = Pool(StringBuilder).initFixed(arena.allocator(), NewUtf8Buffer);
+    const utf8BufferPool = GenericPool(StringBuilder).initFixed(arena.allocator(), NewUtf8Buffer);
     defer utf8BufferPool.deinit();
 
     {

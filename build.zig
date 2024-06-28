@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) !void {
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
         .{ .name = "pool-utf8buffer2", .src = "examples/pool/utf8buffer2.zig" },
+        .{ .name = "pool-lockfree", .src = "examples/pool/lockfree.zig" },
         .{ .name = "time-zoneinfo", .src = "examples/time/zoneinfo.zig" },
         .{ .name = "empty-zip", .src = "examples/archive/empty-zip.zig" },
         .{ .name = "zip", .src = "examples/archive/zip.zig" },
