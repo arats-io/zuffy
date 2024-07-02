@@ -31,7 +31,7 @@ pub fn main() !void {
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
-        .time_measure = .micros,
+        .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .internal_failure = .panic,
@@ -39,9 +39,9 @@ pub fn main() !void {
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
-    const start = std.time.microTimestamp();
+    const start = std.time.nanoTimestamp();
     for (0..max) |_| {
-        var startTime = std.time.microTimestamp();
+        var startTime = std.time.nanoTimestamp();
         var trace = logger.Trace();
         try trace
             .Message("Initialization...")
@@ -51,9 +51,9 @@ pub fn main() !void {
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
-        m += (std.time.microTimestamp() - startTime);
+        m += (std.time.nanoTimestamp() - startTime);
 
-        startTime = std.time.microTimestamp();
+        startTime = std.time.nanoTimestamp();
         try @as(*Logger.Entry, @constCast(&logger.Debug()))
             .Message("Initialization...")
             .Source(@src())
@@ -61,9 +61,9 @@ pub fn main() !void {
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
-        m += (std.time.microTimestamp() - startTime);
+        m += (std.time.nanoTimestamp() - startTime);
 
-        startTime = std.time.microTimestamp();
+        startTime = std.time.nanoTimestamp();
         try @constCast(&logger.Info())
             .Message("Initialization...")
             .Source(@src())
@@ -71,9 +71,9 @@ pub fn main() !void {
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
-        m += (std.time.microTimestamp() - startTime);
+        m += (std.time.nanoTimestamp() - startTime);
 
-        startTime = std.time.microTimestamp();
+        startTime = std.time.nanoTimestamp();
         try @constCast(&logger.Warn())
             .Message("Initialization...")
             .Source(@src())
@@ -81,9 +81,9 @@ pub fn main() !void {
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Send();
-        m += (std.time.microTimestamp() - startTime);
+        m += (std.time.nanoTimestamp() - startTime);
 
-        startTime = std.time.microTimestamp();
+        startTime = std.time.nanoTimestamp();
         try @constCast(&logger.Error())
             .Message("Initialization...")
             .Source(@src())
@@ -92,10 +92,10 @@ pub fn main() !void {
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
             .Error(Error.OutOfMemoryClient)
             .Send();
-        m += (std.time.microTimestamp() - startTime);
+        m += (std.time.nanoTimestamp() - startTime);
     }
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});
     const total = max * 5;
-    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.microTimestamp() - start), @divTrunc(m, total) });
+    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.nanoTimestamp() - start), @divFloor(m, total) });
 }
