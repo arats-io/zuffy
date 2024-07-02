@@ -192,7 +192,7 @@ pub const Logger = struct {
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
-                                    const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
@@ -221,7 +221,7 @@ pub const Logger = struct {
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
-                                    const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };

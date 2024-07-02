@@ -37,13 +37,13 @@ pub fn main() !void {
     errdefer pool.deinit();
 
     const logger = try Logger.initWithPool(arena.allocator(), pool, .{
+        .level = Level.ParseString("trace"),
+        .format = Format.json,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
         .time_measure = .micros,
         .time_formating = .pattern,
-        .level = Level.ParseString("trace"),
-        .format = Format.json,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
 

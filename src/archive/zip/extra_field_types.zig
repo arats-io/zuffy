@@ -1,5 +1,5 @@
 const std = @import("std");
-const Buffer = @import("../../bytes/buffer.zig").Buffer;
+const Buffer = @import("../../bytes/buffer.zig");
 
 const ints = @import("../../ints.zig");
 

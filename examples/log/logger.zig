@@ -4,7 +4,6 @@ const xstd = @import("xstd");
 const StringBuilder = xstd.bytes.StringBuilder;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const Buffer = xstd.bytes.Buffer;
-const Pool = xstd.Pool;
 
 const Logger = xstd.zlog.Logger;
 const Level = xstd.zlog.Level;
@@ -21,25 +20,21 @@ const Element = struct {
 };
 
 pub fn main() !void {
-    _ = xstd.time.zoneinfo.Local.Get() catch |err| {
-        std.debug.panic("{any}", .{err});
-    };
-
     std.debug.print("Starting application.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
     const logger = try Logger.init(arena.allocator(), .{
+        .level = Level.ParseString("trace"),
+        .format = Format.json,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
         .time_measure = .micros,
         .time_formating = .pattern,
-        .level = Level.ParseString("trace"),
-        .format = Format.json,
-        .internal_failure = .panic,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
+        .internal_failure = .panic,
     });
 
     const max = std.math.maxInt(u18);

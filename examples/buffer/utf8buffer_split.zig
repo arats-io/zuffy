@@ -12,7 +12,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(page_allocator);
     defer arena.deinit();
 
-    var buffer = xstd.bytes.Utf8BufferManaged(true).init(arena.allocator());
+    var buffer = xstd.bytes.Utf8Buffer.init(arena.allocator());
     defer buffer.deinit();
 
     try buffer.append("💯Hello💯💯Hello💯💯Hello💯");

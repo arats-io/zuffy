@@ -5,17 +5,17 @@ const io = std.io;
 const testing = std.testing;
 const mem = std.mem;
 
-const mb = @import("buffer.zig");
+const Buffer = @import("buffer.zig");
 
 /// This turns a byte buffer into an `io.Writer`, `io.Reader`, or `io.SeekableStream`.
 /// If the supplied byte buffer is const, then `io.Writer` is not available.
 pub fn FlexibleBufferStream() type {
     return struct {
-        buffer: mb.Buffer,
+        buffer: Buffer,
         pos: usize,
 
-        pub const ReadError = error{} || mb.BufferError;
-        pub const WriteError = error{} || mb.BufferError;
+        pub const ReadError = error{} || Buffer.Error;
+        pub const WriteError = error{} || Buffer.Error;
         pub const SeekError = error{};
         pub const GetSeekPosError = error{IsEmpty};
 
@@ -37,7 +37,7 @@ pub fn FlexibleBufferStream() type {
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator) Self {
-            return Self{ .buffer = mb.Buffer.init(allocator), .pos = 0 };
+            return Self{ .buffer = Buffer.init(allocator), .pos = 0 };
         }
 
         pub fn deinit(self: *Self) void {
