@@ -8,7 +8,7 @@ const Error = xstd.bytes.Error;
 const Utf8BufferPool = xstd.bytes.Utf8BufferPool;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 
-const Pool = xstd.Pool;
+const GenericPool = xstd.pool.Generic;
 
 pub fn NewUtf8Buffer(allocator: std.mem.Allocator) Utf8Buffer {
     return Utf8Buffer.init(allocator);
@@ -30,7 +30,7 @@ pub fn main() !void {
     // var sb = try utf8BufferPool.pop();
     // defer sb.deinit();
 
-    var utf8BufferPool = Pool(Utf8Buffer).initFixed(allocator, NewUtf8Buffer);
+    var utf8BufferPool = GenericPool(Utf8Buffer).initFixed(allocator, NewUtf8Buffer);
     var sb = utf8BufferPool.pop();
 
     try sb.append("SB------");

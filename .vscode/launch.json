@@ -2,7 +2,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "pool-utf8buffer2-debug",
+            "name": "lockfree-list",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/lockfree-list",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "zig-debug-build",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "pool-utf8buffer2",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/pool-utf8buffer2",
@@ -22,7 +42,7 @@
             ]
         },
         {
-            "name": "logger-debug",
+            "name": "logger",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/logger",
@@ -42,7 +62,7 @@
             ]
         },
         {
-            "name": "logger-pool-debug",
+            "name": "logger-pool",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/logger-pool",
@@ -62,7 +82,7 @@
             ]
         },
         {
-            "name": "list-circular-debug",
+            "name": "list-circular",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/list-circular",
@@ -82,7 +102,7 @@
             ]
         },
         {
-            "name": "ints-bitset-debug",
+            "name": "ints-bitset",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/ints-bitset",
@@ -102,7 +122,7 @@
             ]
         },
         {
-            "name": "utf8buffer_split-debug",
+            "name": "utf8buffer-split",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/utf8buffer_split",
@@ -122,7 +142,7 @@
             ]
         },
         {
-            "name": "alignment-debug",
+            "name": "alignment",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/alignment",
@@ -142,7 +162,7 @@
             ]
         },
         {
-            "name": "buffer-stream-debug",
+            "name": "buffer-stream",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/buffer-stream",
@@ -162,7 +182,7 @@
             ]
         },
         {
-            "name": "task-pool-debug",
+            "name": "task-pool",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/taskpool",
@@ -182,7 +202,7 @@
             ]
         },
         {
-            "name": "time-zoneinfo-debug",
+            "name": "time-zoneinfo",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/time-zoneinfo",
@@ -207,7 +227,7 @@
             ]
         },
         {
-            "name": "empty-zip-debug",
+            "name": "empty-zip",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/empty-zip",
@@ -232,7 +252,7 @@
             ]
         },
         {
-            "name": "zip-debug",
+            "name": "zip",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/zip",

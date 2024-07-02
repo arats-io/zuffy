@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Pool = @import("../pool.zig").Pool;
+const GenericPool = @import("../pool/mod.zig").Generic;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 const Time = @import("../time/mod.zig").Time;
@@ -120,7 +120,7 @@ pub const StructUnionOptions = struct {
 
 pub const Logger = struct {
     allocator: std.mem.Allocator,
-    buffer_pool: ?*const Pool(Utf8Buffer),
+    buffer_pool: ?*const GenericPool(Utf8Buffer),
     options: Options,
 
     pub fn init(allocator: std.mem.Allocator, options: Options) !Logger {
@@ -131,7 +131,7 @@ pub const Logger = struct {
         };
     }
 
-    pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const Pool(Utf8Buffer), options: Options) !Logger {
+    pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPool(Utf8Buffer), options: Options) !Logger {
         return .{
             .allocator = allocator,
             .buffer_pool = buffer_pool,
@@ -174,10 +174,10 @@ pub const Logger = struct {
         options: ?Options = null,
         opLevel: Level = .Disabled,
 
-        pool: ?*const Pool(Utf8Buffer),
+        pool: ?*const GenericPool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, pool: ?*const Pool(Utf8Buffer), opLevel: Level, options: ?Options) Self {
+        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), opLevel: Level, options: ?Options) Self {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
@@ -192,7 +192,7 @@ pub const Logger = struct {
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
-                                    const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
@@ -221,7 +221,7 @@ pub const Logger = struct {
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
-                                    const len = t.formatfBuffer(allocator, opts.time_pattern, &buffer) catch |err| blk: {
+                                    const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
                                         failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
                                         break :blk 0;
                                     };

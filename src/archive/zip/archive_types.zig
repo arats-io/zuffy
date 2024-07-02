@@ -6,7 +6,7 @@ const ints = @import("../../ints.zig");
 const types = @import("types.zig");
 const eftypes = @import("extra_field_types.zig");
 
-const Buffer = @import("../../bytes/buffer.zig").Buffer;
+const Buffer = @import("../../bytes/buffer.zig");
 
 ///   ZIP Archive structure
 ///      [local file header 1]

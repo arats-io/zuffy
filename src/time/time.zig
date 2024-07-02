@@ -1,5 +1,5 @@
 const std = @import("std");
-const StringBuilder = @import("../bytes/mod.zig").StringBuilder;
+const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
@@ -206,15 +206,15 @@ pub const Time = struct {
         _ = try writer.write(sb.bytes());
     }
 
-    pub fn formatfBuffer(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
+    pub fn formatfInto(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
         var sb = try self.format(allocator, pattern);
         defer sb.deinit();
         errdefer sb.deinit();
         return try sb.bytesInto(dst);
     }
 
-    fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8) !StringBuilder {
-        var sb = try StringBuilder.initWithCapacity(allocator, pattern.len);
+    fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8) !Utf8Buffer {
+        var sb = try Utf8Buffer.initWithCapacity(allocator, pattern.len);
         errdefer sb.deinit();
 
         var i: usize = 0;
@@ -243,7 +243,7 @@ pub const Time = struct {
         return sb;
     }
 
-    fn appendToken(self: Self, token: []const u8, sb: *StringBuilder) !void {
+    fn appendToken(self: Self, token: []const u8, sb: *Utf8Buffer) !void {
         const date_time = self.dateTime();
 
         if (std.mem.eql(u8, token, "YYYY")) {
@@ -420,7 +420,7 @@ pub const Time = struct {
         return @as(Month, @enumFromInt(self.dateTime().month));
     }
 
-    fn zzz(self: Self, sb: *StringBuilder, delimeter: []const u8) !void {
+    fn zzz(self: Self, sb: *Utf8Buffer, delimeter: []const u8) !void {
         var h = @divFloor(self.offset.?, std.time.s_per_hour);
         if (h > 0) {
             try sb.append("+");

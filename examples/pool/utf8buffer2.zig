@@ -4,11 +4,9 @@ const xstd = @import("xstd");
 const Allocator = std.mem.Allocator;
 const AllocatorError = std.mem.Allocator.Error;
 
-const Error = xstd.bytes.Error;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
-const StringBuilder = xstd.bytes.StringBuilder;
 
-const Pool = xstd.Pool;
+const GenericPool = xstd.pool.Generic;
 
 const assert = std.debug.assert;
 
@@ -19,12 +17,12 @@ pub fn main() !void {
     defer arena.deinit();
 
     const NewUtf8Buffer = struct {
-        fn f(allocator: std.mem.Allocator) StringBuilder {
-            return StringBuilder.init(allocator);
+        fn f(allocator: std.mem.Allocator) Utf8Buffer {
+            return Utf8Buffer.init(allocator);
         }
     }.f;
 
-    const utf8BufferPool = Pool(StringBuilder).initFixed(arena.allocator(), NewUtf8Buffer);
+    const utf8BufferPool = GenericPool(Utf8Buffer).initFixed(arena.allocator(), NewUtf8Buffer);
     defer utf8BufferPool.deinit();
 
     {

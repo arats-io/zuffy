@@ -4,7 +4,7 @@ const mem = std.mem;
 const fs = std.fs;
 const io = std.io;
 
-const Buffer = @import("../../bytes/buffer.zig").Buffer;
+const Buffer = @import("../../bytes/buffer.zig");
 
 const types = @import("types.zig");
 const zarchive_types = @import("archive_types.zig");
@@ -473,7 +473,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
     return fileentry;
 }
 
-const Utf8Buffer = @import("../../bytes/utf8_buffer.zig").Utf8Buffer;
+const Utf8Buffer = @import("../../bytes/utf8_buffer.zig");
 const FlexibleBufferStream = @import("../../bytes/mod.zig").FlexibleBufferStream;
 
 pub fn Archive(comptime ParseSource: type) type {

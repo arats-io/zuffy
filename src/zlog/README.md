@@ -2,7 +2,7 @@
 
 Is providing a more flexible way to deal with the logs, with a following average performance:
 
-- in debug mode ~80 μs when using time pattern (as per tests was used: YYYY MMM Do ddd HH:mm:ss.SSS - Qo) and ~19 μs using timestamp as integer per entry to be produced on the console
+- in debug mode ~60 μs when using time pattern (as per tests was used: YYYY MMM Do ddd HH:mm:ss.SSS - Qo) and ~12 μs using timestamp as integer per entry to be produced on the console
 - in release safe mode ~9 μs for both type of time formats per entry to be produced on the console
 - in release fast mode ~8 μs for both type of time formats per entry to be produced on the console
 
@@ -61,13 +61,13 @@ var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
 const logger = Logger.init(arena.allocator(), .{
+    .level = Level.ParseString("trace"),
+    .format = Format.json,
     .caller_enabled = true,
     .caller_field_name = "caller",
     .time_enabled = true,
     .time_measure = .micros,
     .time_formating = .pattern,
-    .level = Level.ParseString("trace"),
-    .format = Format.json,
     .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
 });
 ```
