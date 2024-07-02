@@ -167,10 +167,6 @@ pub fn LockAllocationFree(comptime T: type) type {
             return null;
         }
 
-        pub fn popWithCreateFn(self: *Self, handler: anytype) *Entry {
-            return self.pop() orelse handler.createFn();
-        }
-
         /// A Entry represents a value for the List .
         pub const Entry = struct {
             node: Node = .{},
