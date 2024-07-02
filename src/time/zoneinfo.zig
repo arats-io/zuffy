@@ -340,7 +340,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     var in_stream = std.io.fixedBufferStream(data);
 
     const FlexibleBufferStream = @import("../bytes/mod.zig").FlexibleBufferStream;
-    var fbs = FlexibleBufferStream().init(allocator);
+    var fbs = FlexibleBufferStream.init(allocator);
     defer fbs.deinit();
 
     try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());

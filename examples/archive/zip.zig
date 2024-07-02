@@ -12,7 +12,7 @@ pub fn main() !void {
 
     var in_stream = std.io.fixedBufferStream(data);
 
-    var fbs = xstd.bytes.FlexibleBufferStream().init(arena.allocator());
+    var fbs = xstd.bytes.FlexibleBufferStream.init(arena.allocator());
     defer fbs.deinit();
 
     try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());

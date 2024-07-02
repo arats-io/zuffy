@@ -10,7 +10,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var fbs = xstd.bytes.FlexibleBufferStream().init(arena.allocator());
+    var fbs = xstd.bytes.FlexibleBufferStream.init(arena.allocator());
     defer fbs.deinit();
 
     const stream = fbs.writer();

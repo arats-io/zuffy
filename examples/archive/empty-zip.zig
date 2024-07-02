@@ -8,7 +8,7 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var fbs = xstd.bytes.FlexibleBufferStream().init(arena.allocator());
+    var fbs = xstd.bytes.FlexibleBufferStream.init(arena.allocator());
     defer fbs.deinit();
 
     var zipFile = xstd.archive.zip.fromBufferStream(allocator, fbs);
