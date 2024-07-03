@@ -284,7 +284,7 @@ pub const Logger = struct {
                                 errdefer buff.deinit();
                                 defer buff.deinit();
 
-                                std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, std.io.tty.detectConfig(std.io.getStdOut())) catch |err| {
+                                std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, .no_color) catch |err| {
                                     failureFn(opts.internal_failure, "Failed to include stacktrace to the log buffer; {}", .{err});
                                 };
 
