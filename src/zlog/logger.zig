@@ -154,6 +154,19 @@ pub const Logger = struct {
             if (self.buffer_pool) |pool| pool else null,
             &self.static_fields,
             message,
+            null,
+            op,
+            if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
+        );
+    }
+
+    inline fn entryWithError(self: *const LSelf, comptime op: Level, message: []const u8, err: anyerror) Entry {
+        return Entry.init(
+            self.allocator,
+            if (self.buffer_pool) |pool| pool else null,
+            &self.static_fields,
+            message,
+            err,
             op,
             if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
         );
@@ -171,8 +184,8 @@ pub const Logger = struct {
     pub fn Warn(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Warn, message);
     }
-    pub fn Error(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Error, message);
+    pub fn Error(self: *const LSelf, message: anytype, err: anyerror) Entry {
+        return self.entryWithError(Level.Error, message, err);
     }
     pub fn Fatal(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Fatal, message);
@@ -192,7 +205,7 @@ pub const Logger = struct {
         pool: ?*const GenericPool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: anytype, opLevel: Level, options: ?Options) Self {
+        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: anytype, errorv: ?anyerror, opLevel: Level, options: ?Options) Self {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
@@ -253,6 +266,9 @@ pub const Logger = struct {
                 }
 
                 attribute(&data, opts, opts.message_field_name, message);
+                if (errorv) |err_val| {
+                    attribute(&data, opts, opts.error_field_name, @errorName(err_val));
+                }
 
                 data.append(@constCast(staticfields).bytes()) catch |err| {
                     failureFn(opts.internal_failure, "Failed to store static fields; {}", .{err});
@@ -284,13 +300,6 @@ pub const Logger = struct {
                 return self;
             }
 
-            return self;
-        }
-
-        pub fn Error(self: *Self, value: anyerror) *Self {
-            if (self.options) |options| {
-                _ = self.Attr(options.error_field_name, @errorName(value));
-            }
             return self;
         }
 

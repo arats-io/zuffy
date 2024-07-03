@@ -80,12 +80,11 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Error("Initialization..."))
+        try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Error(Error.OutOfMemoryClient)
             .Send();
         m += (std.time.nanoTimestamp() - startTime);
     }
