@@ -139,7 +139,7 @@ pub const Logger = struct {
         };
     }
 
-    inline fn entry(self: Logger, comptime op: Level) Entry {
+    inline fn entry(self: *const Logger, comptime op: Level) Entry {
         return Entry.init(
             self.allocator,
             if (self.buffer_pool) |pool| pool else null,
@@ -148,22 +148,22 @@ pub const Logger = struct {
         );
     }
 
-    pub fn Trace(self: Logger) Entry {
+    pub fn Trace(self: *const Logger) Entry {
         return self.entry(Level.Trace);
     }
-    pub fn Debug(self: Logger) Entry {
+    pub fn Debug(self: *const Logger) Entry {
         return self.entry(Level.Debug);
     }
-    pub fn Info(self: Logger) Entry {
+    pub fn Info(self: *const Logger) Entry {
         return self.entry(Level.Info);
     }
-    pub fn Warn(self: Logger) Entry {
+    pub fn Warn(self: *const Logger) Entry {
         return self.entry(Level.Warn);
     }
-    pub fn Error(self: Logger) Entry {
+    pub fn Error(self: *const Logger) Entry {
         return self.entry(Level.Error);
     }
-    pub fn Fatal(self: Logger) Entry {
+    pub fn Fatal(self: *const Logger) Entry {
         return self.entry(Level.Fatal);
     }
 
