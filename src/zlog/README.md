@@ -70,6 +70,8 @@ const logger = try Logger.init(arena.allocator(), .{
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
 });
+defer logger.deinit();
+
 logger.With("major_version", 1);
 logger.With("minor_version", 2);
 ```

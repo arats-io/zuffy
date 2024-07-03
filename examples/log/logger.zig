@@ -36,6 +36,7 @@ pub fn main() !void {
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .internal_failure = .panic,
     });
+    defer logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;

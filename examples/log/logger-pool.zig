@@ -46,10 +46,10 @@ pub fn main() !void {
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
+    defer logger.deinit();
+
     logger.With("major_version", 1);
     logger.With("minor_version", 2);
-
-    defer logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
