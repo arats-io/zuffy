@@ -60,72 +60,68 @@ const logger = Logger.init(arena.allocator(), .{});
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
-const logger = Logger.init(arena.allocator(), .{
-    .level = Level.ParseString("trace"),
-    .format = Format.json,
-    .caller_enabled = true,
-    .caller_field_name = "caller",
-    .time_enabled = true,
-    .time_measure = .micros,
-    .time_formating = .pattern,
-    .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS - Qo",
+const logger = try Logger.init(arena.allocator(), .{
+        .level = Level.ParseString("trace"),
+        .format = Format.json,
+        .caller_enabled = true,
+        .caller_field_name = "caller",
+        .time_enabled = true,
+        .time_measure = .nanos,
+        .time_formating = .pattern,
+        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
 });
+logger.With("major_version", 1);
+logger.With("minor_version", 2);
 ```
 
 ## Examples:
 
 ```zig
-    try @constCast(&logger.Trace())
-        .Message("Initialization...")
-        .Source(@src())
-        .Attr("attribute-null", null)
-        .Attr("database", "mydb")
-        .Attr("counter", 34)
-        .Attr("element1", Element{ .int = 32, .string = "Element1" })
-        .Send();
+try @constCast(&logger.Trace("Initialization..."))
+    .Source(@src())
+    .Attr("attribute-null", null)
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
 
-    try @constCast(&logger.Debug())
-        .Message("Initialization...")
-        .Source(@src())
-        .Attr("database", "mydb")
-        .Attr("counter", 34)
-        .Attr("element1", Element{ .int = 32, .string = "Element1" })
-        .Send();
+try @constCast(&logger.Debug("Initialization..."))
+    .Source(@src())
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
 
-    try @constCast(&logger.Info())
-        .Message("Initialization...")
-        .Source(@src())
-        .Attr("database", "mydb")
-        .Attr("counter", 34)
-        .Attr("element1", Element{ .int = 32, .string = "Element1" })
-        .Send();
+try @constCast(&logger.Info("Initialization..."))
+    .Source(@src())
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
 
-    try @constCast(&logger.Warn())
-        .Message("Initialization...")
-        .Source(@src())
-        .Attr("database", "mydb")
-        .Attr("counter", 34)
-        .Attr("element1", Element{ .int = 32, .string = "Element1" })
-        .Send();
+try @constCast(&logger.Warn("Initialization..."))
+    .Source(@src())
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
 
-    try @constCast(&logger.Error())
-        .Message("Initialization...")
-        .Source(@src())
-        .Attr("database", "mydb")
-        .Attr("counter", 34)
-        .Attr("element1", Element{ .int = 32, .string = "Element1" })
-        .Error(Error.OutOfMemoryClient)
-        .Send();
+try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
+    .Source(@src())
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
 ```
 
 Output:
 
 ```json
-{"time": "2023 Nov 5th Sun 20:29:40.311932 - 4th", "level": "trace", "message": "Initialization...", "caller": "examples/log/logger.zig:45", "attribute-null":null, "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2023 Nov 5th Sun 20:29:40.312001 - 4th", "level": "debug", "message": "Initialization...", "caller": "examples/log/logger.zig:56", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2023 Nov 5th Sun 20:29:40.312070 - 4th", "level": "info", "message": "Initialization...", "caller": "examples/log/logger.zig:66", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2023 Nov 5th Sun 20:29:40.312136 - 4th", "level": "warn", "message": "Initialization...", "caller": "examples/log/logger.zig:76", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2023 Nov 5th Sun 20:29:40.312203 - 4th", "level": "error", "message": "Initialization...", "caller": "examples/log/logger.zig:86", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}, "error": "OutOfMemoryClient"}
+{"time": "2024 Jul 3rd Wed 20:33:13.623470000 UTC+02:00 - 3rd", "level": "trace", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:61", "attribute-null":null, "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 3rd Wed 20:33:13.623488000 UTC+02:00 - 3rd", "level": "debug", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:71", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 3rd Wed 20:33:13.623493000 UTC+02:00 - 3rd", "level": "info", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:80", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 3rd Wed 20:33:13.623499000 UTC+02:00 - 3rd", "level": "warn", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:89", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 3rd Wed 20:33:13.623534000 UTC+02:00 - 3rd", "level": "error", "message": "Initialization...", "error": "OutOfMemoryClient", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:98", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
 ```
 
 Additional examples:
@@ -133,26 +129,24 @@ Additional examples:
 - Make the trace as a separate variable
 
   ```zig
-      var trace = logger.Trace();
-      try trace
-          .Message("Initialization...")
-          .Source(@src())
-          .Attr("attribute-null", null)
-          .Attr("database", "mydb")
-          .Attr("counter", 34)
-          .Attr("element1", Element{ .int = 32, .string = "Element1" })
-          .Send();
+  var trace = logger.Trace("Initialization...");
+  try trace
+    .Source(@src())
+    .Attr("attribute-null", null)
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
   ```
 
 - Make the trace as a separate variable
 
   ```zig
-      try @as(*Logger.Entry, @constCast(&logger.Debug()))
-          .Message("Initialization...")
-          .Source(@src())
-          .Attr("attribute-null", null)
-          .Attr("database", "mydb")
-          .Attr("counter", 34)
-          .Attr("element1", Element{ .int = 32, .string = "Element1" })
-          .Send();
+  try @as(*Logger.Entry, @constCast(&logger.Debug("Initialization...")))
+    .Source(@src())
+    .Attr("attribute-null", null)
+    .Attr("database", "mydb")
+    .Attr("counter", 34)
+    .Attr("element1", Element{ .int = 32, .string = "Element1" })
+    .Send();
   ```

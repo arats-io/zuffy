@@ -46,8 +46,8 @@ pub fn main() !void {
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
     });
-    logger.With("version", "1.0");
-    logger.With("git_commit", "145345345345345");
+    logger.With("major_version", 1);
+    logger.With("minor_version", 2);
 
     defer logger.deinit();
 
