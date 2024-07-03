@@ -289,7 +289,7 @@ pub const Logger = struct {
                                 };
 
                                 if (buff.length() > 0) {
-                                    attribute(&data, opts, opts.error_stacktrace_field_name, buff.bytes());
+                                    attribute(&data, opts, opts.stacktrace_field_name, buff.bytes());
                                 }
                             }
                         }
