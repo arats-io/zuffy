@@ -42,9 +42,8 @@ pub fn main() !void {
     const start = std.time.nanoTimestamp();
     for (0..max) |_| {
         var startTime = std.time.nanoTimestamp();
-        var trace = logger.Trace();
+        var trace = logger.Trace("Initialization...");
         try trace
-            .Message("Initialization...")
             .Source(@src())
             .Attr("attribute-null", null)
             .Attr("database", "mydb")
@@ -54,8 +53,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @as(*Logger.Entry, @constCast(&logger.Debug()))
-            .Message("Initialization...")
+        try @as(*Logger.Entry, @constCast(&logger.Debug("Initialization...")))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -64,8 +62,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Info())
-            .Message("Initialization...")
+        try @constCast(&logger.Info("Initialization..."))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -74,8 +71,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Warn())
-            .Message("Initialization...")
+        try @constCast(&logger.Warn("Initialization..."))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -84,8 +80,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Error())
-            .Message("Initialization...")
+        try @constCast(&logger.Error("Initialization..."))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)

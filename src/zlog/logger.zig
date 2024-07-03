@@ -148,33 +148,34 @@ pub const Logger = struct {
         };
     }
 
-    inline fn entry(self: *const LSelf, comptime op: Level) Entry {
+    inline fn entry(self: *const LSelf, comptime op: Level, message: []const u8) Entry {
         return Entry.init(
             self.allocator,
             if (self.buffer_pool) |pool| pool else null,
             &self.static_fields,
+            message,
             op,
             if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
         );
     }
 
-    pub fn Trace(self: *const LSelf) Entry {
-        return self.entry(Level.Trace);
+    pub fn Trace(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Trace, message);
     }
-    pub fn Debug(self: *const LSelf) Entry {
-        return self.entry(Level.Debug);
+    pub fn Debug(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Debug, message);
     }
-    pub fn Info(self: *const LSelf) Entry {
-        return self.entry(Level.Info);
+    pub fn Info(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Info, message);
     }
-    pub fn Warn(self: *const LSelf) Entry {
-        return self.entry(Level.Warn);
+    pub fn Warn(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Warn, message);
     }
-    pub fn Error(self: *const LSelf) Entry {
-        return self.entry(Level.Error);
+    pub fn Error(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Error, message);
     }
-    pub fn Fatal(self: *const LSelf) Entry {
-        return self.entry(Level.Fatal);
+    pub fn Fatal(self: *const LSelf, message: []const u8) Entry {
+        return self.entry(Level.Fatal, message);
     }
 
     pub fn With(self: *const LSelf, name: []const u8, value: anytype) void {
@@ -191,7 +192,7 @@ pub const Logger = struct {
         pool: ?*const GenericPool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, opLevel: Level, options: ?Options) Self {
+        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: []const u8, opLevel: Level, options: ?Options) Self {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
@@ -250,6 +251,9 @@ pub const Logger = struct {
                         };
                     },
                 }
+
+                attribute(&data, opts, opts.message_field_name, message);
+
                 data.append(@constCast(staticfields).bytes()) catch |err| {
                     failureFn(opts.internal_failure, "Failed to store static fields; {}", .{err});
                 };
@@ -298,13 +302,6 @@ pub const Logger = struct {
                 }
             }
 
-            return self;
-        }
-
-        pub fn Message(self: *Self, message: []const u8) *Self {
-            if (self.options) |options| {
-                _ = self.Attr(options.message_field_name, message);
-            }
             return self;
         }
 
