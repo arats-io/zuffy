@@ -94,6 +94,11 @@ pub const Options = struct {
     /// field name for the error
     error_field_name: []const u8 = "error",
 
+    /// flag enabling/disabling the error tracing reporting in the log
+    stacktrace_ebabled: bool = false,
+    /// field name for the error stacktrace
+    stacktrace_field_name: []const u8 = "stacktrace",
+
     /// indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
     internal_failure: InternalFailure = InternalFailure.nothing,
 
@@ -215,17 +220,17 @@ pub const Logger = struct {
                             switch (opts.time_formating) {
                                 .timestamp => {
                                     data.appendf("{}", .{t.value}) catch |err| {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                     };
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
                                     const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
                                     data.appendf("{s}=\u{0022}{s}\u{0022} ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                     };
                                 },
                             }
@@ -236,7 +241,7 @@ pub const Logger = struct {
                     },
                     inline .json => {
                         data.append("{") catch |err| {
-                            failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                            failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                         };
                         if (opts.time_enabled) {
                             const t = Time.new(opts.time_measure);
@@ -244,23 +249,23 @@ pub const Logger = struct {
                             switch (opts.time_formating) {
                                 .timestamp => {
                                     data.appendf("\u{0022}{s}\u{0022}:{}, ", .{ opts.time_field_name, t.value }) catch |err| {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                     };
                                 },
                                 .pattern => {
                                     var buffer: [1024]u8 = undefined;
                                     const len = t.formatfInto(allocator, opts.time_pattern, &buffer) catch |err| blk: {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                         break :blk 0;
                                     };
                                     data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}, ", .{ opts.time_field_name, buffer[0..len] }) catch |err| {
-                                        failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                                        failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                                     };
                                 },
                             }
                         }
                         data.appendf("\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ opts.level_field_name, opLevel.String() }) catch |err| {
-                            failureFn(opts.internal_failure, "Failed to include the datainto the log buffer; {}", .{err});
+                            failureFn(opts.internal_failure, "Failed to include data to the log buffer; {}", .{err});
                         };
                     },
                 }
@@ -268,6 +273,27 @@ pub const Logger = struct {
                 attribute(&data, opts, opts.message_field_name, message);
                 if (errorv) |err_val| {
                     attribute(&data, opts, opts.error_field_name, @errorName(err_val));
+
+                    if (opts.stacktrace_ebabled) {
+                        if (@errorReturnTrace()) |stacktrace| {
+                            const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
+                                break :res null;
+                            };
+                            if (debug_info) |di| {
+                                var buff = Utf8Buffer.init(allocator);
+                                errdefer buff.deinit();
+                                defer buff.deinit();
+
+                                std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, std.io.tty.detectConfig(std.io.getStdOut())) catch |err| {
+                                    failureFn(opts.internal_failure, "Failed to include stacktrace to the log buffer; {}", .{err});
+                                };
+
+                                if (buff.length() > 0) {
+                                    attribute(&data, opts, opts.error_stacktrace_field_name, buff.bytes());
+                                }
+                            }
+                        }
+                    }
                 }
 
                 data.append(@constCast(staticfields).bytes()) catch |err| {

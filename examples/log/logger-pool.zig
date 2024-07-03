@@ -93,17 +93,23 @@ pub fn main() !void {
             .Send();
         m += (std.time.nanoTimestamp() - startTime);
 
-        startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
-            .Source(@src())
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
-        m += (std.time.nanoTimestamp() - startTime);
+        name() catch |err| {
+            startTime = std.time.nanoTimestamp();
+            try @constCast(&logger.Error("Initialization...", err))
+                .Source(@src())
+                .Attr("database", "mydb")
+                .Attr("counter", 34)
+                .Attr("element1", Element{ .int = 32, .string = "Element1" })
+                .Send();
+            m += (std.time.nanoTimestamp() - startTime);
+        };
     }
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});
     const total = max * 5;
     std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.nanoTimestamp() - start), @divFloor(m, total) });
+}
+
+pub fn name() !void {
+    return error.InvalidRange;
 }
