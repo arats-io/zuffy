@@ -159,22 +159,22 @@ pub const Logger = struct {
         );
     }
 
-    pub fn Trace(self: *const LSelf, message: []const u8) Entry {
+    pub fn Trace(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Trace, message);
     }
-    pub fn Debug(self: *const LSelf, message: []const u8) Entry {
+    pub fn Debug(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Debug, message);
     }
-    pub fn Info(self: *const LSelf, message: []const u8) Entry {
+    pub fn Info(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Info, message);
     }
-    pub fn Warn(self: *const LSelf, message: []const u8) Entry {
+    pub fn Warn(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Warn, message);
     }
-    pub fn Error(self: *const LSelf, message: []const u8) Entry {
+    pub fn Error(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Error, message);
     }
-    pub fn Fatal(self: *const LSelf, message: []const u8) Entry {
+    pub fn Fatal(self: *const LSelf, message: anytype) Entry {
         return self.entry(Level.Fatal, message);
     }
 
@@ -192,7 +192,7 @@ pub const Logger = struct {
         pool: ?*const GenericPool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: []const u8, opLevel: Level, options: ?Options) Self {
+        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: anytype, opLevel: Level, options: ?Options) Self {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
