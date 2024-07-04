@@ -24,7 +24,7 @@ pub fn main() !void {
     defer arena.deinit();
 
     const logger = try zlog.Logger.init(arena.allocator(), .{
-        .level = zlog.Level.ParseString("warn"),
+        .level = zlog.Level.ParseString("trace"),
         .format = zlog.Format.json,
         .caller_enabled = true,
         .caller_field_name = "caller",

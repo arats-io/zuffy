@@ -283,7 +283,7 @@ pub const Logger = struct {
         const Self = @This();
 
         allocator: std.mem.Allocator,
-        options: ?Options = null,
+        options: Options,
         opLevel: Level = .Disabled,
 
         pool: ?*const GenericPool(Utf8Buffer),
@@ -364,9 +364,9 @@ pub const Logger = struct {
             }
             return Self{
                 .allocator = allocator,
-                .options = options,
+                .options = options.?,
                 .opLevel = opLevel,
-                .pool = if (pool) |p| p else null,
+                .pool = pool,
                 .data = data,
             };
         }
@@ -383,21 +383,19 @@ pub const Logger = struct {
         }
 
         fn SendWriter(self: *Self, writer: anytype) !void {
-            if (self.options) |options| {
-                switch (options.format) {
-                    inline .simple => {
-                        try self.data.append("\n");
-                    },
-                    inline .json => {
-                        try self.data.append("}\n");
-                    },
-                }
+            switch (self.options.format) {
+                inline .simple => {
+                    try self.data.append("\n");
+                },
+                inline .json => {
+                    try self.data.append("}\n");
+                },
+            }
 
-                _ = try writer.write(self.data.bytes());
+            _ = try writer.write(self.data.bytes());
 
-                if (self.opLevel == .Fatal) {
-                    @panic("logger on fatal");
-                }
+            if (self.opLevel == .Fatal) {
+                @panic("fatal");
             }
         }
 
