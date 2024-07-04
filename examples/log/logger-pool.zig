@@ -56,7 +56,7 @@ pub fn main() !void {
     const value_database = "mydb";
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
-        try logger.Trace(
+        logger.Trace(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -70,7 +70,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Debug(
+        logger.Debug(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -83,7 +83,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Info(
+        logger.Info(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -96,7 +96,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Warn(
+        logger.Warn(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -109,7 +109,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Error(
+        logger.Error(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{

@@ -220,59 +220,59 @@ pub const Logger = struct {
         );
     }
 
-    pub fn Trace(self: *const LSelf, message: []const u8, args: anytype) !void {
+    pub fn Trace(self: *const LSelf, message: []const u8, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Trace)) return;
 
         var logentry = self.entry(Level.Trace, message, null, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
-    pub fn Debug(self: *const LSelf, message: []const u8, args: anytype) !void {
+    pub fn Debug(self: *const LSelf, message: []const u8, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Debug)) return;
 
         var logentry = self.entry(Level.Debug, message, null, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
-    pub fn Info(self: *const LSelf, message: []const u8, args: anytype) !void {
+    pub fn Info(self: *const LSelf, message: []const u8, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Info)) return;
 
         var logentry = self.entry(Level.Info, message, null, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
-    pub fn Warn(self: *const LSelf, message: []const u8, args: anytype) !void {
+    pub fn Warn(self: *const LSelf, message: []const u8, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Warn)) return;
 
         var logentry = self.entry(Level.Warn, message, null, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
-    pub fn Error(self: *const LSelf, message: []const u8, err: anyerror, args: anytype) !void {
+    pub fn Error(self: *const LSelf, message: []const u8, err: anyerror, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Error)) return;
 
         var logentry = self.entry(Level.Error, message, err, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
-    pub fn Fatal(self: *const LSelf, message: []const u8, args: anytype) !void {
+    pub fn Fatal(self: *const LSelf, message: []const u8, err: anyerror, args: anytype) void {
         if (@intFromEnum(self.options.level) > @intFromEnum(Level.Fatal)) return;
 
-        var logentry = self.entry(Level.Fatal, message, null, args);
+        var logentry = self.entry(Level.Fatal, message, err, args);
         defer logentry.deinit();
         errdefer logentry.deinit();
 
-        try logentry.Send();
+        logentry.Send();
     }
 
     pub fn With(self: *const LSelf, name: []const u8, value: anytype) void {
@@ -382,25 +382,31 @@ pub const Logger = struct {
             }
         }
 
-        fn SendWriter(self: *Self, writer: anytype) !void {
+        fn SendWriter(self: *Self, writer: anytype) void {
             switch (self.options.format) {
                 inline .text => {
-                    try self.data.append("\n");
+                    self.data.append("\n") catch |err| {
+                        failureFn(self.options.internal_failure, "Failed to include data to the log buffer; {}", .{err});
+                    };
                 },
                 inline .json => {
-                    try self.data.append("}\n");
+                    self.data.append("}\n") catch |err| {
+                        failureFn(self.options.internal_failure, "Failed to include data to the log buffer; {}", .{err});
+                    };
                 },
             }
 
-            _ = try writer.write(self.data.bytes());
+            _ = writer.write(self.data.bytes()) catch |err| {
+                failureFn(self.options.internal_failure, "Failed to include data to the log buffer; {}", .{err});
+            };
 
             if (self.opLevel == .Fatal) {
                 @panic("fatal");
             }
         }
 
-        fn Send(self: *Self) !void {
-            try self.SendWriter(std.io.getStdOut().writer());
+        fn Send(self: *Self) void {
+            self.SendWriter(std.io.getStdOut().writer());
         }
 
         fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
