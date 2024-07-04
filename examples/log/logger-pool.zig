@@ -31,7 +31,7 @@ pub fn main() !void {
     defer pool.deinit();
     errdefer pool.deinit();
 
-    const logger = try zlog.initWithPool(arena.allocator(), &pool, .{
+    const logger = zlog.initWithPool(arena.allocator(), &pool, .{
         .level = zlog.Level.ParseString("trace"),
         .format = zlog.Format.json,
         .caller_enabled = true,

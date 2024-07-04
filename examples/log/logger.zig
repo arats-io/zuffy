@@ -23,7 +23,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = try zlog.init(arena.allocator(), .{
+    const logger = zlog.init(arena.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
         .format = zlog.Format.text,
         .caller_enabled = true,
