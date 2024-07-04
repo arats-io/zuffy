@@ -123,6 +123,18 @@ pub const StructUnionOptions = struct {
     dst_escape_characters: []const u8 = "\\\"",
 };
 
+pub fn Field(comptime T: type, key: []const u8, value: T) struct { key: []const u8, value: T } {
+    return .{
+        .key = key,
+        .value = value,
+    };
+}
+pub fn Source(value: std.builtin.SourceLocation) struct { src_value: std.builtin.SourceLocation } {
+    return .{
+        .src_value = value,
+    };
+}
+
 pub const Logger = struct {
     const LSelf = @This();
 
@@ -153,54 +165,121 @@ pub const Logger = struct {
         };
     }
 
-    inline fn entry(self: *const LSelf, comptime op: Level, message: []const u8) Entry {
+    inline fn entry(self: *const LSelf, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) Entry {
+        var buffer = Utf8Buffer.init(self.allocator);
+        errdefer buffer.deinit();
+        defer buffer.deinit();
+
+        if (err_value) |value| {
+            Entry.attribute(&buffer, self.options, self.options.error_field_name, @errorName(value));
+
+            if (self.options.stacktrace_ebabled) {
+                if (@errorReturnTrace()) |stacktrace| {
+                    const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
+                        break :res null;
+                    };
+                    if (debug_info) |di| {
+                        var buff = Utf8Buffer.init(self.allocator);
+                        errdefer buff.deinit();
+                        defer buff.deinit();
+
+                        std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color) catch |err| {
+                            Entry.failureFn(self.options.internal_failure, "Failed to include stacktrace to the log buffer; {}", .{err});
+                        };
+
+                        if (buff.length() > 0) {
+                            Entry.attribute(&buffer, self.options, self.options.stacktrace_field_name, buff.bytes());
+                        }
+                    }
+                }
+            }
+        }
+
+        inline for (0..args.len) |i| {
+            const arg_type = @TypeOf(args[i]);
+            if (@hasField(arg_type, "src_value")) {
+                if (self.options.caller_enabled) {
+                    const data = self.options.caller_marshal_fn(args[i].src_value);
+                    Entry.attribute(&buffer, self.options, self.options.caller_field_name, data);
+                }
+            }
+
+            if (@hasField(arg_type, "key") and @hasField(arg_type, "value")) {
+                Entry.attribute(&buffer, self.options, args[i].key, args[i].value);
+            }
+        }
+
         return Entry.init(
             self.allocator,
             if (self.buffer_pool) |pool| pool else null,
-            &self.static_fields,
             message,
-            null,
+            &self.static_fields,
+            &buffer,
             op,
-            if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
+            self.options,
         );
     }
 
-    inline fn entryWithError(self: *const LSelf, comptime op: Level, message: []const u8, err: anyerror) Entry {
-        return Entry.init(
-            self.allocator,
-            if (self.buffer_pool) |pool| pool else null,
-            &self.static_fields,
-            message,
-            err,
-            op,
-            if (@intFromEnum(self.options.level) > @intFromEnum(op)) null else self.options,
-        );
-    }
+    pub fn Trace(self: *const LSelf, message: []const u8, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Trace)) return;
 
-    pub fn Trace(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Trace, message);
+        var logentry = self.entry(Level.Trace, message, null, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
-    pub fn Debug(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Debug, message);
+    pub fn Debug(self: *const LSelf, message: []const u8, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Debug)) return;
+
+        var logentry = self.entry(Level.Debug, message, null, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
-    pub fn Info(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Info, message);
+    pub fn Info(self: *const LSelf, message: []const u8, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Info)) return;
+
+        var logentry = self.entry(Level.Info, message, null, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
-    pub fn Warn(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Warn, message);
+    pub fn Warn(self: *const LSelf, message: []const u8, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Warn)) return;
+
+        var logentry = self.entry(Level.Warn, message, null, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
-    pub fn Error(self: *const LSelf, message: anytype, err: anyerror) Entry {
-        return self.entryWithError(Level.Error, message, err);
+    pub fn Error(self: *const LSelf, message: []const u8, err: anyerror, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Error)) return;
+
+        var logentry = self.entry(Level.Error, message, err, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
-    pub fn Fatal(self: *const LSelf, message: anytype) Entry {
-        return self.entry(Level.Fatal, message);
+    pub fn Fatal(self: *const LSelf, message: []const u8, args: anytype) !void {
+        if (@intFromEnum(self.options.level) > @intFromEnum(Level.Fatal)) return;
+
+        var logentry = self.entry(Level.Fatal, message, null, args);
+        defer logentry.deinit();
+        errdefer logentry.deinit();
+
+        try logentry.Send();
     }
 
     pub fn With(self: *const LSelf, name: []const u8, value: anytype) void {
         Entry.attribute(&self.static_fields, self.options, name, value);
     }
 
-    pub const Entry = struct {
+    const Entry = struct {
         const Self = @This();
 
         allocator: std.mem.Allocator,
@@ -210,7 +289,7 @@ pub const Logger = struct {
         pool: ?*const GenericPool(Utf8Buffer),
         data: Utf8Buffer,
 
-        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), staticfields: *const Utf8Buffer, message: anytype, errorv: ?anyerror, opLevel: Level, options: ?Options) Self {
+        fn init(allocator: std.mem.Allocator, pool: ?*const GenericPool(Utf8Buffer), message: anytype, staticfields: *const Utf8Buffer, fields: *const Utf8Buffer, opLevel: Level, options: ?Options) Self {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
@@ -270,33 +349,16 @@ pub const Logger = struct {
                     },
                 }
 
+                // append the message
                 attribute(&data, opts, opts.message_field_name, message);
-                if (errorv) |err_val| {
-                    attribute(&data, opts, opts.error_field_name, @errorName(err_val));
 
-                    if (opts.stacktrace_ebabled) {
-                        if (@errorReturnTrace()) |stacktrace| {
-                            const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
-                                break :res null;
-                            };
-                            if (debug_info) |di| {
-                                var buff = Utf8Buffer.init(allocator);
-                                errdefer buff.deinit();
-                                defer buff.deinit();
-
-                                std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, .no_color) catch |err| {
-                                    failureFn(opts.internal_failure, "Failed to include stacktrace to the log buffer; {}", .{err});
-                                };
-
-                                if (buff.length() > 0) {
-                                    attribute(&data, opts, opts.stacktrace_field_name, buff.bytes());
-                                }
-                            }
-                        }
-                    }
-                }
-
+                // append the static logger fields
                 data.append(@constCast(staticfields).bytes()) catch |err| {
+                    failureFn(opts.internal_failure, "Failed to store static fields; {}", .{err});
+                };
+
+                // append the fields
+                data.append(@constCast(fields).bytes()) catch |err| {
                     failureFn(opts.internal_failure, "Failed to store static fields; {}", .{err});
                 };
             }
@@ -309,7 +371,7 @@ pub const Logger = struct {
             };
         }
 
-        pub fn deinit(self: *Self) void {
+        fn deinit(self: *Self) void {
             if (self.pool) |pool| {
                 self.data.clear();
                 pool.push(&self.data) catch |err| {
@@ -320,16 +382,7 @@ pub const Logger = struct {
             }
         }
 
-        pub fn Attr(self: *Self, key: []const u8, value: anytype) *Self {
-            if (self.options) |options| {
-                attribute(&self.data, options, key, value);
-                return self;
-            }
-
-            return self;
-        }
-
-        pub fn Source(self: *Self, src: std.builtin.SourceLocation) *Self {
+        fn Source(self: *Self, src: std.builtin.SourceLocation) *Self {
             if (self.options) |options| {
                 if (options.caller_enabled) {
                     const data = options.caller_marshal_fn(src);
@@ -340,10 +393,7 @@ pub const Logger = struct {
             return self;
         }
 
-        pub fn SendWriter(self: *Self, writer: anytype) !void {
-            defer self.deinit();
-            errdefer self.deinit();
-
+        fn SendWriter(self: *Self, writer: anytype) !void {
             if (self.options) |options| {
                 switch (options.format) {
                     inline .simple => {
@@ -362,20 +412,8 @@ pub const Logger = struct {
             }
         }
 
-        pub fn Send(self: *Self) !void {
-            try self.SendStdOut();
-        }
-
-        pub fn SendStdOut(self: *Self) !void {
+        fn Send(self: *Self) !void {
             try self.SendWriter(std.io.getStdOut().writer());
-        }
-
-        pub fn SendStdErr(self: *Self) !void {
-            try self.SendWriter(std.io.getStdErr().writer());
-        }
-
-        pub fn SendStdIn(self: *Self) !void {
-            try self.SendWriter(std.io.getStdIn().writer());
         }
 
         fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
