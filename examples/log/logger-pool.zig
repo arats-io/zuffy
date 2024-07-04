@@ -27,11 +27,11 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const pool = &(GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+    const pool = GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer);
     defer pool.deinit();
     errdefer pool.deinit();
 
-    const logger = try zlog.initWithPool(arena.allocator(), pool, .{
+    const logger = try zlog.initWithPool(arena.allocator(), &pool, .{
         .level = zlog.Level.ParseString("trace"),
         .format = zlog.Format.json,
         .caller_enabled = true,
