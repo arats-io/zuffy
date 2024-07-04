@@ -28,7 +28,7 @@ pub const TimeFormating = enum(u4) {
 };
 
 pub const Format = enum(u4) {
-    simple = 0,
+    text = 0,
     json = 1,
 };
 
@@ -293,7 +293,7 @@ pub const Logger = struct {
             var data = if (pool) |p| p.pop() else Utf8Buffer.initWithFactor(allocator, 10);
             if (options) |opts| {
                 switch (opts.format) {
-                    inline .simple => {
+                    inline .text => {
                         if (opts.time_enabled) {
                             const t = Time.new(opts.time_measure);
                             switch (opts.time_formating) {
@@ -384,7 +384,7 @@ pub const Logger = struct {
 
         fn SendWriter(self: *Self, writer: anytype) !void {
             switch (self.options.format) {
-                inline .simple => {
+                inline .text => {
                     try self.data.append("\n");
                 },
                 inline .json => {
@@ -446,7 +446,7 @@ pub const Logger = struct {
             }
 
             switch (options.format) {
-                inline .simple => {
+                inline .text => {
                     switch (ty) {
                         .Enum => data.appendf(" {s}=\u{0022}{s}\u{0022}", .{ key, @typeName(value) }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, @typeName(value), err });

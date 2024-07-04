@@ -25,7 +25,7 @@ pub fn main() !void {
 
     const logger = try zlog.Logger.init(arena.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
-        .format = zlog.Format.json,
+        .format = zlog.Format.text,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
