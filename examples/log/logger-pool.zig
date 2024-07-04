@@ -1,14 +1,11 @@
 const std = @import("std");
 const xstd = @import("xstd");
 
-const StringBuilder = xstd.bytes.StringBuilder;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const Buffer = xstd.bytes.Buffer;
 const GenericPool = xstd.pool.Generic;
 
 const zlog = xstd.zlog;
-
-const Time = xstd.time.Time;
 
 const Error = error{OutOfMemoryClient};
 

@@ -63,13 +63,59 @@ const logger = zlog.init(arena.allocator(), .{});
 
 ## Custom options:
 
+// Example not using any pool for internal created buffers
+
 ```zig
+const std = @import("std");
+const xstd = @import("xstd");
+
 const zlog = xstd.zlog;
 
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
 const logger = try zlog.init(arena.allocator(), .{
+    .level = zlog.Level.ParseString("trace"),
+    .format = zlog.Format.json,
+    .caller_enabled = true,
+    .caller_field_name = "caller",
+    .time_enabled = true,
+    .time_measure = .nanos,
+    .time_formating = .pattern,
+    .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
+});
+defer logger.deinit();
+
+logger.With("major_version", 1);
+logger.With("minor_version", 2);
+```
+
+// Example not using pool for internal buffers
+
+```zig
+const std = @import("std");
+const xstd = @import("xstd");
+
+const Utf8Buffer = xstd.bytes.Utf8Buffer;
+const Buffer = xstd.bytes.Buffer;
+const GenericPool = xstd.pool.Generic;
+
+const zlog = xstd.zlog;
+
+const NewUtf8Buffer = struct {
+    fn f(allocator: std.mem.Allocator) Utf8Buffer {
+        return Utf8Buffer.init(allocator);
+    }
+}.f;
+
+var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+defer arena.deinit();
+
+const pool = &(GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer));
+defer pool.deinit();
+errdefer pool.deinit();
+
+const logger = try zlog.initWithPool(arena.allocator(), pool, .{
     .level = zlog.Level.ParseString("trace"),
     .format = zlog.Format.json,
     .caller_enabled = true,
