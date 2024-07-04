@@ -110,6 +110,9 @@ pub const Options = struct {
     /// handler processing the source object data
     caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
 
+    /// handler writing the data
+    writer: std.fs.File = std.io.getStdOut(),
+
     /// struct marchalling to string options
     struct_union: StructUnionOptions = StructUnionOptions{},
 };
@@ -310,7 +313,7 @@ pub const Logger = struct {
         }
 
         // send data
-        _ = std.io.getStdOut().writer().write(buffer.bytes()) catch |err| {
+        _ = self.options.writer.write(buffer.bytes()) catch |err| {
             failureFn(self.options.internal_failure, "Failed to include data to the log buffer; {}", .{err});
         };
 
