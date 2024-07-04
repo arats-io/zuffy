@@ -14,7 +14,7 @@ Configuration for the logger with default values
 .{
     .level = Level.Info, // Log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
     .level_field_name = "level", // field name for the log level
-    .format = Format.json, // format for writing logs, possible values (json | simple)
+    .format = Format.json, // format for writing logs, possible values (json | text)
 
     // time related configuration options
     .time_enabled = false, // flag enabling/disabling the time  for each log record
