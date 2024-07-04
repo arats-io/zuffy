@@ -60,15 +60,15 @@ const logger = Logger.init(arena.allocator(), .{});
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
-const logger = try Logger.init(arena.allocator(), .{
-        .level = Level.ParseString("trace"),
-        .format = Format.json,
-        .caller_enabled = true,
-        .caller_field_name = "caller",
-        .time_enabled = true,
-        .time_measure = .nanos,
-        .time_formating = .pattern,
-        .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
+const logger = try zlog.Logger.init(arena.allocator(), .{
+    .level = zlog.Level.ParseString("trace"),
+    .format = zlog.Format.json,
+    .caller_enabled = true,
+    .caller_field_name = "caller",
+    .time_enabled = true,
+    .time_measure = .nanos,
+    .time_formating = .pattern,
+    .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
 });
 defer logger.deinit();
 
@@ -79,41 +79,57 @@ logger.With("minor_version", 2);
 ## Examples:
 
 ```zig
-try @constCast(&logger.Trace("Initialization..."))
-    .Source(@src())
-    .Attr("attribute-null", null)
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-
-try @constCast(&logger.Debug("Initialization..."))
-    .Source(@src())
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-
-try @constCast(&logger.Info("Initialization..."))
-    .Source(@src())
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-
-try @constCast(&logger.Warn("Initialization..."))
-    .Source(@src())
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-
-try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
-    .Source(@src())
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
+logger.Trace(
+    "Initialization...",
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
+logger.Debug(
+    "Initialization...",
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
+logger.Info(
+    "Initialization...",
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
+logger.Warn(
+    "Initialization...",
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
+logger.Error(
+    "Initialization...",
+    Error.OutOfMemoryClient,
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
 ```
 
 Output:

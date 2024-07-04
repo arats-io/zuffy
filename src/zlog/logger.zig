@@ -225,14 +225,6 @@ pub const Logger = struct {
 
         // add the timstamp
         const opts = self.options;
-        switch (opts.format) {
-            inline .json => {
-                buffer.append("{") catch |err| {
-                    failureFn(self.options.internal_failure, "Failed to include data to the log buffer; {}", .{err});
-                };
-            },
-            inline else => {},
-        }
         if (opts.time_enabled) {
             const t = Time.new(opts.time_measure);
 
@@ -431,30 +423,30 @@ pub const Logger = struct {
                 }
             },
             inline .json => {
-                const comma = if (first) "" else ",";
+                const comma = if (first) "{" else ", ";
                 switch (ty) {
-                    .Enum => data.appendf("{s} \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, @typeName(value) }) catch |err| {
+                    .Enum => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, @typeName(value) }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, @typeName(value), err });
                     },
-                    .Bool => data.appendf("{s} \u{0022}{s}\u{0022}: {s}", .{ comma, key, if (value) "true" else "false" }) catch |err| {
+                    .Bool => data.appendf("{s}\u{0022}{s}\u{0022}: {s}", .{ comma, key, if (value) "true" else "false" }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                     },
                     .Pointer => |ptr_info| switch (ptr_info.size) {
-                        .Slice, .Many, .One, .C => data.appendf("{s} \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, value }) catch |err| {
+                        .Slice, .Many, .One, .C => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, value }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{s}; {}", .{ key, value, err });
                         },
                     },
                     .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s} \u{0022}{s}\u{0022}:{}", .{ comma, key, value }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                     },
-                    .ErrorSet => data.appendf("{s} \u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, @errorName(value) }) catch |err| {
+                    .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ comma, key, @errorName(value) }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                     },
-                    .Null => data.appendf("{s} \u{0022}{s}\u{0022}:null", .{ comma, key }) catch |err| {
+                    .Null => data.appendf("{s}\u{0022}{s}\u{0022}:null", .{ comma, key }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:null; {}", .{ key, err });
                     },
                     .Struct, .Union => {
-                        data.appendf("{s} \u{0022}{s}\u{0022}:", .{ comma, key }) catch |err| {
+                        data.appendf("{s}\u{0022}{s}\u{0022}:", .{ comma, key }) catch |err| {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}; {}", .{ key, err });
                         };
 
@@ -462,7 +454,7 @@ pub const Logger = struct {
                             failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                         };
                     },
-                    else => data.appendf("{s} \u{0022}{s}\u{0022}: \u{0022}{}\u{0022}", .{ comma, key, value }) catch |err| {
+                    else => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{}\u{0022}", .{ comma, key, value }) catch |err| {
                         failureFn(options.internal_failure, "Failed to consider attribute {s}:{}; {}", .{ key, value, err });
                     },
                 }
