@@ -203,25 +203,21 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
 }
 
 inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) void {
-    var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.initWithFactor(self.allocator, 10);
+    var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.initWithFactor(self.allocator, 2);
     errdefer {
+        buffer.deinit();
         if (self.buffer_pool) |p| {
-            buffer.clear();
             p.push(&buffer) catch |err| {
                 std.debug.print("Error - {any}", .{err});
             };
-        } else {
-            buffer.deinit();
         }
     }
     defer {
+        buffer.deinit();
         if (self.buffer_pool) |p| {
-            buffer.clear();
             p.push(&buffer) catch |err| {
                 std.debug.print("Error - {any}", .{err});
             };
-        } else {
-            buffer.deinit();
         }
     }
 
@@ -329,26 +325,26 @@ fn attribute(first: bool, staticfields: *const Utf8Buffer, config: Config, key: 
     switch (ty) {
         .ErrorUnion => {
             if (value) |payload| {
-                return attribute(first, staticfields, config, key, payload);
+                attribute(first, staticfields, config, key, payload);
             } else |err| {
-                return attribute(first, staticfields, config, key, err);
+                attribute(first, staticfields, config, key, err);
             }
         },
         .Type => {
-            return attribute(first, staticfields, config, key, @typeName(value));
+            attribute(first, staticfields, config, key, @typeName(value));
         },
         .EnumLiteral => {
             const buffer = [_]u8{'.'} ++ @tagName(value);
-            return attribute(first, staticfields, config, key, buffer);
+            attribute(first, staticfields, config, key, buffer);
         },
         .Void => {
-            return attribute(first, staticfields, config, key, "void");
+            attribute(first, staticfields, config, key, "void");
         },
         .Optional => {
             if (value) |payload| {
-                return attribute(first, staticfields, config, key, payload);
+                attribute(first, staticfields, config, key, payload);
             } else {
-                return attribute(first, staticfields, config, key, null);
+                attribute(first, staticfields, config, key, null);
             }
         },
         .Fn => {},
