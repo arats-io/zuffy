@@ -36,15 +36,15 @@ pub fn main() !void {
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .internal_failure = .panic,
     });
+    defer logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
     const start = std.time.nanoTimestamp();
     for (0..max) |_| {
         var startTime = std.time.nanoTimestamp();
-        var trace = logger.Trace();
+        var trace = logger.Trace("Initialization...");
         try trace
-            .Message("Initialization...")
             .Source(@src())
             .Attr("attribute-null", null)
             .Attr("database", "mydb")
@@ -54,8 +54,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @as(*Logger.Entry, @constCast(&logger.Debug()))
-            .Message("Initialization...")
+        try @as(*Logger.Entry, @constCast(&logger.Debug("Initialization...")))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -64,8 +63,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Info())
-            .Message("Initialization...")
+        try @constCast(&logger.Info("Initialization..."))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -74,8 +72,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Warn())
-            .Message("Initialization...")
+        try @constCast(&logger.Warn("Initialization..."))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
@@ -84,13 +81,11 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Error())
-            .Message("Initialization...")
+        try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
             .Source(@src())
             .Attr("database", "mydb")
             .Attr("counter", 34)
             .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Error(Error.OutOfMemoryClient)
             .Send();
         m += (std.time.nanoTimestamp() - startTime);
     }
