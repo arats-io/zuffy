@@ -53,19 +53,23 @@ Configuration for the logger with default values
 ## Default configuration:
 
 ```zig
+const zlog = xstd.zlog;
+
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
-const logger = Logger.init(arena.allocator(), .{});
+const logger = zlog.init(arena.allocator(), .{});
 ```
 
 ## Custom options:
 
 ```zig
+const zlog = xstd.zlog;
+
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
 
-const logger = try zlog.Logger.init(arena.allocator(), .{
+const logger = try zlog.init(arena.allocator(), .{
     .level = zlog.Level.ParseString("trace"),
     .format = zlog.Format.json,
     .caller_enabled = true,
@@ -140,36 +144,9 @@ logger.Error(
 Output:
 
 ```json
-{"time": "2024 Jul 3rd Wed 20:33:13.623470000 UTC+02:00 - 3rd", "level": "trace", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:61", "attribute-null":null, "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2024 Jul 3rd Wed 20:33:13.623488000 UTC+02:00 - 3rd", "level": "debug", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:71", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2024 Jul 3rd Wed 20:33:13.623493000 UTC+02:00 - 3rd", "level": "info", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:80", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2024 Jul 3rd Wed 20:33:13.623499000 UTC+02:00 - 3rd", "level": "warn", "message": "Initialization...", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:89", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
-{"time": "2024 Jul 3rd Wed 20:33:13.623534000 UTC+02:00 - 3rd", "level": "error", "message": "Initialization...", "error": "OutOfMemoryClient", "version": "1.0", "git_commit": "145345345345345", "caller": "examples/log/logger-pool.zig:98", "database": "mydb", "counter":34, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 4th Thu 17:37:05.80451000 UTC+01:00 - 3rd", "level": "trace", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:62", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 4th Thu 17:37:05.80507000 UTC+01:00 - 3rd", "level": "debug", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:76", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 4th Thu 17:37:05.80564000 UTC+01:00 - 3rd", "level": "info", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:89", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 4th Thu 17:37:05.80621000 UTC+01:00 - 3rd", "level": "warn", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:102", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
+{"time": "2024 Jul 4th Thu 17:37:05.80679000 UTC+01:00 - 3rd", "level": "error", "msg": "Initialization...", "major_version":1, "minor_version":2, "error": "OutOfMemoryClient", "caller": "examples/log/logger-pool.zig:116", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
 ```
-
-Additional examples:
-
-- Make the trace as a separate variable
-
-  ```zig
-  var trace = logger.Trace("Initialization...");
-  try trace
-    .Source(@src())
-    .Attr("attribute-null", null)
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-  ```
-
-- Make the trace as a separate variable
-
-  ```zig
-  try @as(*Logger.Entry, @constCast(&logger.Debug("Initialization...")))
-    .Source(@src())
-    .Attr("attribute-null", null)
-    .Attr("database", "mydb")
-    .Attr("counter", 34)
-    .Attr("element1", Element{ .int = 32, .string = "Element1" })
-    .Send();
-  ```
