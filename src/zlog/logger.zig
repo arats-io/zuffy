@@ -382,17 +382,6 @@ pub const Logger = struct {
             }
         }
 
-        fn Source(self: *Self, src: std.builtin.SourceLocation) *Self {
-            if (self.options) |options| {
-                if (options.caller_enabled) {
-                    const data = options.caller_marshal_fn(src);
-                    return self.Attr(options.caller_field_name[0..], data);
-                }
-            }
-
-            return self;
-        }
-
         fn SendWriter(self: *Self, writer: anytype) !void {
             if (self.options) |options| {
                 switch (options.format) {
