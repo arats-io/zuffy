@@ -5,9 +5,7 @@ const StringBuilder = xstd.bytes.StringBuilder;
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const Buffer = xstd.bytes.Buffer;
 
-const Logger = xstd.zlog.Logger;
-const Level = xstd.zlog.Level;
-const Format = xstd.zlog.Format;
+const zlog = xstd.zlog;
 
 const Time = xstd.time.Time;
 
@@ -25,68 +23,88 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const logger = try Logger.init(arena.allocator(), .{
-        .level = Level.ParseString("trace"),
-        .format = Format.json,
+    const logger = zlog.init(arena.allocator(), .{
+        .level = zlog.Level.ParseString("trace"),
+        .format = zlog.Format.text,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
-        .internal_failure = .panic,
     });
     defer logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
     const start = std.time.nanoTimestamp();
-    for (0..max) |_| {
+    const value_database = "mydb";
+    for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
-        var trace = logger.Trace("Initialization...");
-        try trace
-            .Source(@src())
-            .Attr("attribute-null", null)
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
+        logger.Trace(
+            "Initialization...",
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
+
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @as(*Logger.Entry, @constCast(&logger.Debug("Initialization...")))
-            .Source(@src())
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
+        logger.Debug(
+            "Initialization...",
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Info("Initialization..."))
-            .Source(@src())
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
+        logger.Info(
+            "Initialization...",
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Warn("Initialization..."))
-            .Source(@src())
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
+        logger.Warn(
+            "Initialization...",
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try @constCast(&logger.Error("Initialization...", Error.OutOfMemoryClient))
-            .Source(@src())
-            .Attr("database", "mydb")
-            .Attr("counter", 34)
-            .Attr("element1", Element{ .int = 32, .string = "Element1" })
-            .Send();
+        logger.Error(
+            "Initialization...",
+            Error.OutOfMemoryClient,
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
         m += (std.time.nanoTimestamp() - startTime);
     }
 
