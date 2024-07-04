@@ -8,7 +8,7 @@ Is providing a more flexible way to deal with the logs, with a following average
 
 # Configuration
 
-Configuration options for the logger with default values
+Configuration for the logger with default values
 
 ```zig
 .{
@@ -23,8 +23,11 @@ Configuration options for the logger with default values
     .time_formating = TimeFormating.timestamp, // time formating, possible values (timestamp | pattern)
     .time_pattern = "DD/MM/YYYY'T'HH:mm:ss", // petttern of time representation, applicable when .time_formating is sen on .pattern
 
-    .message_field_name: = "message", // field name for the message
+    .message_field_name: = "msg", // field name for the message
     .error_field_name = "error", // field name for the error
+
+    .stacktrace_ebabled = false, // flag enabling/disabling the error tracing reporting in the log
+    .stacktrace_field_name = "stacktrace", // field name for the error stacktrace
 
     .internal_failure = InternalFailure.nothing, // indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
 
@@ -32,6 +35,8 @@ Configuration options for the logger with default values
     .caller_enabled = false,  // flag enabling/disabling the caller reporting in the log
     .caller_field_name = "caller", // field name for the caller source
     .caller_marshal_fn = default_caller_marshal_fn, // handler processing the source object data
+
+    .writer = std.io.getStdOut(), // handler writing the data
 
     // struct marchalling to string options
     .struct_union: = StructUnionOptions{
