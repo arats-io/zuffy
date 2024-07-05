@@ -185,8 +185,8 @@ fn _copy(comptime Type: type, dest: []Type, src: []const Type) void {
 
     if (@intFromPtr(src.ptr) == @intFromPtr(dest.ptr) or src.len == 0) return;
 
-    const input: []const u8 = std.mem.sliceAsBytes(src);
-    const output: []u8 = std.mem.sliceAsBytes(dest);
+    const input: []const Type = std.mem.sliceAsBytes(src);
+    const output: []Type = std.mem.sliceAsBytes(dest);
 
     assert(input.len > 0);
     assert(output.len > 0);
@@ -199,7 +199,7 @@ fn _copy(comptime Type: type, dest: []Type, src: []const Type) void {
     if (is_input_or_output_overlaping) {
         @memcpy(output, input);
     } else {
-        std.mem.copyBackwards(u8, output, input);
+        std.mem.copyBackwards(Type, output, input);
     }
 }
 
