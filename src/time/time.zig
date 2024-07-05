@@ -207,16 +207,15 @@ pub const Time = struct {
     }
 
     pub fn formatfInto(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
-        var sb = try self.format(allocator, pattern);
-        defer sb.deinit();
+        var sb = try Utf8Buffer.initWithCapacity(allocator, pattern.len);
         errdefer sb.deinit();
+        defer sb.deinit();
+
+        try self.format(@constCast(&sb.writer()), pattern);
         return try sb.bytesInto(dst);
     }
 
-    fn format(self: Self, allocator: std.mem.Allocator, pattern: []const u8) !Utf8Buffer {
-        var sb = try Utf8Buffer.initWithCapacity(allocator, pattern.len);
-        errdefer sb.deinit();
-
+    fn format(self: Self, writer: anytype, pattern: []const u8) !void {
         var i: usize = 0;
         while (i < pattern.len) {
             var j: usize = 4;
@@ -232,33 +231,31 @@ pub const Time = struct {
                 const l4 = j == 4 and in(4, slice);
                 if (l1 or l2 or l3 or l4) {
                     const token = pattern.ptr[i .. i + j];
-                    try self.appendToken(token, @constCast(&sb));
+                    try self.appendToken(token, writer);
                     i += (j - 1);
                     break;
                 }
             }
             i += 1;
         }
-
-        return sb;
     }
 
-    fn appendToken(self: Self, token: []const u8, sb: *Utf8Buffer) !void {
+    fn appendToken(self: Self, token: []const u8, writer: anytype) !void {
         const date_time = self.dateTime();
 
         if (std.mem.eql(u8, token, "YYYY")) {
-            try sb.appendf("{d}", .{date_time.year});
+            try writer.print("{d}", .{date_time.year});
         } else if (std.mem.eql(u8, token, "MMMM")) {
-            try sb.appendf("{s}", .{self.getMonth().string()});
+            try writer.print("{s}", .{self.getMonth().string()});
         } else if (std.mem.eql(u8, token, "MMM")) {
-            try sb.appendf("{s}", .{self.getMonth().shortString()});
+            try writer.print("{s}", .{self.getMonth().shortString()});
         } else if (std.mem.eql(u8, token, "MM")) {
             if (date_time.month < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.month});
+            try writer.print("{d}", .{date_time.month});
         } else if (std.mem.eql(u8, token, "M")) {
-            try sb.appendf("{d}", .{date_time.month});
+            try writer.print("{d}", .{date_time.month});
         } else if (std.mem.eql(u8, token, "Mo")) {
             const suffix = switch (date_time.month) {
                 1 => "st",
@@ -266,14 +263,14 @@ pub const Time = struct {
                 3 => "rd",
                 else => "th",
             };
-            try sb.appendf("{d}{s}", .{ date_time.month, suffix });
+            try writer.print("{d}{s}", .{ date_time.month, suffix });
         } else if (std.mem.eql(u8, token, "DD")) {
             if (date_time.day < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.day});
+            try writer.print("{d}", .{date_time.day});
         } else if (std.mem.eql(u8, token, "D")) {
-            try sb.appendf("{d}", .{date_time.day});
+            try writer.print("{d}", .{date_time.day});
         } else if (std.mem.eql(u8, token, "Do")) {
             const rem = @rem(date_time.day, 30);
             const suffix = switch (rem) {
@@ -282,17 +279,17 @@ pub const Time = struct {
                 3 => "rd",
                 else => "th",
             };
-            try sb.appendf("{d}{s}", .{ date_time.day, suffix });
+            try writer.print("{d}{s}", .{ date_time.day, suffix });
         } else if (std.mem.eql(u8, token, "DDDD")) {
             if (date_time.yday < 10) {
-                try sb.appendf("00{d}", .{date_time.yday});
+                try writer.print("00{d}", .{date_time.yday});
             } else if (date_time.yday < 100) {
-                try sb.appendf("0{d}", .{date_time.yday});
+                try writer.print("0{d}", .{date_time.yday});
             } else {
-                try sb.appendf("{d}", .{date_time.yday});
+                try writer.print("{d}", .{date_time.yday});
             }
         } else if (std.mem.eql(u8, token, "DDD")) {
-            try sb.appendf("{d}", .{date_time.yday});
+            try writer.print("{d}", .{date_time.yday});
         } else if (std.mem.eql(u8, token, "DDDo")) {
             const rem = @rem(date_time.yday, daysBefore[date_time.month]);
             const suffix = switch (rem) {
@@ -301,80 +298,80 @@ pub const Time = struct {
                 3 => "rd",
                 else => "th",
             };
-            try sb.appendf("{d}{s}", .{ date_time.yday, suffix });
+            try writer.print("{d}{s}", .{ date_time.yday, suffix });
         } else if (std.mem.eql(u8, token, "HH")) {
             if (date_time.hour < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.hour});
+            try writer.print("{d}", .{date_time.hour});
         } else if (std.mem.eql(u8, token, "H")) {
-            try sb.appendf("{d}", .{date_time.hour});
+            try writer.print("{d}", .{date_time.hour});
         } else if (std.mem.eql(u8, token, "kk")) {
             if (date_time.hour < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.hour});
+            try writer.print("{d}", .{date_time.hour});
         } else if (std.mem.eql(u8, token, "k")) {
-            try sb.appendf("{d}", .{date_time.hour});
+            try writer.print("{d}", .{date_time.hour});
         } else if (std.mem.eql(u8, token, "hh")) {
             const h = @rem(date_time.hour, 12);
-            try sb.appendf("{d}", .{h});
+            try writer.print("{d}", .{h});
         } else if (std.mem.eql(u8, token, "h")) {
             const h = @rem(date_time.hour, 12);
             if (h < 10) {
-                try sb.append("0");
-                try sb.appendf("0{d}", .{h});
+                _ = try writer.write("0");
+                try writer.print("0{d}", .{h});
             } else {
-                try sb.appendf("{d}", .{h});
+                try writer.print("{d}", .{h});
             }
         } else if (std.mem.eql(u8, token, "mm")) {
             if (date_time.min < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.min});
+            try writer.print("{d}", .{date_time.min});
         } else if (std.mem.eql(u8, token, "m")) {
-            try sb.appendf("{d}", .{date_time.min});
+            try writer.print("{d}", .{date_time.min});
         } else if (std.mem.eql(u8, token, "ss")) {
             if (date_time.sec < 10) {
-                try sb.append("0");
+                _ = try writer.write("0");
             }
-            try sb.appendf("{d}", .{date_time.sec});
+            try writer.print("{d}", .{date_time.sec});
         } else if (std.mem.eql(u8, token, "s")) {
-            try sb.appendf("{d}", .{date_time.sec});
+            try writer.print("{d}", .{date_time.sec});
         } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
-            try sb.appendf("{d}", .{self.rest});
+            try writer.print("{d}", .{self.rest});
         } else if (std.mem.eql(u8, token, "a") or std.mem.eql(u8, token, "A")) {
             if (date_time.hour <= 11) {
-                try sb.append("AM");
+                _ = try writer.write("AM");
             } else {
-                try sb.append("PM");
+                _ = try writer.write("PM");
             }
         } else if (std.mem.eql(u8, token, "c") or std.mem.eql(u8, token, "d")) {
-            try sb.appendf("{d}", .{date_time.wday});
+            try writer.print("{d}", .{date_time.wday});
         } else if (std.mem.eql(u8, token, "dd")) {
-            try sb.appendf("{s}", .{self.getWeekday().shorterString()});
+            try writer.print("{s}", .{self.getWeekday().shorterString()});
         } else if (std.mem.eql(u8, token, "ddd")) {
-            try sb.appendf("{s}", .{self.getWeekday().shortString()});
+            try writer.print("{s}", .{self.getWeekday().shortString()});
         } else if (std.mem.eql(u8, token, "dddd")) {
-            try sb.appendf("{s}", .{self.getWeekday().string()});
+            try writer.print("{s}", .{self.getWeekday().string()});
         } else if (std.mem.eql(u8, token, "ZZZ")) {
-            try self.zzz(sb, ":");
+            try self.zzz(writer, ":");
         } else if (std.mem.eql(u8, token, "ZZ")) {
-            try self.zzz(sb, "");
+            try self.zzz(writer, "");
         } else if (std.mem.eql(u8, token, "Z")) {
             const h = @divFloor(self.offset.?, std.time.s_per_hour);
             if (h > 0) {
-                try sb.append("+");
+                _ = try writer.write("+");
             }
-            try sb.appendf("{d}", .{h});
+            try writer.print("{d}", .{h});
         } else if (std.mem.eql(u8, token, "NN")) {
-            try sb.append("BC");
+            _ = try writer.write("BC");
         } else if (std.mem.eql(u8, token, "N")) {
-            try sb.append("Before Christ");
+            _ = try writer.write("Before Christ");
         } else if (std.mem.eql(u8, token, "w")) {
             const l: u32 = if (isLeap(date_time.year)) 1 else 0;
             const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-            try sb.appendf("{d}", .{wy});
+            try writer.print("{d}", .{wy});
         } else if (std.mem.eql(u8, token, "wo")) {
             const l: u32 = if (isLeap(date_time.year)) 1 else 0;
             const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
@@ -384,21 +381,21 @@ pub const Time = struct {
                 3 => "rd",
                 else => "th",
             };
-            try sb.appendf("{d}{s}", .{ wy, suffix });
+            try writer.print("{d}{s}", .{ wy, suffix });
         } else if (std.mem.eql(u8, token, "ww")) {
             const l: u32 = if (isLeap(date_time.year)) 1 else 0;
             const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
             if (wy < 10) {
-                try sb.appendf("0{d}", .{wy});
+                try writer.print("0{d}", .{wy});
             } else {
-                try sb.appendf("{d}", .{wy});
+                try writer.print("{d}", .{wy});
             }
         } else if (std.mem.eql(u8, token, "QQ")) {
             const q = @divTrunc(date_time.month - 1, 3) + 1;
-            try sb.appendf("0{d}", .{q});
+            try writer.print("0{d}", .{q});
         } else if (std.mem.eql(u8, token, "Q")) {
             const q = @divTrunc(date_time.month - 1, 3) + 1;
-            try sb.appendf("0{d}", .{q});
+            try writer.print("0{d}", .{q});
         } else if (std.mem.eql(u8, token, "Qo")) {
             const q = @divTrunc(date_time.month - 1, 3) + 1;
             const suffix = switch (q) {
@@ -407,9 +404,9 @@ pub const Time = struct {
                 3 => "rd",
                 else => "th",
             };
-            try sb.appendf("{d}{s}", .{ q, suffix });
+            try writer.print("{d}{s}", .{ q, suffix });
         } else {
-            try sb.append(token);
+            _ = try writer.write(token);
         }
     }
 
@@ -420,25 +417,25 @@ pub const Time = struct {
         return @as(Month, @enumFromInt(self.dateTime().month));
     }
 
-    fn zzz(self: Self, sb: *Utf8Buffer, delimeter: []const u8) !void {
+    fn zzz(self: Self, writer: anytype, delimeter: []const u8) !void {
         var h = @divFloor(self.offset.?, std.time.s_per_hour);
         if (h > 0) {
-            try sb.append("+");
+            _ = try writer.write("+");
         } else if (h < 0) {
-            try sb.append("-");
+            _ = try writer.write("-");
             h = @as(i32, @intCast(@abs(h)));
         }
         if (h < 10) {
-            try sb.appendf("0{d}", .{h});
+            try writer.print("0{d}", .{h});
         } else {
-            try sb.appendf("{d}", .{h});
+            try writer.print("{d}", .{h});
         }
 
         const m = @as(i32, @intCast(@divFloor(@as(i32, @intCast(@abs(self.offset.?))) - h * std.time.s_per_hour, std.time.s_per_min)));
         if (m < 10) {
-            try sb.appendf("{s}0{d}", .{ delimeter, m });
+            try writer.print("{s}0{d}", .{ delimeter, m });
         } else {
-            try sb.appendf("{s}{d}", .{ delimeter, m });
+            try writer.print("{s}{d}", .{ delimeter, m });
         }
     }
 };

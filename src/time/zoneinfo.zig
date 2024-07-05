@@ -299,8 +299,8 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
     try sources.append("/etc");
 
     const z = try loadLocation(allocator, "localtime", sources);
-    var buff = [_]u8{undefined} ** 100;
-    const extend = try std.fmt.bufPrint(&buff, "{s}", .{z.extend});
+    var buf: [1024]u8 = undefined;
+    const extend = try std.fmt.bufPrint(&buf, "{s}", .{z.extend.ptr[0..z.extend.len]});
     return Location{
         .zone = z.zone,
         .tx = z.tx,
@@ -474,24 +474,28 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var t = @as(usize, @intCast(n[NTime] * size));
     var txtimes = Buffer.initWithFactor(allocator, 10);
     defer txtimes.deinit();
+    errdefer txtimes.deinit();
     try txtimes.writeBytes(in_data, t);
 
     // Time zone indices for transition times.
     t = @as(usize, @intCast(n[NTime]));
     var txzones = Buffer.initWithFactor(allocator, 10);
     defer txzones.deinit();
+    errdefer txzones.deinit();
     try txzones.writeBytes(in_data, t);
 
     // Zone info structures
     t = @as(usize, @intCast(n[NZone] * 6));
     var zonedata = Buffer.initWithFactor(allocator, 10);
     defer zonedata.deinit();
+    errdefer zonedata.deinit();
     try zonedata.writeBytes(in_data, t);
 
     // Time zone abbreviations.
     t = @as(usize, @intCast(n[NChar]));
     var abbrev = Buffer.initWithFactor(allocator, 10);
     defer abbrev.deinit();
+    errdefer abbrev.deinit();
     try abbrev.writeBytes(in_data, t);
 
     // Leap-second time pairs
@@ -504,6 +508,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
 
     var isstd = Buffer.initWithFactor(allocator, 10);
     defer isstd.deinit();
+    errdefer isstd.deinit();
     try isstd.writeBytes(in_data, t);
 
     // Whether tx times associated with local time types
@@ -511,6 +516,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     t = @as(usize, @intCast(n[NUTCLocal]));
     var isutc = Buffer.initWithFactor(allocator, 10);
     defer isutc.deinit();
+    errdefer isutc.deinit();
     try isutc.writeBytes(in_data, t);
 
     var extent_buff: [1024]u8 = undefined;
