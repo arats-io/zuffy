@@ -559,7 +559,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             }
         }
         var buf: [1024]u8 = undefined;
-        const s = try std.fmt.bufPrint(&buf, "{s}", .{zname});
+        const s = try std.fmt.bufPrint(&buf, "{s}", .{zname.ptr[0..b]});
         zonesBuff[idx] = zone{ .name = s, .offset = offset, .isDST = isDST };
     }
     const zones = zonesBuff[0..nzone];

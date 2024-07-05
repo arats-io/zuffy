@@ -212,7 +212,7 @@
             "environment": [
                 {
                     "name": "TZ",
-                    "value": "Europe/Tiraspol.zip"
+                    "value": "Europe/Tiraspol"
                 },
             ],
             "externalConsole": false,
