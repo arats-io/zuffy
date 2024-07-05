@@ -100,7 +100,7 @@ pub const Config = struct {
     stacktrace_field_name: []const u8 = "stacktrace",
 
     /// indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
-    internal_failure: InternalFailure = InternalFailure.nothing,
+    internal_failure: InternalFailure = InternalFailure.panic,
 
     /// caller related configuration options
     /// flag enabling/disabling the caller reporting in the log
@@ -317,34 +317,34 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     }
 }
 
-fn attribute(first: bool, staticfields: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) void {
-    var data = @constCast(staticfields);
+fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) void {
+    var data: *Utf8Buffer = @constCast(buffer);
+
     const T = @TypeOf(value);
     const ty = @typeInfo(T);
-
     switch (ty) {
         .ErrorUnion => {
             if (value) |payload| {
-                attribute(first, staticfields, config, key, payload);
+                return attribute(first, buffer, config, key, payload);
             } else |err| {
-                attribute(first, staticfields, config, key, err);
+                return attribute(first, buffer, config, key, err);
             }
         },
         .Type => {
-            attribute(first, staticfields, config, key, @typeName(value));
+            return attribute(first, buffer, config, key, @typeName(value));
         },
         .EnumLiteral => {
-            const buffer = [_]u8{'.'} ++ @tagName(value);
-            attribute(first, staticfields, config, key, buffer);
+            const buf = [_]u8{'.'} ++ @tagName(value);
+            return attribute(first, buffer, config, key, buf);
         },
         .Void => {
-            attribute(first, staticfields, config, key, "void");
+            return attribute(first, buffer, config, key, "void");
         },
         .Optional => {
             if (value) |payload| {
-                attribute(first, staticfields, config, key, payload);
+                return attribute(first, buffer, config, key, payload);
             } else {
-                attribute(first, staticfields, config, key, null);
+                return attribute(first, buffer, config, key, null);
             }
         },
         .Fn => {},
@@ -408,6 +408,19 @@ fn attribute(first: bool, staticfields: *const Utf8Buffer, config: Config, key: 
                         };
                     }
                 },
+                .Array => {
+                    data.appendf("{s}{s}=\u{0022}[", .{ header, key }) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
+                    };
+
+                    for (value, 0..) |elem, i| {
+                        attributeSingle(i == 0, buffer, config, elem);
+                    }
+
+                    data.appendf("]\u{0022}", .{}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
+                    };
+                },
                 else => data.appendf("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }) catch |err| {
                     failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
                 },
@@ -445,8 +458,154 @@ fn attribute(first: bool, staticfields: *const Utf8Buffer, config: Config, key: 
                         failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
                     };
                 },
+                .Array => {
+                    data.appendf("{s}\u{0022}{s}\u{0022}: [", .{ header, key }) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
+                    };
+
+                    for (value, 0..) |elem, i| {
+                        attributeSingle(i == 0, buffer, config, elem);
+                    }
+
+                    data.appendf("]", .{}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
+                    };
+                },
                 else => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{any}\u{0022}", .{ header, key, value }) catch |err| {
                     failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
+                },
+            }
+        },
+    }
+}
+
+fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) void {
+    var data: *Utf8Buffer = @constCast(buffer);
+
+    const T = @TypeOf(value);
+    const ty = @typeInfo(T);
+    switch (config.format) {
+        inline .text => {
+            const header = if (first) "" else " ";
+            switch (ty) {
+                .Enum => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ @typeName(value), err });
+                },
+                .Bool => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+                .Pointer => |ptr_info| switch (ptr_info.size) {
+                    .Slice => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, value }) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
+                    },
+                    else => {},
+                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}{any}", .{ header, value }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+                .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
+                },
+                .Null => data.appendf("{s}null", .{header}) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute null; {any}", .{err});
+                },
+                .Struct, .Union => {
+                    if (config.struct_union.escape_enabled) {
+                        data.appendf("{s}\u{0022}", .{header}) catch |err| {
+                            failureFn(config.internal_failure, "Failed to consider struct json  attribute; {any}", .{err});
+                        };
+                    } else {
+                        data.appendf("{s}", .{header}) catch |err| {
+                            failureFn(config.internal_failure, "Failed to consider struct json  attribute; {any}", .{err});
+                        };
+                    }
+
+                    const cPos = data.length();
+                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                    };
+
+                    if (config.struct_union.escape_enabled) {
+                        _ = data.replaceAllFromPos(
+                            cPos,
+                            config.struct_union.src_escape_characters,
+                            config.struct_union.dst_escape_characters,
+                        ) catch |err| {
+                            failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                        };
+                    }
+
+                    if (config.struct_union.escape_enabled) {
+                        data.appendf("\u{0022}", .{}) catch |err| {
+                            failureFn(config.internal_failure, "Failed to consider struct json attribute; {any}", .{err});
+                        };
+                    }
+                },
+                .Array => {
+                    data.appendf("{s} [", .{header}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
+                    };
+
+                    for (value, 0..) |elem, i| {
+                        attributeSingle(i == 0, buffer, config, elem);
+                    }
+
+                    data.appendf("]", .{}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
+                    };
+                },
+                else => data.appendf("{s}\u{0022}{any}\u{0022}", .{ header, value }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+            }
+        },
+        inline .json => {
+            const header = if (first) "" else ", ";
+            switch (ty) {
+                .Enum => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ @typeName(value), err });
+                },
+                .Bool => data.appendf("{s}{s}", .{ header, if (value) "true" else "false" }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+                .Pointer => |ptr_info| switch (ptr_info.size) {
+                    .Slice, .Many, .One, .C => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, value }) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
+                    },
+                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}{any}", .{ header, value }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+                .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                },
+                .Null => data.appendf("{s}null", .{header}) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute null; {any}", .{err});
+                },
+                .Struct, .Union => {
+                    data.appendf("{s}", .{header}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
+                    };
+
+                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
+                    };
+                },
+                .Array => {
+                    data.appendf("{s} [", .{header}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
+                    };
+
+                    for (value, 0..) |elem, i| {
+                        attributeSingle(i == 0, buffer, config, elem);
+                    }
+
+                    data.appendf("]", .{}) catch |err| {
+                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
+                    };
+                },
+                else => data.appendf("{s}\u{0022}{any}\u{0022}", .{ header, value }) catch |err| {
+                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
                 },
             }
         },
@@ -457,6 +616,6 @@ fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) vo
     switch (on) {
         inline .panic => std.debug.panic(format, args),
         inline .print => std.debug.print(format, args),
-        else => {},
+        else => undefined,
     }
 }
