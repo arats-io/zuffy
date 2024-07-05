@@ -379,11 +379,11 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                 .Struct, .Union => {
                     if (config.struct_union.escape_enabled) {
                         data.appendf("{s}{s}=\u{0022}", .{ header, key }) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json  attribute {s}; {any}", .{ key, err });
+                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
                         };
                     } else {
                         data.appendf("{s}{s}=", .{ header, key }) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json  attribute {s}; {any}", .{ key, err });
+                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
                         };
                     }
 
@@ -404,7 +404,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
 
                     if (config.struct_union.escape_enabled) {
                         data.appendf("\u{0022}", .{}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json attribute {s}; {any}", .{ key, err });
+                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
                         };
                     }
                 },
@@ -512,11 +512,11 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                 .Struct, .Union => {
                     if (config.struct_union.escape_enabled) {
                         data.appendf("{s}\u{0022}", .{header}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json  attribute; {any}", .{err});
+                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
                         };
                     } else {
                         data.appendf("{s}", .{header}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json  attribute; {any}", .{err});
+                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
                         };
                     }
 
@@ -537,7 +537,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
 
                     if (config.struct_union.escape_enabled) {
                         data.appendf("\u{0022}", .{}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct json attribute; {any}", .{err});
+                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
                         };
                     }
                 },
