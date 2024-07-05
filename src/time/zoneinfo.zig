@@ -611,7 +611,8 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var cacheEnd: i64 = 0;
     var cacheZone: ?zone = null;
 
-    const sec: i64 = std.time.timestamp();
+    const sec: i64 = unixToInternal + internalToAbsolute + std.time.timestamp();
+    //const sec: i64 = std.time.timestamp(); // for internalDaysSinceEpoch
     for (0..tx.len) |txIdx| {
         if (tx[txIdx].when <= sec and (txIdx + 1 == tx.len or sec < tx[txIdx + 1].when)) {
             cacheStart = tx[txIdx].when;
@@ -801,7 +802,8 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const ysec = (yday * std.time.s_per_day) + @rem(sec, std.time.s_per_day);
 
     // Compute start of year in seconds since Unix epoch.
-    const d = internalDaysSinceEpoch(year);
+    const d = lptime.daysSinceEpoch(year);
+    // const d = internalDaysSinceEpoch(year);
     var abs = d * std.time.s_per_day;
     abs += absoluteToInternal + internalToUnix;
 
@@ -1148,6 +1150,7 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
     return s + r.time - off;
 }
 
+/// not used for now ..., Don't remove yet
 fn internalDaysSinceEpoch(year: i32) i64 {
     const ltime = @import("time.zig");
     var y = @as(i64, year) - absoluteZeroYear;
