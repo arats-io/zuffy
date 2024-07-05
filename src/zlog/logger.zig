@@ -408,7 +408,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                         };
                     }
                 },
-                .Array => {
+                .Array, .Vector => {
                     data.appendf("{s}{s}=\u{0022}[", .{ header, key }) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
                     };
@@ -458,7 +458,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                         failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
                     };
                 },
-                .Array => {
+                .Array, .Vector => {
                     data.appendf("{s}\u{0022}{s}\u{0022}: [", .{ header, key }) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
                     };
@@ -541,7 +541,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                         };
                     }
                 },
-                .Array => {
+                .Array, .Vector => {
                     data.appendf("{s} [", .{header}) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
                     };
@@ -591,7 +591,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                         failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
                     };
                 },
-                .Array => {
+                .Array, .Vector => {
                     data.appendf("{s} [", .{header}) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
                     };
