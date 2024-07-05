@@ -425,9 +425,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
         version = 2;
     } else if (p[0] == '3') {
         version = 3;
-    }
-
-    if (version == -1) {
+    } else {
         return Error.BadData;
     }
 
@@ -613,7 +611,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var cacheEnd: i64 = 0;
     var cacheZone: ?zone = null;
 
-    const sec: i64 = unixToInternal + internalToAbsolute + std.time.timestamp();
+    const sec: i64 = std.time.timestamp();
     for (0..tx.len) |txIdx| {
         if (tx[txIdx].when <= sec and (txIdx + 1 == tx.len or sec < tx[txIdx + 1].when)) {
             cacheStart = tx[txIdx].when;
@@ -673,6 +671,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
 // The return values are as for lookup, plus ok which reports whether the
 // parse succeeded.
 
+const absoluteZeroYear = -292277022399;
 const internalYear = 1;
 const unixToInternal = (1969 * 365 + @divTrunc(1969, 4) - @divTrunc(1969, 100) + @divTrunc(1969, 400)) * std.time.s_per_day;
 const internalToUnix = -unixToInternal;
@@ -699,6 +698,7 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     if (r.ok) {
         const offRes = tzsetOffset(s);
         stdOffset = -offRes.offset;
+        s = offRes.rest;
 
         if (!offRes.ok) {
             return tzsetResult{
@@ -798,10 +798,10 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     const year = t.year;
     const yday = @as(i32, @intCast(t.yday));
 
-    const ysec = yday * std.time.s_per_day + @rem(sec, std.time.s_per_day);
+    const ysec = (yday * std.time.s_per_day) + @rem(sec, std.time.s_per_day);
 
     // Compute start of year in seconds since Unix epoch.
-    const d = lptime.daysSinceEpoch(year);
+    const d = internalDaysSinceEpoch(year);
     var abs = d * std.time.s_per_day;
     abs += absoluteToInternal + internalToUnix;
 
@@ -848,11 +848,11 @@ fn tzset(source: []const u8, lastTxSec: i64, sec: i64) tzsetResult {
     }
 
     return tzsetResult{
-        .name = stdName,
-        .offset = stdOffset,
+        .name = dstName,
+        .offset = dstOffset,
         .start = startSec + abs,
         .end = endSec + abs,
-        .isDST = stdIsDST,
+        .isDST = dstIsDST,
         .ok = true,
     };
 }
@@ -1146,4 +1146,30 @@ fn tzruleTime(year: i32, r: rule, off: i32) i64 {
     }
 
     return s + r.time - off;
+}
+
+fn internalDaysSinceEpoch(year: i32) i64 {
+    const ltime = @import("time.zig");
+    var y = @as(i64, year) - absoluteZeroYear;
+
+    // Add in days from 400-year cycles.
+    var n = @divFloor(y, 400);
+    y -= 400 * n;
+    var d = ltime.days_per_400_years * n;
+
+    // Add in 100-year cycles.
+    n = @divFloor(y, 100);
+    y -= 100 * n;
+    d += ltime.days_per_100_years * n;
+
+    // Add in 4-year cycles.
+    n = @divFloor(y, 4);
+    y -= 4 * n;
+    d += ltime.days_per_4_years * n;
+
+    // Add in non-leap years.
+    n = y;
+    d += 365 * n;
+
+    return @as(i64, @intCast(d));
 }

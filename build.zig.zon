@@ -1,7 +1,7 @@
 .{
     // Extended zig std adding nice to have functionality
     .name = "xstd",
-    .version = "0.1.5",
+    .version = "0.1.6",
     .minimum_zig_version = "0.13.0",
     .dependencies = .{},
     .paths = .{ "LICENSE", "README.md", "build.zig", "build.zig.zon", "src" },
