@@ -492,6 +492,10 @@ pub fn clear(self: *Self) void {
     self.buffer.clear();
 }
 
+pub fn clearAndFree(self: *Self) void {
+    self.buffer.clearAndFree();
+}
+
 pub fn shrink(self: *Self) !void {
     try self.buffer.shrink();
 }
@@ -582,7 +586,7 @@ pub fn bytes(self: *Self) []const u8 {
 }
 
 fn read(self: *Self, dst: []u8) !usize {
-    return self.read(dst);
+    return self.buffer.read(dst);
 }
 
 pub fn bytesInto(self: *Self, dst: []const u8) !usize {

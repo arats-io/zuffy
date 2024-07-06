@@ -180,6 +180,10 @@ pub fn clear(self: *Self) void {
     self.len = 0;
 }
 
+pub fn clearAndFree(self: *Self) void {
+    self.deinit();
+}
+
 fn _copy(comptime Type: type, dest: []Type, src: []const Type) void {
     assert(dest.len >= src.len);
 
