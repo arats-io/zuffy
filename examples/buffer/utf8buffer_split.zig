@@ -15,22 +15,63 @@ pub fn main() !void {
     var buffer = xstd.bytes.Utf8Buffer.init(arena.allocator());
     defer buffer.deinit();
 
-    try buffer.append("💯Hello💯💯Hello💯💯Hello💯");
+    try buffer.append("💯Hello💯💯Hello💯💯Hello💯💯💯💯");
 
-    var iter = buffer.splitSequence("💯");
+    var counter: usize = 0;
 
-    std.debug.print("\n ----- Elements ----- \n", .{});
-    std.debug.print("1 - [{s}]\n", .{iter.next().?});
-    std.debug.print("2 - [{s}]\n", .{iter.next().?});
-    std.debug.print("3 - [{s}]\n", .{iter.next().?});
-    std.debug.print("4 - [{s}]\n", .{iter.next().?});
-    std.debug.print("5 - [{s}]\n", .{iter.next().?});
-    std.debug.print("6 - [{s}]\n", .{iter.next().?});
-    std.debug.print("7 - [{s}]\n", .{iter.next().?});
+    var splitSequence = buffer.splitSequence("💯");
+    std.debug.print("\n ----- splitSequence ----- \n", .{});
+    counter = 0;
+    while (splitSequence.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
 
-    var tokens = buffer.tokenizeSequence("💯");
-    std.debug.print("\n ----- Tokens ----- \n", .{});
-    std.debug.print("1 - [{s}]\n", .{tokens.next().?});
-    std.debug.print("2 - [{s}]\n", .{tokens.next().?});
-    std.debug.print("3 - [{s}]\n", .{tokens.next().?});
+    var tokenizeSequence = buffer.tokenizeSequence("💯");
+    std.debug.print("\n ----- tokenizeSequence ----- \n", .{});
+    counter = 0;
+    while (tokenizeSequence.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
+
+    var splitAny = buffer.splitAny("💯");
+    std.debug.print("\n ----- splitAny ----- \n", .{});
+    counter = 0;
+    while (splitAny.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
+
+    var splitBackwardsSequence = buffer.splitBackwardsSequence("💯");
+    std.debug.print("\n ----- splitBackwardsSequence ----- \n", .{});
+    counter = 0;
+    while (splitBackwardsSequence.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
+
+    var splitBackwardsAny = buffer.splitBackwardsAny("💯");
+    std.debug.print("\n ----- splitBackwardsAny ----- \n", .{});
+    counter = 0;
+    while (splitBackwardsAny.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
+
+    var tokenizeAny = buffer.tokenizeAny("💯");
+    std.debug.print("\n ----- tokenizeAny ----- \n", .{});
+    counter = 0;
+    while (tokenizeAny.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
+
+    var tokenizeScalar = buffer.tokenizeScalar('H');
+    std.debug.print("\n ----- tokenizeScalar ----- \n", .{});
+    counter = 0;
+    while (tokenizeScalar.next()) |n| {
+        counter += 1;
+        std.debug.print("{} - [{s}]={d}\n", .{ counter, n, n.len });
+    }
 }

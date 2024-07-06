@@ -274,7 +274,7 @@ pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(
     assert(delimiters.len != 0);
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiters,
     };
 }
@@ -290,7 +290,7 @@ pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(
 pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiters,
     };
 }
@@ -306,7 +306,7 @@ pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .
 pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiter,
     };
 }
@@ -322,8 +322,8 @@ pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar
 pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
     assert(delimiters.len != 0);
     return .{
-        .index = self.buffer.len,
-        .buffer = self.ptr,
+        .index = self.len,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiters,
     };
 }
@@ -338,8 +338,8 @@ pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.Split
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
     return .{
-        .index = self.buffer.len,
-        .buffer = self.ptr,
+        .index = self.len,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiters,
     };
 }
@@ -354,8 +354,8 @@ pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackw
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
     return .{
-        .index = self.buffer.len,
-        .buffer = self.ptr,
+        .index = self.len,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiter,
     };
 }
@@ -372,7 +372,7 @@ pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIt
 pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiters,
     };
 }
@@ -391,7 +391,7 @@ pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterato
     assert(delimiter.len != 0);
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiter,
     };
 }
@@ -408,7 +408,7 @@ pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterato
 pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
     return .{
         .index = 0,
-        .buffer = self.ptr,
+        .buffer = self.ptr[0..self.len],
         .delimiter = delimiter,
     };
 }

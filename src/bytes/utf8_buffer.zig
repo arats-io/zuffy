@@ -320,35 +320,14 @@ pub fn trim(self: *Self, str: []const u8) void {
     self.trimEnd(str);
 }
 
-/// Split the buffer and access the value at given position
-pub fn split(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
-    var i: usize = 0;
-    var block: usize = 0;
-    var start: usize = 0;
-
-    while (i < self.buffer.len) {
-        const size = utf8Size(self.buffer.ptr[i]);
-        if (size == delimiters.len) {
-            if (std.mem.eql(u8, delimiters, self.buffer.ptr[i..(i + size)])) {
-                if (block == index) return self.buffer.ptr[start..i];
-                start = i + size;
-                block += 1;
-            }
-        }
-
-        i += size;
-    }
-
-    if (i >= self.buffer.len - 1 and block == index) {
-        return self.buffer.ptr[start..self.buffer.len];
-    }
-
-    return null;
+/// Split block at specific index from the buffer
+pub fn splitBlockAt(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
+    return spliter(self.buffer.ptr[0..self.buffer.len], delimiters, index);
 }
 
-/// Split the buffer and access the value as a copy of buffer at given position
-pub fn splitAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
-    if (self.split(delimiters, index)) |block| {
+/// Split block at specific index from the buffer as a copy of buffer
+pub fn splitBlockAtAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
+    if (self.splitBlockAt(delimiters, index)) |block| {
         var s = Self{ .buffer = Buffer.init(self.buffer.allocator) };
         errdefer s.deinit();
 
@@ -369,12 +348,7 @@ pub fn splitAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
 pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .sequence) {
-    assert(delimiters.len != 0);
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiters,
-    };
+    return self.buffer.splitSequence(delimiters);
 }
 
 /// Returns an iterator that iterates over the slices of `buffer` that
@@ -386,11 +360,7 @@ pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiters,
-    };
+    return self.buffer.splitAny(delimiters);
 }
 
 /// Returns an iterator that iterates over the slices of `buffer` that
@@ -402,11 +372,7 @@ pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiter,
-    };
+    return self.buffer.splitScalar(delimiter);
 }
 /// Returns an iterator that iterates backwards over the slices of `buffer` that
 /// are separated by the sequence in `delimiter`.
@@ -418,12 +384,7 @@ pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
 pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
-    assert(delimiters.len != 0);
-    return .{
-        .index = self.buffer.len,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiters,
-    };
+    return self.buffer.splitBackwardsSequence(delimiters);
 }
 
 /// Returns an iterator that iterates backwards over the slices of `buffer` that
@@ -435,11 +396,7 @@ pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.Split
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
-    return .{
-        .index = self.buffer.len,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiters,
-    };
+    return self.buffer.splitBackwardsAny(delimiters);
 }
 
 /// Returns an iterator that iterates backwards over the slices of `buffer` that
@@ -451,11 +408,7 @@ pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackw
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
-    return .{
-        .index = self.buffer.len,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiter,
-    };
+    return self.buffer.splitBackwardsScalar(delimiter);
 }
 
 /// Returns an iterator that iterates over the slices of `buffer` that are not
@@ -468,11 +421,7 @@ pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIt
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiters,
-    };
+    return self.buffer.tokenizeAny(delimiters);
 }
 
 /// Returns an iterator that iterates over the slices of `buffer` that are not
@@ -486,12 +435,7 @@ pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
 pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterator(u8, .sequence) {
-    assert(delimiter.len != 0);
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiter,
-    };
+    return self.buffer.tokenizeSequence(delimiter);
 }
 
 /// Returns an iterator that iterates over the slices of `buffer` that are not
@@ -504,11 +448,7 @@ pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterato
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
-    return .{
-        .index = 0,
-        .buffer = self.buffer.bytes(),
-        .delimiter = delimiter,
-    };
+    return self.buffer.tokenizeScalar(delimiter);
 }
 
 /// Lowercase all runes in the buffer
@@ -739,6 +679,31 @@ inline fn utf8Size(byte: u8) u3 {
     };
 }
 
+inline fn spliter(data: []const u8, delimiters: []const u8, index: usize) ?[]const u8 {
+    var i: usize = 0;
+    var block: usize = 0;
+    var start: usize = 0;
+
+    while (i < data.len) {
+        const size = utf8Size(data.ptr[i]);
+        if (size == delimiters.len) {
+            if (std.mem.eql(u8, delimiters, data.ptr[i..(i + size)])) {
+                if (block == index) return data.ptr[start..i];
+                start = i + size;
+                block += 1;
+            }
+        }
+
+        i += size;
+    }
+
+    if (i >= data.len - 1 and block == index) {
+        return data.ptr[start..data.len];
+    }
+
+    return null;
+}
+
 // Iterator support
 pub usingnamespace struct {
     pub const Iterator = struct {
@@ -889,22 +854,22 @@ test "UTF8 Buffer Tests" {
     assert(!buffer.isEmpty());
 
     // split
-    assert(std.mem.eql(u8, buffer.split("💯", 0).?, ""));
-    assert(std.mem.eql(u8, buffer.split("💯", 1).?, "Hello"));
-    assert(std.mem.eql(u8, buffer.split("💯", 2).?, ""));
-    assert(std.mem.eql(u8, buffer.split("💯", 3).?, "Hello"));
-    assert(std.mem.eql(u8, buffer.split("💯", 5).?, "Hello"));
-    assert(std.mem.eql(u8, buffer.split("💯", 6).?, ""));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 0).?, ""));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 1).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 2).?, ""));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 3).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 5).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.splitBlockAt("💯", 6).?, ""));
 
     var splitStr = Self.init(arena.allocator());
     defer splitStr.deinit();
 
     try splitStr.append("variable='value'");
-    assert(std.mem.eql(u8, splitStr.split("=", 0).?, "variable"));
-    assert(std.mem.eql(u8, splitStr.split("=", 1).?, "'value'"));
+    assert(std.mem.eql(u8, splitStr.splitBlockAt("=", 0).?, "variable"));
+    assert(std.mem.eql(u8, splitStr.splitBlockAt("=", 1).?, "'value'"));
 
     // splitToString
-    var newSplit = try splitStr.splitAsCopy("=", 0);
+    var newSplit = try splitStr.splitBlockAtAsCopy("=", 0);
     assert(newSplit != null);
     defer newSplit.?.deinit();
 
