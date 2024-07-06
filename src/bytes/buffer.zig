@@ -3,9 +3,13 @@ const builtin = @import("builtin");
 
 const assert = std.debug.assert;
 
+/// A byte buffer will make a best effort to perform native I/O operations directly upon it.
+/// That is, it will attempt to avoid copying the buffer's content to (or from) an intermediate
+/// buffer before (or after) each invocation of one of the underlying operating system's native I/O operations.
 const Self = @This();
 pub const Error = error{
     InvalidRange,
+    InvalidCapacity,
 } || std.mem.Allocator.Error;
 
 allocator: std.mem.Allocator,
@@ -16,6 +20,7 @@ cap: usize = 0,
 len: usize = 0,
 factor: f16 = 0.75,
 
+/// Init the byte buffer with a factor value neccessary when resizing is required
 pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
     return Self{
         .ptr = &[_]u8{},
@@ -26,10 +31,12 @@ pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
     };
 }
 
+/// Init the byte buffer with default factor
 pub fn init(allocator: std.mem.Allocator) Self {
     return initWithFactor(allocator, 0.75);
 }
 
+/// Rreeing the allocation of array of bytes and set all values on zero
 pub fn deinit(self: *Self) void {
     self.allocator.free(self.ptr[0..self.cap]);
     self.ptr = &[_]u8{};
@@ -37,7 +44,11 @@ pub fn deinit(self: *Self) void {
     self.cap = 0;
 }
 
+/// Resizing the buffer to given capacity.
+/// Will not resize back to loose the data
 pub fn resize(self: *Self, cap: usize) !void {
+    if (cap < self.len) return Error.InvalidCapacity;
+
     const new_source = try self.allocator.realloc(self.ptr[0..self.cap], cap);
     self.ptr = new_source.ptr;
     self.cap = new_source.len;
@@ -46,13 +57,16 @@ pub fn resize(self: *Self, cap: usize) !void {
     }
 }
 
+/// Shrink the buffer capacity to the active length
 pub fn shrink(self: *Self) !void {
     try self.resize(self.len);
 }
 
+/// Write a byte to the buffer
 pub fn writeByte(self: *Self, byte: u8) !void {
     if (self.len + 1 > self.cap) {
-        const new_cap = self.len + 1 + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
+        const new_cap = self.len + 1 +
+            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
         try self.resize(new_cap);
     }
 
@@ -61,22 +75,26 @@ pub fn writeByte(self: *Self, byte: u8) !void {
     self.len += 1;
 }
 
-pub fn writeBytes(self: *Self, reader: anytype, max_num: usize) !void {
+/// Write given `max_num` number of bytes which are read from the given `reader`
+pub fn writeNBytes(self: *Self, reader: anytype, max_num: usize) !void {
     for (0..max_num) |_| {
         const byte = try reader.readByte();
         try self.writeByte(byte);
     }
 }
 
+/// Write an array of bytes to the buffer
 pub fn writeAll(self: *Self, array: []const u8) !void {
     _ = try self.write(array);
 }
 
+/// Write an array of bytes to the buffer
 pub fn write(self: *Self, array: []const u8) !usize {
     if (array.len == 0) return 0;
 
     if (self.len + array.len > self.cap) {
-        const new_cap = self.len + array.len + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
+        const new_cap = self.len + array.len +
+            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
         try self.resize(new_cap);
     }
 
@@ -90,25 +108,40 @@ pub fn write(self: *Self, array: []const u8) !usize {
     return array.len;
 }
 
+/// Write any array of values by formating them on given format
 pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
     const writer = self.writer();
     return std.fmt.format(writer, format, args);
 }
 
+/// Read the content of buffer into the given destination
 pub fn read(self: *Self, dst: []u8) !usize {
     const size = if (self.len < dst.len) self.len else dst.len;
     _copy(u8, dst, self.ptr[0..size]);
     return size;
 }
 
-pub fn compare(self: *Self, array: []const u8) bool {
-    return std.mem.eql(u8, self.ptr[0..self.len], array.ptr[0..array.len]);
+/// Compare the buffer with given array
+pub fn compare(self: *Self, str: []const u8) bool {
+    if (self.len < str.len) return false;
+
+    return std.mem.eql(u8, self.ptr[0..str.len], str.ptr[0..str.len]);
 }
 
+/// Compare the buffer from a given position with given array
+pub fn compareStartPos(self: *Self, pos: usize, str: []const u8) bool {
+    if (pos >= self.len) return false;
+    if ((self.len - pos) < str.len) return false;
+
+    return std.mem.eql(u8, self.ptr[pos..str.len], str.ptr[0..str.len]);
+}
+
+/// Retun the buffer bytes up to current length
 pub fn bytes(self: *Self) []const u8 {
     return self.ptr[0..self.len];
 }
 
+/// Return the byte at given position
 pub fn byteAt(self: *Self, index: usize) !u8 {
     if (index < self.len) {
         return self.ptr[index];
@@ -116,31 +149,36 @@ pub fn byteAt(self: *Self, index: usize) !u8 {
     return Error.InvalidRange;
 }
 
-pub fn rangeBytes(self: *Self, start: usize, end: usize) ![]const u8 {
+/// Return a portion of bytes from the buffer based on the given range of indexes
+pub fn bytesRange(self: *Self, start: usize, end: usize) ![]const u8 {
     if (start < self.len and end <= self.len and start < end) {
         return self.ptr[start..end];
     }
     return Error.InvalidRange;
 }
 
-pub fn fromBytes(self: *Self, start: usize) ![]const u8 {
+/// Return a portion of bytes from the buffer based on the given start position
+pub fn bytesFrom(self: *Self, start: usize) ![]const u8 {
     if (start < self.len) {
         return self.ptr[start..self.len];
     }
     return Error.InvalidRange;
 }
 
-pub fn uptoBytes(self: *Self, end: usize) ![]const u8 {
+/// Return a portion of bytes from the buffer up to a given end position
+pub fn bytesUpTo(self: *Self, end: usize) ![]const u8 {
     if (end < self.len) {
         return self.ptr[0..end];
     }
     return Error.InvalidRange;
 }
 
+/// Deep copy of buffer, retrieved as a clone using buffer allocator.
 pub fn clone(self: *Self) !Self {
     return self.cloneUsingAllocator(self.allocator);
 }
 
+/// Deep copy of buffer, retrieved as a clone using a given allocator.
 pub fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
     var buf = init(allocator);
     errdefer buf.deinit();
@@ -149,16 +187,19 @@ pub fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
     return buf;
 }
 
+/// Retrieve the the whole copy of buffer as an array of bytes, using buffer allocator
 pub fn copy(self: *Self) ![]u8 {
     return self.copyUsingAllocator(self.allocator);
 }
 
+/// Retrieve the the whole copy of buffer as an array of bytes, using a given allocator
 pub fn copyUsingAllocator(self: *Self, allocator: std.mem.Allocator) ![]u8 {
     const new_str = try allocator.alloc(u8, self.len);
     _copy(u8, new_str, self.ptr[0..self.len]);
     return new_str;
 }
 
+/// Repead same buffer content `N` times
 pub fn repeat(self: *Self, n: usize) !void {
     try self.resize(self.cap * (n + 1));
 
@@ -173,15 +214,18 @@ pub fn repeat(self: *Self, n: usize) !void {
     self.len *= (n + 1);
 }
 
+/// Verify if the buffer is empty
 pub fn isEmpty(self: *Self) bool {
     return self.len == 0;
 }
 
+/// Clear the whole buffer content
 pub fn clear(self: *Self) void {
     @memset(self.ptr[0..self.len], 0);
     self.len = 0;
 }
 
+///Free and clear the whole buffer content
 pub fn clearAndFree(self: *Self) void {
     self.deinit();
 }
@@ -207,6 +251,158 @@ fn _copy(comptime Type: type, dest: []Type, src: []const Type) void {
     } else {
         std.mem.copyBackwards(Type, output, input);
     }
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that
+/// are separated by the byte sequence in `delimiter`.
+///
+/// `splitSequence(u8, "abc||def||||ghi", "||")` will return slices
+/// for "abc", "def", "", "ghi", null, in that order.
+///
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+/// The delimiter length must not be zero.
+pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .sequence) {
+    assert(delimiters.len != 0);
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiters,
+    };
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that
+/// are separated by any item in `delimiters`.
+///
+/// `splitAny(u8, "abc,def||ghi", "|,")` will return slices
+/// for "abc", "def", "", "ghi", null, in that order.
+///
+/// If none of `delimiters` exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiters,
+    };
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that
+/// are separated by `delimiter`.
+///
+/// `splitScalar(u8, "abc|def||ghi", '|')` will return slices
+/// for "abc", "def", "", "ghi", null, in that order.
+///
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiter,
+    };
+}
+/// Returns an iterator that iterates backwards over the slices of `buffer` that
+/// are separated by the sequence in `delimiter`.
+///
+/// `splitBackwardsSequence(u8, "abc||def||||ghi", "||")` will return slices
+/// for "ghi", "", "def", "abc", null, in that order.
+///
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+/// The delimiter length must not be zero.
+pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
+    assert(delimiters.len != 0);
+    return .{
+        .index = self.buffer.len,
+        .buffer = self.ptr,
+        .delimiter = delimiters,
+    };
+}
+
+/// Returns an iterator that iterates backwards over the slices of `buffer` that
+/// are separated by any item in `delimiters`.
+///
+/// `splitBackwardsAny(u8, "abc,def||ghi", "|,")` will return slices
+/// for "ghi", "", "def", "abc", null, in that order.
+///
+/// If none of `delimiters` exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
+    return .{
+        .index = self.buffer.len,
+        .buffer = self.ptr,
+        .delimiter = delimiters,
+    };
+}
+
+/// Returns an iterator that iterates backwards over the slices of `buffer` that
+/// are separated by `delimiter`.
+///
+/// `splitBackwardsScalar(u8, "abc|def||ghi", '|')` will return slices
+/// for "ghi", "", "def", "abc", null, in that order.
+///
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
+    return .{
+        .index = self.buffer.len,
+        .buffer = self.ptr,
+        .delimiter = delimiter,
+    };
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that are not
+/// any of the items in `delimiters`.
+///
+/// `tokenizeAny(u8, "   abc|def ||  ghi  ", " |")` will return slices
+/// for "abc", "def", "ghi", null, in that order.
+///
+/// If `buffer` is empty, the iterator will return null.
+/// If none of `delimiters` exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiters,
+    };
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that are not
+/// the sequence in `delimiter`.
+///
+/// `tokenizeSequence(u8, "<>abc><def<><>ghi", "<>")` will return slices
+/// for "abc><def", "ghi", null, in that order.
+///
+/// If `buffer` is empty, the iterator will return null.
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+/// The delimiter length must not be zero.
+pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterator(u8, .sequence) {
+    assert(delimiter.len != 0);
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiter,
+    };
+}
+
+/// Returns an iterator that iterates over the slices of `buffer` that are not
+/// `delimiter`.
+///
+/// `tokenizeScalar(u8, "   abc def     ghi  ", ' ')` will return slices
+/// for "abc", "def", "ghi", null, in that order.
+///
+/// If `buffer` is empty, the iterator will return null.
+/// If `delimiter` does not exist in buffer,
+/// the iterator will return `buffer`, null, in that order.
+pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
+    return .{
+        .index = 0,
+        .buffer = self.ptr,
+        .delimiter = delimiter,
+    };
 }
 
 // Reader and Writer functionality.

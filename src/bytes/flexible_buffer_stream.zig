@@ -71,7 +71,7 @@ pub fn read(self: *Self, dest: []u8) ReadError!usize {
 
     const end = self.pos + size;
 
-    const data = try self.buffer.rangeBytes(self.pos, end);
+    const data = try self.buffer.bytesRange(self.pos, end);
 
     @memcpy(dest[0..size], data[0..]);
     self.pos = end;

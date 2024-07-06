@@ -3,22 +3,29 @@ const builtin = @import("builtin");
 
 const Buffer = @import("buffer.zig");
 
+/// A UTF8 buffer will make a best effort to perform native I/O operations directly upon it.
+/// That is, it will attempt to avoid copying the buffer's content to (or from) an intermediate
+/// buffer before (or after) each invocation of one of the underlying operating system's native I/O operations.
 const Self = @This();
 
 buffer: Buffer,
 
+/// Init a new UTF8 buffer using a given byte buffer
 pub fn initWithBuffer(buffer: Buffer) Self {
     return Self{ .buffer = buffer };
 }
 
+/// Init a new UTF8 buffer
 pub fn init(allocator: std.mem.Allocator) Self {
     return Self{ .buffer = Buffer.init(allocator) };
 }
 
+/// Init the UTF8 buffer with a factor value neccessary when resizing is required
 pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
     return Self{ .buffer = Buffer.initWithFactor(allocator, factor) };
 }
 
+/// Init the UTF8 buffer and resizing to the desired size
 pub fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
     var d = init(allocator);
     errdefer d.deinit();
@@ -27,20 +34,24 @@ pub fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
     return d;
 }
 
+/// Destroy the buffer
 pub fn deinit(self: *Self) void {
     self.buffer.deinit();
 }
 
-pub fn appendN(self: *Self, array: []const u8, numOfChars: usize) !void {
-    try self.insertAtWithLength(self.buffer.len, array, numOfChars);
+/// Append to the buffer an specific number of runes from the given bytes
+pub fn appendN(self: *Self, str: []const u8, numOfChars: usize) !void {
+    try self.insertAtWithLength(self.buffer.len, str, numOfChars);
 }
 
-pub fn append(self: *Self, array: []const u8) !void {
-    try self.insertAtWithLength(self.buffer.len, array, array.len);
+/// Append to the buffer the whole given string
+pub fn append(self: *Self, str: []const u8) !void {
+    try self.insertAtWithLength(self.buffer.len, str, str.len);
 }
 
-pub fn insertAt(self: *Self, array: []const u8, index: usize) !void {
-    try self.insertAtWithLength(index, array, array.len);
+/// Insert the string st given position
+pub fn insertAt(self: *Self, str: []const u8, index: usize) !void {
+    try self.insertAtWithLength(index, str, str.len);
 }
 
 fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) !void {
@@ -50,7 +61,8 @@ fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) 
 
     // Make sure buffer has enough space
     if (self.buffer.len + numberOfChars > self.buffer.cap) {
-        const new_cap = self.buffer.len + numberOfChars + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.buffer.len)) * @as(f64, self.buffer.factor)));
+        const new_cap = self.buffer.len + numberOfChars +
+            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.buffer.len)) * @as(f64, self.buffer.factor)));
         try self.buffer.resize(new_cap);
     }
 
@@ -83,26 +95,37 @@ fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) 
     @atomicStore(usize, &self.buffer.len, self.buffer.len + numberOfChars, .monotonic);
 }
 
-pub fn rangeBytes(self: *Self, start: usize, end: usize) ![]const u8 {
+/// Return a portion of bytes from the buffer based on the given range of indexes
+pub fn bytesRange(self: *Self, start: usize, end: usize) ![]const u8 {
     return self.buffer.rangeBytes(start, end);
 }
 
-pub fn fromBytes(self: *Self, start: usize) ![]const u8 {
-    self.buffer.fromBytes(start);
+/// Return a portion of bytes from the buffer based on the given start position
+pub fn bytesFrom(self: *Self, start: usize) ![]const u8 {
+    self.buffer.bytesFromPos(start);
 }
 
+/// Return a portion of bytes from the buffer up to a given end position
+pub fn bytesUpTo(self: *Self, end: usize) ![]const u8 {
+    self.buffer.bytesUpTo(end);
+}
+
+/// Append to the buffer using formating
 pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
     return self.buffer.print(format, args);
 }
 
+/// Write to the buffer the given array
 pub fn write(self: *Self, array: []const u8) !usize {
     return self.buffer.write(array);
 }
 
+/// Print/Append to the buffer using formating
 pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
     return self.buffer.print(format, args);
 }
 
+/// Repead same buffer content `N` times
 pub fn repeat(self: *Self, n: usize) !void {
     try self.buffer.repeat(n);
 }
@@ -145,6 +168,7 @@ fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
     }
 }
 
+/// Replace last matche in the buffer the source with destination
 pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
     if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
         try self.replace(pos, src, dst);
@@ -153,6 +177,7 @@ pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
     return false;
 }
 
+/// Replace first matche in the buffer the source with destination
 pub fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
     if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
         try self.replace(pos, src, dst);
@@ -161,10 +186,12 @@ pub fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
     return false;
 }
 
+/// Replace all matches in the buffer the source with destination
 pub fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
     return self.replaceAllFromPos(0, src, dst);
 }
 
+/// Replace all matches in the buffer the source with destination from given start position
 pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []const u8) !bool {
     var pos: usize = startPos;
     var found = false;
@@ -176,6 +203,7 @@ pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []c
     return found;
 }
 
+/// Remove last matche with the source from the buffer
 pub fn removeLast(self: *Self, src: []const u8) !bool {
     if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
         try self.replace(index, src, "");
@@ -185,6 +213,7 @@ pub fn removeLast(self: *Self, src: []const u8) !bool {
     return false;
 }
 
+/// Remove first matche with the source from the buffer
 pub fn removeFirst(self: *Self, src: []const u8) !bool {
     if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
         try self.replace(index, src, "");
@@ -194,22 +223,27 @@ pub fn removeFirst(self: *Self, src: []const u8) !bool {
     return false;
 }
 
+/// Remove all matches with the source from the buffer
 pub fn removeAll(self: *Self, src: []const u8) !bool {
     return self.replaceAll(src, "");
 }
 
+/// Remove data from the buffer starting with given position
 pub fn removeFrom(self: *Self, pos: usize) !void {
     try self.removeRange(pos, self.buffer.len);
 }
 
+/// Remove data from the buffer from beggining up to with given position
 pub fn removeEnd(self: *Self, len: usize) !void {
     try self.removeRange(self.buffer.len - len, self.buffer.len);
 }
 
+/// Remove data from the beggining of buffer up to given length
 pub fn removeStart(self: *Self, len: usize) !void {
     try self.removeRange(0, len);
 }
 
+/// Remove data from the buffer in the given range
 pub fn removeRange(self: *Self, start: usize, end: usize) !void {
     if (end < start or end > self.buffer.len) return Buffer.Error.InvalidRange;
 
@@ -225,6 +259,7 @@ pub fn removeRange(self: *Self, start: usize, end: usize) !void {
     self.buffer.len -= difference;
 }
 
+/// Reverse all runes in the buffer
 pub fn reverse(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
@@ -236,7 +271,8 @@ pub fn reverse(self: *Self) void {
     std.mem.reverse(u8, self.buffer.ptr[0..self.buffer.len]);
 }
 
-pub fn substract(self: *Self, start: usize, end: usize) !Self {
+/// Substract a portion of buffer from a given Range
+pub fn substractRange(self: *Self, start: usize, end: usize) !Self {
     var result = Self{ .buffer = Buffer.init(self.buffer.allocator) };
 
     if (self.utf8Position(start, true)) |rStart| {
@@ -250,11 +286,12 @@ pub fn substract(self: *Self, start: usize, end: usize) !Self {
     return result;
 }
 
-pub fn trimStart(self: *Self, cut: []const u8) void {
+/// Trim from a begging of the buffer matching the given string
+pub fn trimStart(self: *Self, str: []const u8) void {
     var i: usize = 0;
     while (i < self.buffer.len) : (i += 1) {
         const size = utf8Size(self.buffer.ptr[i]);
-        if (size > 1 or !in(self.buffer.ptr[i], cut)) break;
+        if (size > 1 or !in(self.buffer.ptr[i], str)) break;
     }
 
     if (self.utf8Position(i, false)) |k| {
@@ -270,18 +307,20 @@ fn in(byte: u8, arr: []const u8) bool {
     return false;
 }
 
-/// Trims all characters at the end.
-pub fn trimEnd(self: *Self, cut: []const u8) void {
+/// Trim at the end of the buffer matching the given string
+pub fn trimEnd(self: *Self, str: []const u8) void {
     self.reverse();
-    self.trimStart(cut);
+    self.trimStart(str);
     self.reverse();
 }
 
-pub fn trim(self: *Self, cut: []const u8) void {
-    self.trimStart(cut);
-    self.trimEnd(cut);
+/// Trim on both ends of the buffer matching the given string
+pub fn trim(self: *Self, str: []const u8) void {
+    self.trimStart(str);
+    self.trimEnd(str);
 }
 
+/// Split the buffer and access the value at given position
 pub fn split(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
     var i: usize = 0;
     var block: usize = 0;
@@ -307,6 +346,7 @@ pub fn split(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
     return null;
 }
 
+/// Split the buffer and access the value as a copy of buffer at given position
 pub fn splitAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
     if (self.split(delimiters, index)) |block| {
         var s = Self{ .buffer = Buffer.init(self.buffer.allocator) };
@@ -471,6 +511,7 @@ pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .sca
     };
 }
 
+/// Lowercase all runes in the buffer
 pub fn toLowercase(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
@@ -480,6 +521,7 @@ pub fn toLowercase(self: *Self) void {
     }
 }
 
+/// Uppercase all runes in the buffer
 pub fn toUppercase(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
@@ -489,14 +531,17 @@ pub fn toUppercase(self: *Self) void {
     }
 }
 
+/// Clear the whole buffer
 pub fn clear(self: *Self) void {
     self.buffer.clear();
 }
 
+/// Clear and free the whole buffer
 pub fn clearAndFree(self: *Self) void {
     self.buffer.clearAndFree();
 }
 
+/// Shrink the whole buffer
 pub fn shrink(self: *Self) !void {
     try self.buffer.shrink();
 }
@@ -516,6 +561,7 @@ pub fn pop(self: *Self) ?[]const u8 {
     return ret;
 }
 
+/// Get a rune at given index
 pub fn runeAt(self: *Self, index: usize) ?[]const u8 {
     if (self.utf8Position(index, true)) |i| {
         const size = utf8Size(self.buffer.ptr[i]);
@@ -524,6 +570,7 @@ pub fn runeAt(self: *Self, index: usize) ?[]const u8 {
     return null;
 }
 
+/// For each rune in the buffer
 pub fn forEach(self: *Self, eachFn: *const fn ([]const u8) void) void {
     var iter = self.iterator();
     while (iter.next()) |item| {
@@ -531,65 +578,80 @@ pub fn forEach(self: *Self, eachFn: *const fn ([]const u8) void) void {
     }
 }
 
-pub fn find(self: *Self, array: []const u8) ?usize {
-    const index = std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], array);
+/// Find the position index of the given string
+pub fn find(self: *Self, str: []const u8) ?usize {
+    const index = std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], str);
     if (index) |i| {
         return self.utf8Position(i, false);
     }
     return null;
 }
 
-pub fn contains(self: *Self, array: []const u8) bool {
-    if (array.len == 0) return false;
+/// Check if the string does contain in the buffer
+pub fn contains(self: *Self, str: []const u8) bool {
+    if (str.len == 0) return false;
 
-    if (self.find(array)) |_| {
+    if (self.find(str)) |_| {
         return true;
     }
     return false;
 }
 
-pub fn startWith(self: *Self, array: []const u8) bool {
-    if (array.len == 0) return false;
+/// Check if the buffer content does start with given string
+pub fn startWith(self: *Self, str: []const u8) bool {
+    if (str.len == 0) return false;
 
-    if (self.find(array)) |pos| {
+    if (self.find(str)) |pos| {
         return pos == 0;
     }
     return false;
 }
 
-pub fn endWith(self: *Self, array: []const u8) bool {
-    if (array.len == 0) return false;
+/// Check if the buffer content does end with given string
+pub fn endWith(self: *Self, str: []const u8) bool {
+    if (str.len == 0) return false;
 
-    if (self.find(array)) |pos| {
-        return pos == self.buffer.len - array.len;
+    if (self.find(str)) |pos| {
+        return pos == self.buffer.len - str.len;
     }
     return false;
 }
 
-pub fn compare(self: *Self, array: []const u8) bool {
-    return self.buffer.compare(array);
+/// Compare the buffer content with given string
+pub fn compare(self: *Self, str: []const u8) bool {
+    return self.buffer.compare(str);
 }
 
+pub fn eql(self: *Self, dst: *const Self) bool {
+    return std.mem.eql(self.buffer.ptr, dst.buffer.ptr);
+}
+
+/// Clone the content of buffer using a given allocator
 pub fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
     return Self{ .buffer = try self.buffer.cloneUsingAllocator(allocator) };
 }
 
+/// Clone the content of buffer using same allocator
 pub fn clone(self: *Self) !Self {
     return Self{ .buffer = try self.buffer.clone() };
 }
 
+/// Copy the content into a array of bytes
 pub fn copy(self: *Self) !?[]u8 {
     return try self.buffer.copy();
 }
 
+/// Retrieve the buffer bytes
 pub fn bytes(self: *Self) []const u8 {
     return self.buffer.bytes();
 }
 
+/// Read the buffer bytes into a destination
 fn read(self: *Self, dst: []u8) !usize {
-    return self.buffer.read(dst);
+    return self.bytesInto(dst);
 }
 
+/// Read the buffer bytes into a destination
 pub fn bytesInto(self: *Self, dst: []const u8) !usize {
     try self.shrink();
     const bs = self.bytes();
@@ -597,22 +659,27 @@ pub fn bytesInto(self: *Self, dst: []const u8) !usize {
     return bs.len;
 }
 
+/// Retrive the bytes using an external allocator
 pub fn bytesWithAllocator(self: *Self, allocator: std.mem.Allocator) ![]const u8 {
     return try self.buffer.copyUsingAllocator(allocator);
 }
 
+/// Capacity of the buffer
 pub fn capacity(self: *Self) usize {
     return self.buffer.cap;
 }
 
+/// Verify the buffer if is empty
 pub inline fn isEmpty(self: *Self) bool {
     return self.buffer.len == 0;
 }
 
+/// Retrieve the raw length of teh buffer
 pub fn rawLength(self: *Self) usize {
     return self.buffer.len;
 }
 
+/// Retrieve the length rune string
 pub fn length(self: *Self) usize {
     var l: usize = 0;
     var i: usize = 0;
@@ -712,7 +779,6 @@ pub usingnamespace struct {
 };
 
 const ArenaAllocator = std.heap.ArenaAllocator;
-const eql = std.mem.eql;
 const assert = std.debug.assert;
 
 test "Basic Usage" {
@@ -771,9 +837,9 @@ test "UTF8 Buffer Tests" {
 
     // pop & length
     assert(buffer.length() == 9);
-    assert(eql(u8, buffer.pop().?, "🔥"));
+    assert(std.mem.eql(u8, buffer.pop().?, "🔥"));
     assert(buffer.length() == 8);
-    assert(eql(u8, buffer.pop().?, "o"));
+    assert(std.mem.eql(u8, buffer.pop().?, "o"));
     assert(buffer.length() == 7);
 
     // str & cmp
@@ -781,13 +847,13 @@ test "UTF8 Buffer Tests" {
     assert(buffer.compare(buffer.bytes()));
 
     // charAt
-    assert(eql(u8, buffer.runeAt(2).?, "💯"));
-    assert(eql(u8, buffer.runeAt(1).?, "\u{5360}"));
-    assert(eql(u8, buffer.runeAt(0).?, "A"));
+    assert(std.mem.eql(u8, buffer.runeAt(2).?, "💯"));
+    assert(std.mem.eql(u8, buffer.runeAt(1).?, "\u{5360}"));
+    assert(std.mem.eql(u8, buffer.runeAt(0).?, "A"));
 
     // insert
     try buffer.insertAt("🔥", 1);
-    assert(eql(u8, buffer.runeAt(1).?, "🔥"));
+    assert(std.mem.eql(u8, buffer.runeAt(1).?, "🔥"));
     assert(buffer.compare("A🔥\u{5360}💯Hell"));
 
     // find
@@ -832,26 +898,26 @@ test "UTF8 Buffer Tests" {
     assert(!buffer.isEmpty());
 
     // split
-    assert(eql(u8, buffer.split("💯", 0).?, ""));
-    assert(eql(u8, buffer.split("💯", 1).?, "Hello"));
-    assert(eql(u8, buffer.split("💯", 2).?, ""));
-    assert(eql(u8, buffer.split("💯", 3).?, "Hello"));
-    assert(eql(u8, buffer.split("💯", 5).?, "Hello"));
-    assert(eql(u8, buffer.split("💯", 6).?, ""));
+    assert(std.mem.eql(u8, buffer.split("💯", 0).?, ""));
+    assert(std.mem.eql(u8, buffer.split("💯", 1).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.split("💯", 2).?, ""));
+    assert(std.mem.eql(u8, buffer.split("💯", 3).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.split("💯", 5).?, "Hello"));
+    assert(std.mem.eql(u8, buffer.split("💯", 6).?, ""));
 
     var splitStr = Self.init(arena.allocator());
     defer splitStr.deinit();
 
     try splitStr.append("variable='value'");
-    assert(eql(u8, splitStr.split("=", 0).?, "variable"));
-    assert(eql(u8, splitStr.split("=", 1).?, "'value'"));
+    assert(std.mem.eql(u8, splitStr.split("=", 0).?, "variable"));
+    assert(std.mem.eql(u8, splitStr.split("=", 1).?, "'value'"));
 
     // splitToString
     var newSplit = try splitStr.splitAsCopy("=", 0);
     assert(newSplit != null);
     defer newSplit.?.deinit();
 
-    assert(eql(u8, newSplit.?.bytes(), "variable"));
+    assert(std.mem.eql(u8, newSplit.?.bytes(), "variable"));
 
     // toLowercase & toUppercase
     buffer.toUppercase();
@@ -860,7 +926,7 @@ test "UTF8 Buffer Tests" {
     assert(buffer.compare("💯hello💯💯hello💯💯hello💯"));
 
     // substr
-    var subStr = try buffer.substract(0, 7);
+    var subStr = try buffer.substractRange(0, 7);
     defer subStr.deinit();
     assert(subStr.compare("💯hello💯"));
 
@@ -877,7 +943,7 @@ test "UTF8 Buffer Tests" {
 
     // owned
     const mySlice = try buffer.copy();
-    assert(eql(u8, mySlice.?, "This is a Test!"));
+    assert(std.mem.eql(u8, mySlice.?, "This is a Test!"));
     arena.allocator().free(mySlice.?);
 
     // Iterator
@@ -885,7 +951,7 @@ test "UTF8 Buffer Tests" {
     var iter = buffer.iterator();
     while (iter.next()) |ch| {
         if (i == 0) {
-            assert(eql(u8, "T", ch));
+            assert(std.mem.eql(u8, "T", ch));
         }
         i += 1;
     }

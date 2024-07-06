@@ -475,28 +475,28 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var txtimes = Buffer.init(allocator);
     defer txtimes.deinit();
     errdefer txtimes.deinit();
-    try txtimes.writeBytes(in_data, t);
+    try txtimes.writeNBytes(in_data, t);
 
     // Time zone indices for transition times.
     t = @as(usize, @intCast(n[NTime]));
     var txzones = Buffer.init(allocator);
     defer txzones.deinit();
     errdefer txzones.deinit();
-    try txzones.writeBytes(in_data, t);
+    try txzones.writeNBytes(in_data, t);
 
     // Zone info structures
     t = @as(usize, @intCast(n[NZone] * 6));
     var zonedata = Buffer.init(allocator);
     defer zonedata.deinit();
     errdefer zonedata.deinit();
-    try zonedata.writeBytes(in_data, t);
+    try zonedata.writeNBytes(in_data, t);
 
     // Time zone abbreviations.
     t = @as(usize, @intCast(n[NChar]));
     var abbrev = Buffer.init(allocator);
     defer abbrev.deinit();
     errdefer abbrev.deinit();
-    try abbrev.writeBytes(in_data, t);
+    try abbrev.writeNBytes(in_data, t);
 
     // Leap-second time pairs
     t = @as(usize, @intCast(n[NLeap] * (size + 4)));
@@ -509,7 +509,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var isstd = Buffer.init(allocator);
     defer isstd.deinit();
     errdefer isstd.deinit();
-    try isstd.writeBytes(in_data, t);
+    try isstd.writeNBytes(in_data, t);
 
     // Whether tx times associated with local time types
     // are specified as UTC or local time.
@@ -517,7 +517,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     var isutc = Buffer.init(allocator);
     defer isutc.deinit();
     errdefer isutc.deinit();
-    try isutc.writeBytes(in_data, t);
+    try isutc.writeNBytes(in_data, t);
 
     var extent_buff: [1024]u8 = undefined;
     const extend_size = try in_data.read(&extent_buff);
@@ -553,7 +553,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
             return Error.BadData;
         }
 
-        var zname = try abbrev.fromBytes(b);
+        var zname = try abbrev.bytesFrom(b);
 
         if (builtin.os.tag == .aix and name.len > 8 and (std.mem.eql(u8, name[0..8], "Etc/GMT+") or std.mem.eql(u8, name[0..8], "Etc/GMT-"))) {
             // There is a bug with AIX 7.2 TL 0 with files in Etc,
