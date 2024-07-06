@@ -1,11 +1,14 @@
 const std = @import("std");
 
-const GenericPool = @import("../pool/mod.zig").Generic;
+const pool = @import("../pool/mod.zig");
+
+const GenericPool = pool.Generic;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
-const Time = @import("../time/mod.zig").Time;
-const Local = @import("../time/mod.zig").zoneinfo.Local;
-const Measure = @import("../time/mod.zig").Measure;
+const time = @import("../time/mod.zig");
+const Time = time.Time;
+const Local = time.zoneinfo.Local;
+const Measure = time.Measure;
 
 const local = Local.Get();
 const default_caller_marshal_fn = struct {
@@ -203,7 +206,7 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
 }
 
 inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) void {
-    var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.initWithFactor(self.allocator, 2);
+    var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.init(self.allocator);
     errdefer {
         buffer.deinit();
         if (self.buffer_pool) |p| {

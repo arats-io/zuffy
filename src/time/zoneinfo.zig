@@ -472,28 +472,28 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
 
     // Transition times.
     var t = @as(usize, @intCast(n[NTime] * size));
-    var txtimes = Buffer.initWithFactor(allocator, 10);
+    var txtimes = Buffer.init(allocator);
     defer txtimes.deinit();
     errdefer txtimes.deinit();
     try txtimes.writeBytes(in_data, t);
 
     // Time zone indices for transition times.
     t = @as(usize, @intCast(n[NTime]));
-    var txzones = Buffer.initWithFactor(allocator, 10);
+    var txzones = Buffer.init(allocator);
     defer txzones.deinit();
     errdefer txzones.deinit();
     try txzones.writeBytes(in_data, t);
 
     // Zone info structures
     t = @as(usize, @intCast(n[NZone] * 6));
-    var zonedata = Buffer.initWithFactor(allocator, 10);
+    var zonedata = Buffer.init(allocator);
     defer zonedata.deinit();
     errdefer zonedata.deinit();
     try zonedata.writeBytes(in_data, t);
 
     // Time zone abbreviations.
     t = @as(usize, @intCast(n[NChar]));
-    var abbrev = Buffer.initWithFactor(allocator, 10);
+    var abbrev = Buffer.init(allocator);
     defer abbrev.deinit();
     errdefer abbrev.deinit();
     try abbrev.writeBytes(in_data, t);
@@ -506,7 +506,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // are specified as standard time or wall time.
     t = @as(usize, @intCast(n[NStdWall]));
 
-    var isstd = Buffer.initWithFactor(allocator, 10);
+    var isstd = Buffer.init(allocator);
     defer isstd.deinit();
     errdefer isstd.deinit();
     try isstd.writeBytes(in_data, t);
@@ -514,7 +514,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
     // Whether tx times associated with local time types
     // are specified as UTC or local time.
     t = @as(usize, @intCast(n[NUTCLocal]));
-    var isutc = Buffer.initWithFactor(allocator, 10);
+    var isutc = Buffer.init(allocator);
     defer isutc.deinit();
     errdefer isutc.deinit();
     try isutc.writeBytes(in_data, t);

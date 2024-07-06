@@ -19,7 +19,7 @@ fn parseEocdRecord(allocator: mem.Allocator, reader: anytype, signature: u32) !z
     const comment_len = try reader.readInt(u16, .little);
 
     const comment = if (comment_len > 0) cblk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..comment_len) |_| {
@@ -71,7 +71,7 @@ fn parseZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u3
         };
         const size = zip64_eocd_record.extenssion_v2.?.hash_length;
         zip64_eocd_record.extenssion_v2.?.hash_data = if (size > 0) blk: {
-            var tmp = Buffer.initWithFactor(allocator, 5);
+            var tmp = Buffer.init(allocator);
             errdefer tmp.deinit();
 
             for (0..size) |_| {
@@ -89,7 +89,7 @@ fn parseZip64EocdRecord(allocator: mem.Allocator, reader: anytype, signature: u3
     };
 
     zip64_eocd_record.extenssion_data = if (extensible_data_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..extensible_data_len) |_| {
@@ -114,7 +114,7 @@ fn parseZip64EocdLocator(reader: anytype, signature: u32) !zarchive_types.Zip64E
 fn parseDigitalSignature(allocator: mem.Allocator, reader: anytype, signature: u32) !zarchive_types.DigitalSignature {
     const signature_data_legth = try reader.readInt(u16, .little);
     const signature_data = if (signature_data_legth > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..signature_data_legth) |_| {
@@ -166,7 +166,7 @@ fn parseArchiveExtraData(allocator: mem.Allocator, reader: anytype, signature: u
     const extra_field_len = try reader.readInt(u16, .little);
 
     const extra_field = if (extra_field_len > 0) cblk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..extra_field_len) |_| {
@@ -207,7 +207,7 @@ fn parseCentralDirectoryHeader(allocator: mem.Allocator, reader: anytype, signat
     const offset_local_header = try reader.readInt(u32, .little);
 
     const filename = if (filename_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..filename_len) |_| {
@@ -218,7 +218,7 @@ fn parseCentralDirectoryHeader(allocator: mem.Allocator, reader: anytype, signat
     } else null;
 
     const extra_field = if (extra_field_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..extra_field_len) |_| {
@@ -229,7 +229,7 @@ fn parseCentralDirectoryHeader(allocator: mem.Allocator, reader: anytype, signat
     } else null;
 
     const comment = if (comment_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..comment_len) |_| {
@@ -307,7 +307,7 @@ pub fn parse(allocator: mem.Allocator, source: anytype, read_options: types.Read
     const start_pos = archive.eocd_record.?.offset_start + archive.eocd_record.?.num_disk_cd_start;
     try parse_source.seekableStream().seekTo(start_pos);
 
-    var cd_content = Buffer.initWithFactor(allocator, 5);
+    var cd_content = Buffer.init(allocator);
     errdefer cd_content.deinit();
     defer cd_content.deinit();
 
@@ -370,7 +370,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
         return error.BadHeader;
 
     const filename = if (filename_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..filename_len) |_| {
@@ -381,7 +381,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
     } else null;
 
     const extra_field = if (extra_field_len > 0) blk: {
-        var tmp = Buffer.initWithFactor(allocator, 5);
+        var tmp = Buffer.init(allocator);
         errdefer tmp.deinit();
 
         for (0..extra_field_len) |_| {
@@ -408,7 +408,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
     };
 
     const content_size = if (header.compression_method == 0) header.uncompressed_size else header.compressed_size;
-    //var content = Buffer.initWithFactor(allocator, 5);
+    //var content = Buffer.init(allocator);
 
     const start = try seekableStream.getPos();
     try in_reader.skipBytes(content_size, .{});
@@ -730,7 +730,7 @@ pub fn Archive(comptime ParseSource: type) type {
 
                     try seekableStream.seekTo(lfentry.@"$extra".content_startpos);
 
-                    var content = Buffer.initWithFactor(self.allocator, 5);
+                    var content = Buffer.init(self.allocator);
                     defer content.deinit();
                     errdefer content.deinit();
 
@@ -756,7 +756,7 @@ pub fn Archive(comptime ParseSource: type) type {
                             try receiver.entryContent(entry_name, content.bytes());
                         },
                         .Deflated => {
-                            var decoded_content = Buffer.initWithFactor(self.allocator, 5);
+                            var decoded_content = Buffer.init(self.allocator);
                             defer decoded_content.deinit();
                             errdefer decoded_content.deinit();
 

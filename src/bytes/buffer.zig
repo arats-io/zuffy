@@ -14,20 +14,20 @@ ptr: [*]u8,
 
 cap: usize = 0,
 len: usize = 0,
-factor: u4,
+factor: f16 = 0.75,
 
-pub fn initWithFactor(allocator: std.mem.Allocator, factor: u4) Self {
+pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
     return Self{
         .ptr = &[_]u8{},
         .allocator = allocator,
         .cap = 0,
         .len = 0,
-        .factor = if (factor <= 0) 1 else factor,
+        .factor = if (factor <= 0) 0.75 else factor,
     };
 }
 
 pub fn init(allocator: std.mem.Allocator) Self {
-    return initWithFactor(allocator, 1);
+    return initWithFactor(allocator, 0.75);
 }
 
 pub fn deinit(self: *Self) void {
@@ -52,7 +52,8 @@ pub fn shrink(self: *Self) !void {
 
 pub fn writeByte(self: *Self, byte: u8) !void {
     if (self.len + 1 > self.cap) {
-        try self.resize((self.len + 1) * self.factor);
+        const new_cap = self.len + 1 + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
+        try self.resize(new_cap);
     }
 
     self.ptr[self.len] = byte;
@@ -75,7 +76,8 @@ pub fn write(self: *Self, array: []const u8) !usize {
     if (array.len == 0) return 0;
 
     if (self.len + array.len > self.cap) {
-        try self.resize((self.len + array.len) * self.factor);
+        const new_cap = self.len + array.len + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
+        try self.resize(new_cap);
     }
 
     var i: usize = 0;

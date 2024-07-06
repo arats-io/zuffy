@@ -15,7 +15,7 @@ pub fn init(allocator: std.mem.Allocator) Self {
     return Self{ .buffer = Buffer.init(allocator) };
 }
 
-pub fn initWithFactor(allocator: std.mem.Allocator, factor: u4) Self {
+pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
     return Self{ .buffer = Buffer.initWithFactor(allocator, factor) };
 }
 
@@ -50,7 +50,8 @@ fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) 
 
     // Make sure buffer has enough space
     if (self.buffer.len + numberOfChars > self.buffer.cap) {
-        try self.buffer.resize((self.buffer.len + numberOfChars) * self.buffer.factor);
+        const new_cap = self.buffer.len + numberOfChars + @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.buffer.len)) * @as(f64, self.buffer.factor)));
+        try self.buffer.resize(new_cap);
     }
 
     // If the index is >= len, then simply push to the end.
