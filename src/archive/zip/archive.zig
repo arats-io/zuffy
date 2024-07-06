@@ -474,7 +474,7 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
 }
 
 const Utf8Buffer = @import("../../bytes/utf8_buffer.zig");
-const FlexibleBufferStream = @import("../../bytes/mod.zig").FlexibleBufferStream;
+const BufferStream = @import("../../bytes/mod.zig").BufferStream;
 
 pub fn Archive(comptime ParseSource: type) type {
     return struct {

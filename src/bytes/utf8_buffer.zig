@@ -717,15 +717,6 @@ fn utf8Position(self: *Self, index: usize, real: bool) ?usize {
 // Reader and Writer functionality.
 pub usingnamespace struct {
     pub const Writer = std.io.Writer(*Self, Buffer.Error, appendWrite);
-    pub const Reader = std.io.Reader(*Self, Buffer.Error, readFn);
-
-    pub fn reader(self: *Self) Reader {
-        return .{ .context = self };
-    }
-
-    fn readFn(self: *Self, m: []u8) !usize {
-        return try self.read(m);
-    }
 
     pub fn writer(self: *Self) Writer {
         return .{ .context = self };

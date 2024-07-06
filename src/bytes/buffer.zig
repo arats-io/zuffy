@@ -121,6 +121,14 @@ pub fn read(self: *Self, dst: []u8) !usize {
     return size;
 }
 
+pub fn readFrom(self: *Self, pos: usize, dst: []u8) !usize {
+    if ((self.len - pos) <= 0) return 0;
+
+    const size = if (self.len - pos < dst.len) self.len - pos else dst.len;
+    _copy(u8, dst, self.ptr[pos..size]);
+    return size;
+}
+
 /// Compare the buffer with given array
 pub fn compare(self: *Self, str: []const u8) bool {
     if (self.len < str.len) return false;
@@ -405,18 +413,14 @@ pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .sca
     };
 }
 
+/// Retrieve the raw length of teh buffer
+pub fn rawLength(self: *Self) usize {
+    return self.len;
+}
+
 // Reader and Writer functionality.
 pub usingnamespace struct {
     pub const Writer = std.io.Writer(*Self, Error, appendWrite);
-    pub const Reader = std.io.GenericReader(*Self, Error, readFn);
-
-    pub fn reader(self: *Self) Reader {
-        return .{ .context = self };
-    }
-
-    fn readFn(self: *Self, m: []u8) !usize {
-        return try self.read(m);
-    }
 
     pub fn writer(self: *Self) Writer {
         return .{ .context = self };

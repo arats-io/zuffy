@@ -331,6 +331,8 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
 }
 
 fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
+    const BufferStream = @import("../bytes/mod.zig").BufferStream;
+
     var filters = std.ArrayList([]const u8).init(allocator);
     try filters.append(name);
 
@@ -339,9 +341,11 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     const data = @embedFile("zoneinfo.gz.zip");
     var in_stream = std.io.fixedBufferStream(data);
 
-    const FlexibleBufferStream = @import("../bytes/mod.zig").FlexibleBufferStream;
-    var fbs = FlexibleBufferStream.init(allocator);
-    defer fbs.deinit();
+    var buff = Buffer.init(allocator);
+    defer buff.deinit();
+    errdefer buff.deinit();
+
+    var fbs = BufferStream(Buffer).init(buff);
 
     try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());
 
