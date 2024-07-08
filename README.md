@@ -13,7 +13,7 @@ Include the xstd into the `build.zig.zon` file.
 ```
 .dependencies = .{
     .xstd = .{
-        .url = "https://github.com/arats-io/zig-xstd/archive/refs/tags/v0.1.9.tar.gz",
+        .url = "https://github.com/arats-io/zig-xstd/archive/refs/tags/v0.1.10.tar.gz",
         .hash = "12201fd38f467e6c64ee7bca53da95863b6c05da77fc51daf0ab22079ede57cbd4e2",
     },
 },
@@ -78,4 +78,6 @@ IMPORTANT: As the zip is embeded do affect the binary size. Zip(and gziped) is h
 
 ---
 
-### [ZLog a Zig logger](./src/zlog/README.md)
+### Logger
+
+[zlog](./src/zlog.md)

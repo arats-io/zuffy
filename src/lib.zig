@@ -8,5 +8,5 @@ pub const time = @import("time/mod.zig");
 pub const bytes = @import("bytes/mod.zig");
 pub const list = @import("list/mod.zig");
 
-pub const zlog = @import("zlog/logger.zig");
 pub const pool = @import("pool/mod.zig");
+pub const zlog = @import("zlog.zig");
