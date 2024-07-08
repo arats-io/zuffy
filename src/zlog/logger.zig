@@ -1,11 +1,11 @@
 const std = @import("std");
 
 const pool = @import("../pool/mod.zig");
+const time = @import("../time/mod.zig");
 
 const GenericPool = pool.Generic;
 const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
-const time = @import("../time/mod.zig");
 const Time = time.Time;
 const Local = time.zoneinfo.Local;
 const Measure = time.Measure;

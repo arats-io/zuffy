@@ -244,8 +244,10 @@ test "std.atomic.Queue" {
 
 fn startPuts(ctx: *Context) u8 {
     var put_count: usize = puts_per_thread;
-    var prng = std.rand.DefaultPrng.init(0xdeadbeef);
-    const random = prng.random();
+    const RndGen = std.Random.DefaultPrng;
+    var rnd = RndGen.init(0xdeadbeef);
+
+    const random = rnd.random();
     while (put_count != 0) : (put_count -= 1) {
         std.time.sleep(1); // let the os scheduler be our fuzz
         const x = @as(i32, @bitCast(random.int(u32)));
