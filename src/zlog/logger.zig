@@ -194,7 +194,7 @@ pub fn Warn(self: *const Self, message: []const u8, args: anytype) void {
 
     self.send(Level.Warn, message, null, args);
 }
-pub fn Error(self: *const Self, message: []const u8, err: anyerror, args: anytype) void {
+pub fn Error(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Error)) return;
 
     self.send(Level.Error, message, err, args);
