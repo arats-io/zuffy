@@ -7,6 +7,7 @@ const Buffer = @import("buffer.zig");
 /// That is, it will attempt to avoid copying the buffer's content to (or from) an intermediate
 /// buffer before (or after) each invocation of one of the underlying operating system's native I/O operations.
 const Self = @This();
+const Error = Buffer.Error;
 
 buffer: Buffer,
 
