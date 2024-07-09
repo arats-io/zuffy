@@ -172,6 +172,8 @@ pub const Time = struct {
     ///   - `dd -> Su Mo ... Fr Sa`
     ///   - `ddd -> Sun Mon ... Fri Sat`
     ///   - `dddd -> Sunday Monday ... Friday Saturday`
+    ///   - `e -> 0 1 ... 5 6 (locale)`
+    ///   - `E -> 1 2 ... 6 7 (ISO)`
     ///
     /// **Week of Year**
     ///   - `w  -> 1 2 ... 52 53`
@@ -179,7 +181,9 @@ pub const Time = struct {
     ///   - `ww -> 01 02 ... 52 53`
     ///
     /// **Year**
+    ///   - `Y -> 11970 11971 ... 19999 20000 20001 (Holocene calendar)`
     ///   - `YY -> 70 71 ... 29 30`
+    ///   - `YYY -> 1 2 ... 1970 1971 ... 2029 2030`
     ///   - `YYYY -> 1970 1971 ... 2029 2030`
     ///
     /// **Era**
@@ -205,6 +209,9 @@ pub const Time = struct {
     /// **Second**
     ///   - `s  -> 0 1 ... 58 59`
     ///   - `ss -> 00 01 ... 58 59`
+    ///   - `S -> 0 1 ... 8 9 (second fraction)`
+    ///   - `SS -> 00 01 ... 98 99`
+    ///   - `SSS -> 000 001 ... 998 999`
     ///
     /// **Offset**
     ///   - `Z   -> -7 -6 ... +5 +6`
@@ -265,107 +272,102 @@ pub const Time = struct {
     fn appendToken(self: Self, token: []const u8, writer: anytype) !void {
         const date_time = self.dateTime();
 
-        if (std.mem.eql(u8, token, "YY")) {
-            var buf: [4]u8 = undefined;
-            var yy = try std.fmt.bufPrint(&buf, "{d}", .{date_time.year});
+        if (std.meta.stringToEnum(FormatToken, token)) |tag| {
+            switch (tag) {
+                .Y => try writer.print("{}", .{date_time.year + 10000}),
+                .YY => {
+                    var buf: [4]u8 = undefined;
+                    var yy = try std.fmt.bufPrint(&buf, "{}", .{date_time.year});
+                    try writer.print("{s}", .{yy[2..]});
+                },
+                .YYY => try writer.print("{}", .{date_time.year}),
+                .YYYY => try writer.print("{d:0>4}", .{date_time.year}),
+                .MMMM => try writer.print("{s}", .{self.getMonth().string()}),
+                .MMM => try writer.print("{s}", .{self.getMonth().shortString()}),
+                .MM => try writer.print("{d:0>2}", .{date_time.month}),
+                .M => try writer.print("{}", .{date_time.month}),
+                .Mo => try writer.print("{}{s}", .{ date_time.month, suffix(date_time.month) }),
+                .DD => try writer.print("{d:0>2}", .{date_time.day}),
+                .D => try writer.print("{}", .{date_time.day}),
+                .Do => {
+                    const rem = @rem(date_time.day, 30);
+                    try writer.print("{}{s}", .{ date_time.day, suffix(rem) });
+                },
+                .DDDD => try writer.print("{d:0>3}", .{date_time.yday}),
+                .DDD => try writer.print("{}", .{date_time.yday}),
+                .DDDo => {
+                    const rem = @rem(date_time.yday, daysBefore[date_time.month]);
+                    try writer.print("{}{s}", .{ date_time.yday, suffix(rem) });
+                },
+                .HH => try writer.print("{d:0>2}", .{date_time.hour}),
+                .H => try writer.print("{}", .{date_time.hour}),
+                .kk => try writer.print("{d:0>2}", .{date_time.hour}),
+                .k => try writer.print("{}", .{date_time.hour}),
+                .hh => {
+                    const h = @rem(date_time.hour, 12);
+                    try writer.print("{d:0>2}", .{h});
+                },
+                .h => {
+                    const h = @rem(date_time.hour, 12);
+                    try writer.print("{}", .{h});
+                },
+                .mm => try writer.print("{d:0>2}", .{date_time.min}),
+                .m => try writer.print("{}", .{date_time.min}),
+                .ss => try writer.print("{d:0>2}", .{date_time.sec}),
+                .s => try writer.print("{}", .{date_time.sec}),
 
-            try writer.print("{s}", .{yy[2..]});
-        } else if (std.mem.eql(u8, token, "YYYY")) {
-            try writer.print("{d}", .{date_time.year});
-        } else if (std.mem.eql(u8, token, "MMMM")) {
-            try writer.print("{s}", .{self.getMonth().string()});
-        } else if (std.mem.eql(u8, token, "MMM")) {
-            try writer.print("{s}", .{self.getMonth().shortString()});
-        } else if (std.mem.eql(u8, token, "MM")) {
-            try writer.print("{d:0>2}", .{date_time.month});
-        } else if (std.mem.eql(u8, token, "M")) {
-            try writer.print("{d}", .{date_time.month});
-        } else if (std.mem.eql(u8, token, "Mo")) {
-            try writer.print("{d}{s}", .{ date_time.month, suffix(date_time.month) });
-        } else if (std.mem.eql(u8, token, "DD")) {
-            try writer.print("{d:0>2}", .{date_time.day});
-        } else if (std.mem.eql(u8, token, "D")) {
-            try writer.print("{d}", .{date_time.day});
-        } else if (std.mem.eql(u8, token, "Do")) {
-            const rem = @rem(date_time.day, 30);
-            try writer.print("{d}{s}", .{ date_time.day, suffix(rem) });
-        } else if (std.mem.eql(u8, token, "DDDD")) {
-            try writer.print("{d:0>3}", .{date_time.yday});
-        } else if (std.mem.eql(u8, token, "DDD")) {
-            try writer.print("{d}", .{date_time.yday});
-        } else if (std.mem.eql(u8, token, "DDDo")) {
-            const rem = @rem(date_time.yday, daysBefore[date_time.month]);
-            try writer.print("{d}{s}", .{ date_time.yday, suffix(rem) });
-        } else if (std.mem.eql(u8, token, "HH")) {
-            try writer.print("{d:0>2}", .{date_time.hour});
-        } else if (std.mem.eql(u8, token, "H")) {
-            try writer.print("{d}", .{date_time.hour});
-        } else if (std.mem.eql(u8, token, "kk")) {
-            try writer.print("{d:0>2}", .{date_time.hour});
-        } else if (std.mem.eql(u8, token, "k")) {
-            try writer.print("{d}", .{date_time.hour});
-        } else if (std.mem.eql(u8, token, "hh")) {
-            const h = @rem(date_time.hour, 12);
-            try writer.print("{d:0>2}", .{h});
-        } else if (std.mem.eql(u8, token, "h")) {
-            const h = @rem(date_time.hour, 12);
-            try writer.print("{d}", .{h});
-        } else if (std.mem.eql(u8, token, "mm")) {
-            try writer.print("{d:0>2}", .{date_time.min});
-        } else if (std.mem.eql(u8, token, "m")) {
-            try writer.print("{d}", .{date_time.min});
-        } else if (std.mem.eql(u8, token, "ss")) {
-            try writer.print("{d:0>2}", .{date_time.sec});
-        } else if (std.mem.eql(u8, token, "s")) {
-            try writer.print("{d}", .{date_time.sec});
-        } else if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis) and std.mem.eql(u8, token, "SSS")) {
-            try writer.print("{d}", .{self.rest});
-        } else if (std.mem.eql(u8, token, "A")) {
-            _ = try writer.write(if (date_time.hour <= 11) "AM" else "PM");
-        } else if (std.mem.eql(u8, token, "a")) {
-            _ = try writer.write(if (date_time.hour <= 11) "am" else "pm");
-        } else if (std.mem.eql(u8, token, "d")) {
-            try writer.print("{d}", .{date_time.wday - 1});
-        } else if (std.mem.eql(u8, token, "c")) {
-            try writer.print("{d}", .{date_time.wday});
-        } else if (std.mem.eql(u8, token, "dd")) {
-            try writer.print("{s}", .{self.getWeekday().shorterString()});
-        } else if (std.mem.eql(u8, token, "ddd")) {
-            try writer.print("{s}", .{self.getWeekday().shortString()});
-        } else if (std.mem.eql(u8, token, "dddd")) {
-            try writer.print("{s}", .{self.getWeekday().string()});
-        } else if (std.mem.eql(u8, token, "ZZZ")) {
-            try self.zzz(writer, ":");
-        } else if (std.mem.eql(u8, token, "ZZ")) {
-            try self.zzz(writer, "");
-        } else if (std.mem.eql(u8, token, "Z")) {
-            const h = @divFloor(self.offset.?, std.time.s_per_hour);
-            try writer.print("{s}{d}", .{ if (h > 0) "+" else "", h });
-        } else if (std.mem.eql(u8, token, "NN")) {
-            _ = try writer.write("BC");
-        } else if (std.mem.eql(u8, token, "N")) {
-            _ = try writer.write("Before Christ");
-        } else if (std.mem.eql(u8, token, "w")) {
-            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-            try writer.print("{d}", .{wy});
-        } else if (std.mem.eql(u8, token, "wo")) {
-            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-            try writer.print("{d}{s}", .{ wy, suffix(wy) });
-        } else if (std.mem.eql(u8, token, "ww")) {
-            const l: u32 = if (isLeap(date_time.year)) 1 else 0;
-            const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-            try writer.print("{d:0>2}", .{wy});
-        } else if (std.mem.eql(u8, token, "QQ")) {
-            const q = @divTrunc(date_time.month - 1, 3) + 1;
-            try writer.print("0{d}", .{q});
-        } else if (std.mem.eql(u8, token, "Q")) {
-            const q = @divTrunc(date_time.month - 1, 3) + 1;
-            try writer.print("{d}", .{q});
-        } else if (std.mem.eql(u8, token, "Qo")) {
-            const q = @divTrunc(date_time.month - 1, 3) + 1;
-            try writer.print("{d}{s}", .{ q, suffix(q) });
+                .S => if (@intFromEnum(self.measure) < @intFromEnum(Measure.millis)) try writer.print("{}", .{self.rest / 100}),
+                .SS => if (@intFromEnum(self.measure) < @intFromEnum(Measure.millis)) try writer.print("{}", .{self.rest / 10}),
+                .SSS => if (@intFromEnum(self.measure) >= @intFromEnum(Measure.millis)) try writer.print("{}", .{self.rest}),
+
+                .A => _ = try writer.write(if (date_time.hour <= 11) "AM" else "PM"),
+                .a => _ = try writer.write(if (date_time.hour <= 11) "am" else "pm"),
+                .d => try writer.print("{}", .{date_time.wday - 1}),
+                .c => try writer.print("{}", .{date_time.wday}),
+                .dd => try writer.print("{s}", .{self.getWeekday().shorterString()}),
+                .ddd => try writer.print("{s}", .{self.getWeekday().shortString()}),
+                .dddd => try writer.print("{s}", .{self.getWeekday().string()}),
+                .e => try writer.print("{}", .{date_time.wday}),
+                .E => try writer.print("{}", .{date_time.wday + 1}),
+                .ZZZ => try self.zzz(writer, ":"),
+                .ZZ => try self.zzz(writer, ""),
+                .Z => {
+                    const h = @divFloor(self.offset.?, std.time.s_per_hour);
+                    try writer.print("{s}{}", .{ if (h > 0) "+" else "", h });
+                },
+                .NN => _ = try writer.write("BC"),
+                .N => _ = try writer.write("Before Christ"),
+                .w => {
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+                    try writer.print("{}", .{wy});
+                },
+                .wo => {
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+                    try writer.print("{}{s}", .{ wy, suffix(wy) });
+                },
+                .ww => {
+                    const l: u32 = if (isLeap(date_time.year)) 1 else 0;
+                    const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
+                    try writer.print("{d:0>2}", .{wy});
+                },
+                .QQ => {
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
+                    try writer.print("0{}", .{q});
+                },
+                .Q => {
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
+                    try writer.print("{}", .{q});
+                },
+                .Qo => {
+                    const q = @divTrunc(date_time.month - 1, 3) + 1;
+                    try writer.print("{}{s}", .{ q, suffix(q) });
+                },
+                .x => try writer.print("{}", .{std.time.milliTimestamp()}),
+                .X => try writer.print("{}", .{std.time.timestamp()}),
+                else => {},
+            }
         } else {
             _ = try writer.write(token);
         }
@@ -440,7 +442,7 @@ pub const daysBefore = [13]u32{
 };
 
 const tokens_2 = [_][]const u8{ "MM", "Mo", "DD", "Do", "YY", "ss", "kk", "NN", "mm", "hh", "HH", "ZZ", "dd", "Qo", "QQ", "wo", "ww" };
-const tokens_3 = [_][]const u8{ "MMM", "DDD", "ZZZ", "ddd", "SSS" };
+const tokens_3 = [_][]const u8{ "MMM", "DDD", "ZZZ", "ddd", "SSS", "YYY" };
 const tokens_4 = [_][]const u8{ "MMMM", "DDDD", "DDDo", "dddd", "YYYY" };
 
 fn in(comptime tokentype: u4, elem: []const u8) bool {
@@ -601,3 +603,58 @@ pub fn absDate(seconds: i128) DateTime {
         .sec = @as(u6, @intCast(sec)),
     };
 }
+
+const FormatToken = enum {
+    M, // 1 2 ... 11 12
+    Mo, // 1st 2nd ... 11th 12th
+    MM, // 01 02 ... 11 12
+    MMM, // Jan Feb ... Nov Dec
+    MMMM, // January February ... November December
+    Q, // 1 2 3 4
+    QQ, // 01 02 03 04
+    Qo, // 1st 2nd 3rd 4th
+    D, // 1 2 ... 30 31
+    Do, // 1st 2nd ... 30th 31st
+    DD, // 01 02 ... 30 31
+    DDD, // 1 2 ... 364 365
+    DDDo, // 1st 2nd ... 364th 365th
+    DDDD, // 001 002 ... 364 365
+    d, // 0 1 ... 5 6
+    c, // 1 2 ... 6 7 (Mon-Sun)
+    do, // 0th 1st ... 5th 6th
+    dd, // Su Mo ... Fr Sa
+    ddd, // Sun Mon ... Fri Sat
+    dddd, // Sunday Monday ... Friday Saturday
+    e, // 0 1 ... 5 6 (locale)
+    E, // 1 2 ... 6 7 (ISO)
+    w, // 1 2 ... 52 53
+    wo, // 1st 2nd ... 52nd 53rd
+    ww, // 01 02 ... 52 53
+    Y, // 11970 11971 ... 19999 20000 20001 (Holocene calendar)
+    YY, // 70 71 ... 29 30
+    YYY, // 1 2 ... 1970 1971 ... 2029 2030
+    YYYY, // 0001 0002 ... 1970 1971 ... 2029 2030
+    N, // BC AD
+    NN, // Before Christ ... Anno Domini
+    A, // AM PM
+    a, // am pm
+    H, // 0 1 ... 22 23
+    HH, // 00 01 ... 22 23
+    h, // 1 2 ... 11 12
+    hh, // 01 02 ... 11 12
+    k, // 1 2 ... 23 24
+    kk, // 01 02 ... 23 24
+    m, // 0 1 ... 58 59
+    mm, // 00 01 ... 58 59
+    s, // 0 1 ... 58 59
+    ss, // 00 01 ... 58 59
+    S, // 0 1 ... 8 9 (second fraction)
+    SS, // 00 01 ... 98 99
+    SSS, // 000 001 ... 998 999
+    z, // EST CST ... MST PST
+    Z, // -7 -6 ... +5 +6
+    ZZ, // -0700 -0600 ... +0600 +0700
+    ZZZ, // -07:00 -06:00 ... +05:00 +06:00
+    x, // unix milli
+    X, // unix
+};

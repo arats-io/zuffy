@@ -230,10 +230,10 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
         const t = Time.new(opts.time_measure);
 
         switch (opts.time_formating) {
-            .timestamp => {
+            inline .timestamp => {
                 attribute(true, &buffer, self.config, opts.time_field_name, t.value);
             },
-            .pattern => {
+            inline .pattern => {
                 var buf: [1024]u8 = undefined;
                 const len = t.formatfInto(self.allocator, opts.time_pattern, &buf) catch |err| blk: {
                     failureFn(opts.internal_failure, "Failed to include data to the log buffer; {any}", .{err});
