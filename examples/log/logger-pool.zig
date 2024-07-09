@@ -40,6 +40,9 @@ pub fn main() !void {
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
+        .struct_union = .{
+            .escape_enabled = true,
+        },
     });
     defer logger.deinit();
 
@@ -67,8 +70,8 @@ pub fn main() !void {
                     Element{ .int = 32, .string = "Element2" },
                 }),
                 zlog.Field([2][]const u8, "array_strings", [_][]const u8{
-                    "element 1",
-                    "element 2",
+                    "eleme\"nt 1",
+                    "eleme\"nt 2",
                 }),
                 zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
             },

@@ -412,7 +412,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                     }
                 },
                 .Array, .Vector => {
-                    data.appendf("{s}{s}=\u{0022}[", .{ header, key }) catch |err| {
+                    data.appendf("{s}{s}=[", .{ header, key }) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
                     };
 
@@ -420,7 +420,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                         attributeSingle(i == 0, buffer, config, elem);
                     }
 
-                    data.appendf("]\u{0022}", .{}) catch |err| {
+                    data.appendf("]", .{}) catch |err| {
                         failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
                     };
                 },
@@ -489,7 +489,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
     const ty = @typeInfo(T);
     switch (config.format) {
         inline .text => {
-            const header = if (first) "" else " ";
+            const header = if (first) "" else ", ";
             switch (ty) {
                 .Enum => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }) catch |err| {
                     failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ @typeName(value), err });
