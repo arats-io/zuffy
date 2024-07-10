@@ -123,11 +123,11 @@ const logger = zlog.initWithPool(arena.allocator(), &pool, .{
 });
 defer logger.deinit();
 
-try logger.With("major_version", 1);
-try logger.With("minor_version", 2);
+try logger.With(.{
+    zlog.Field(u8, "major_version", 1),
+    zlog.Field(u8, "minor_version", 2),
+});
 ```
-
-## Examples:
 
 ```zig
 try logger.Trace(
@@ -191,4 +191,29 @@ Output:
 {"time": "2024 Jul 4th Thu 17:37:05.80564000 UTC+01:00 - 3rd", "level": "info", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:89", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
 {"time": "2024 Jul 4th Thu 17:37:05.80621000 UTC+01:00 - 3rd", "level": "warn", "msg": "Initialization...", "major_version":1, "minor_version":2, "caller": "examples/log/logger-pool.zig:102", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
 {"time": "2024 Jul 4th Thu 17:37:05.80679000 UTC+01:00 - 3rd", "level": "error", "msg": "Initialization...", "major_version":1, "minor_version":2, "error": "OutOfMemoryClient", "caller": "examples/log/logger-pool.zig:116", "database": "mydb", "counter":262142, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}
+```
+
+### Scoped logger
+
+```zig
+const cache_logger = try logger.Scope(.cache);
+defer cache_logger.deinit();
+
+try cache_logger.Error(
+    "Initialization...",
+    Error.OutOfMemoryClient,
+    .{
+        zlog.Source(@src()),
+        zlog.Field([]const u8, "database", value_database),
+        zlog.Field(usize, "counter", idx),
+        zlog.Field(?[]const u8, "attribute-null", null),
+        zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+    },
+);
+```
+
+Scoped logger Output:
+
+```json
+{"time": "2024 Jul 10th Wed 20:27:52.963464000 UTC+02:00 - 3rd", "level": "error", "scope": "cache", "msg": "Initialization...", "version":{"major":0,"minor":1,"patch":4,"pre":null,"build":null}, "hu":1, "error": "OutOfMemoryClient", "caller": "examples/log/logger-pool.zig:144", "database": "my\"db", "counter":1502, "attribute-null":null, "element1":{"int":32,"string":"Element1","elem":null}}.
 ```

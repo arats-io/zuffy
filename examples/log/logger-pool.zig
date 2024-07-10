@@ -34,7 +34,7 @@ pub fn main() !void {
 
     const logger = zlog.initWithPool(arena.allocator(), &pool, .{
         .level = zlog.Level.ParseString("trace"),
-        .format = zlog.Format.json,
+        .format = .json,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
@@ -44,9 +44,16 @@ pub fn main() !void {
         .escape_enabled = false,
         .stacktrace_ebabled = true,
     });
+    errdefer logger.deinit();
     defer logger.deinit();
 
-    try logger.With("version", build_options.semver);
+    try logger.With(.{
+        zlog.Field(std.SemanticVersion, "version", build_options.semver),
+    });
+
+    const cache_logger = try logger.Scope(.cache);
+    errdefer cache_logger.deinit();
+    defer cache_logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
@@ -130,6 +137,18 @@ pub fn main() !void {
             },
         );
         m += (std.time.nanoTimestamp() - startTime);
+
+        try cache_logger.Error(
+            "Initialization...",
+            Error.OutOfMemoryClient,
+            .{
+                zlog.Source(@src()),
+                zlog.Field([]const u8, "database", value_database),
+                zlog.Field(usize, "counter", idx),
+                zlog.Field(?[]const u8, "attribute-null", null),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+            },
+        );
     }
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});

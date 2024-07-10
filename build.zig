@@ -2,7 +2,7 @@ const std = @import("std");
 // const build_zon = @import("build.zig.zon"); // not yet supported, see: https://github.com/ziglang/zig/issues/14531
 
 //const version: std.SemanticVersion = std.SemanticVersion.parse(build_zon.version) orelse unreachable;
-const version: std.SemanticVersion = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 4 };
+const version: std.SemanticVersion = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 12 };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});

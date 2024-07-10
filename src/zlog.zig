@@ -115,6 +115,7 @@ allocator: std.mem.Allocator,
 config: Config,
 buffer_pool: ?*const GenericPool(Utf8Buffer),
 fields: Utf8Buffer,
+scope: ?Utf8Buffer = null,
 
 pub fn init(allocator: std.mem.Allocator, config: Config) Self {
     return .{
@@ -127,6 +128,9 @@ pub fn init(allocator: std.mem.Allocator, config: Config) Self {
 
 pub fn deinit(self: *const Self) void {
     @constCast(self).fields.deinit();
+    if (self.scope) |s| {
+        @constCast(&s).deinit();
+    }
 }
 
 pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPool(Utf8Buffer), config: Config) Self {
@@ -138,8 +142,29 @@ pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPoo
     };
 }
 
-pub fn With(self: *const Self, name: []const u8, value: anytype) !void {
-    try injectKeyAndValue(false, &self.fields, self.config, name, value);
+pub fn Scope(self: *const Self, comptime value: @Type(.EnumLiteral)) !Self {
+    var scope = Utf8Buffer.init(self.allocator);
+    errdefer scope.deinit();
+
+    try injectKeyAndValue(false, &scope, self.config, "scope", value);
+
+    return Self{
+        .allocator = self.allocator,
+        .config = self.config,
+        .buffer_pool = self.buffer_pool,
+        .fields = try @constCast(self).fields.clone(),
+        .scope = scope,
+    };
+}
+
+pub fn With(self: *const Self, args: anytype) !void {
+    inline for (0..args.len) |i| {
+        const arg_type = @TypeOf(args[i]);
+
+        if (@hasField(arg_type, "key") and @hasField(arg_type, "value")) {
+            try injectKeyAndValue(false, &self.fields, self.config, args[i].key, args[i].value);
+        }
+    }
 }
 
 pub fn Trace(self: *const Self, message: []const u8, args: anytype) !void {
@@ -211,6 +236,11 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
 
     // append the level
     try injectKeyAndValue(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
+
+    // append the scope if present
+    if (self.scope) |scope| {
+        try buffer.append(@constCast(&scope).bytes());
+    }
 
     // append the message
     try injectKeyAndValue(false, &buffer, opts, opts.message_field_name, message);
