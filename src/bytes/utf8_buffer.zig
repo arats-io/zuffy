@@ -62,9 +62,13 @@ fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) 
 
     // Make sure buffer has enough space
     if (self.buffer.len + numberOfChars > self.buffer.cap) {
-        const new_cap = self.buffer.len + numberOfChars +
-            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.buffer.len)) * @as(f64, self.buffer.factor)));
-        try self.buffer.resize(new_cap);
+        const f = if (self.buffer.len > 0) result: {
+            const t: f64 = @round(@as(f64, @floatFromInt(self.buffer.len)) * @as(f64, @floatCast(self.buffer.factor)));
+            const res: usize = @truncate(@as(usize, @intFromFloat(t)));
+            break :result @abs(res);
+        } else 1;
+
+        try self.buffer.resize(self.buffer.len + numberOfChars + f);
     }
 
     // If the index is >= len, then simply push to the end.

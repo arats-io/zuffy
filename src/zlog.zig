@@ -19,12 +19,6 @@ const default_caller_marshal_fn = struct {
     }
 }.handler;
 
-pub const InternalFailure = enum {
-    nothing,
-    panic,
-    print,
-};
-
 pub const TimeFormating = enum(u4) {
     timestamp = 0,
     pattern = 1,
@@ -102,9 +96,6 @@ pub const Config = struct {
     /// field name for the error stacktrace
     stacktrace_field_name: []const u8 = "stacktrace",
 
-    /// indicator what to do in case is there is a error occuring inside of logger, possible values as doing (nothing | panic | print)
-    internal_failure: InternalFailure = InternalFailure.panic,
-
     /// caller related configuration options
     /// flag enabling/disabling the caller reporting in the log
     caller_enabled: bool = false,
@@ -170,42 +161,42 @@ pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPoo
     };
 }
 
-pub fn With(self: *const Self, name: []const u8, value: anytype) void {
-    attribute(false, &self.fields, self.config, name, value);
+pub fn With(self: *const Self, name: []const u8, value: anytype) !void {
+    try attribute(false, &self.fields, self.config, name, value);
 }
 
-pub fn Trace(self: *const Self, message: []const u8, args: anytype) void {
+pub fn Trace(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Trace)) return;
 
-    self.send(Level.Trace, message, null, args);
+    try self.send(Level.Trace, message, null, args);
 }
-pub fn Debug(self: *const Self, message: []const u8, args: anytype) void {
+pub fn Debug(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Debug)) return;
 
-    self.send(Level.Debug, message, null, args);
+    try self.send(Level.Debug, message, null, args);
 }
-pub fn Info(self: *const Self, message: []const u8, args: anytype) void {
+pub fn Info(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Info)) return;
 
-    self.send(Level.Info, message, null, args);
+    try self.send(Level.Info, message, null, args);
 }
-pub fn Warn(self: *const Self, message: []const u8, args: anytype) void {
+pub fn Warn(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Warn)) return;
 
-    self.send(Level.Warn, message, null, args);
+    try self.send(Level.Warn, message, null, args);
 }
-pub fn Error(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) void {
+pub fn Error(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Error)) return;
 
-    self.send(Level.Error, message, err, args);
+    try self.send(Level.Error, message, err, args);
 }
-pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytype) void {
+pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.Fatal)) return;
 
-    self.send(Level.Fatal, message, err, args);
+    try self.send(Level.Fatal, message, err, args);
 }
 
-inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) void {
+inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
     var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.init(self.allocator);
     errdefer {
         buffer.deinit();
@@ -230,34 +221,29 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
         const t = Time.new(opts.time_measure);
 
         switch (opts.time_formating) {
-            inline .timestamp => {
-                attribute(true, &buffer, self.config, opts.time_field_name, t.value);
+            .timestamp => {
+                try attribute(true, &buffer, self.config, opts.time_field_name, t.value);
             },
-            inline .pattern => {
+            .pattern => {
                 var buf: [1024]u8 = undefined;
-                const len = t.formatfInto(self.allocator, opts.time_pattern, &buf) catch |err| blk: {
-                    failureFn(opts.internal_failure, "Failed to include data to the log buffer; {any}", .{err});
-                    break :blk 0;
-                };
-                attribute(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
+                const len = try t.formatfInto(self.allocator, opts.time_pattern, &buf);
+                try attribute(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
             },
         }
     }
 
     // append the level
-    attribute(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
+    try attribute(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
 
     // append the message
-    attribute(false, &buffer, opts, opts.message_field_name, message);
+    try attribute(false, &buffer, opts, opts.message_field_name, message);
 
     // append the static logger fields
-    buffer.append(@constCast(&self.fields).bytes()) catch |err| {
-        failureFn(opts.internal_failure, "Failed to store static fields; {any}", .{err});
-    };
+    try buffer.append(@constCast(&self.fields).bytes());
 
     // append the error
     if (err_value) |value| {
-        attribute(false, &buffer, self.config, self.config.error_field_name, @errorName(value));
+        try attribute(false, &buffer, self.config, self.config.error_field_name, @errorName(value));
 
         if (self.config.stacktrace_ebabled) {
             if (@errorReturnTrace()) |stacktrace| {
@@ -269,12 +255,10 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
                     errdefer buff.deinit();
                     defer buff.deinit();
 
-                    std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color) catch |err| {
-                        failureFn(self.config.internal_failure, "Failed to include stacktrace to the log buffer; {any}", .{err});
-                    };
+                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color);
 
                     if (buff.length() > 0) {
-                        attribute(false, &buffer, self.config, self.config.stacktrace_field_name, buff.bytes());
+                        try attribute(false, &buffer, self.config, self.config.stacktrace_field_name, buff.bytes());
                     }
                 }
             }
@@ -287,40 +271,34 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
         if (@hasField(arg_type, "src_value")) {
             if (self.config.caller_enabled) {
                 const data = self.config.caller_marshal_fn(args[i].src_value);
-                attribute(false, &buffer, self.config, self.config.caller_field_name, data);
+                try attribute(false, &buffer, self.config, self.config.caller_field_name, data);
             }
         }
 
         if (@hasField(arg_type, "key") and @hasField(arg_type, "value")) {
-            attribute(false, &buffer, self.config, args[i].key, args[i].value);
+            try attribute(false, &buffer, self.config, args[i].key, args[i].value);
         }
     }
 
     // append the end of record
     switch (self.config.format) {
-        inline .text => {
-            buffer.append("\n") catch |err| {
-                failureFn(opts.internal_failure, "Failed to include data to the log buffer; {any}", .{err});
-            };
+        .text => {
+            try buffer.append("\n");
         },
-        inline .json => {
-            buffer.append("}\n") catch |err| {
-                failureFn(opts.internal_failure, "Failed to include data to the log buffer; {any}", .{err});
-            };
+        .json => {
+            try buffer.append("}\n");
         },
     }
 
     // send data
-    _ = self.config.writer.write(buffer.bytes()) catch |err| {
-        failureFn(self.config.internal_failure, "Failed to include data to the log buffer; {any}", .{err});
-    };
+    _ = try self.config.writer.write(buffer.bytes());
 
     if (op == .Fatal) {
         @panic("fatal");
     }
 }
 
-fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) void {
+fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) !void {
     var data: *Utf8Buffer = @constCast(buffer);
 
     const T = @TypeOf(value);
@@ -328,26 +306,26 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
     switch (ty) {
         .ErrorUnion => {
             if (value) |payload| {
-                return attribute(first, buffer, config, key, payload);
+                return try attribute(first, buffer, config, key, payload);
             } else |err| {
-                return attribute(first, buffer, config, key, err);
+                return try attribute(first, buffer, config, key, err);
             }
         },
         .Type => {
-            return attribute(first, buffer, config, key, @typeName(value));
+            return try attribute(first, buffer, config, key, @typeName(value));
         },
         .EnumLiteral => {
             const buf = [_]u8{'.'} ++ @tagName(value);
-            return attribute(first, buffer, config, key, buf);
+            return try attribute(first, buffer, config, key, buf);
         },
         .Void => {
-            return attribute(first, buffer, config, key, "void");
+            return try attribute(first, buffer, config, key, "void");
         },
         .Optional => {
             if (value) |payload| {
-                return attribute(first, buffer, config, key, payload);
+                return try attribute(first, buffer, config, key, payload);
             } else {
-                return attribute(first, buffer, config, key, null);
+                return try attribute(first, buffer, config, key, null);
             }
         },
         .Fn => {},
@@ -355,270 +333,160 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
     }
 
     switch (config.format) {
-        inline .text => {
+        .text => {
             const header = if (first) "" else " ";
             switch (ty) {
-                .Enum => data.appendf("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{s}; {any}", .{ key, @typeName(value), err });
-                },
-                .Bool => data.appendf("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
+                .Enum => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
+                .Bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice => data.appendf("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, value }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}:{s}; {any}", .{ key, value, err });
-                    },
-                    else => {},
+                    .Slice, .Many, .One, .C => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, value }),
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}{s}={any}", .{ header, key, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
-                .ErrorSet => data.appendf("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{s}; {any}", .{ config.error_field_name, value, err });
-                },
-                .Null => data.appendf("{s}{s}=null", .{ header, key }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:null; {any}", .{ key, err });
-                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{s}={any}", .{ header, key, value }),
+                .ErrorSet => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
+                .Null => try data.print("{s}{s}=null", .{ header, key }),
                 .Struct, .Union => {
                     if (config.struct_union.escape_enabled) {
-                        data.appendf("{s}{s}=\u{0022}", .{ header, key }) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
-                        };
+                        try data.print("{s}{s}=\u{0022}", .{ header, key });
                     } else {
-                        data.appendf("{s}{s}=", .{ header, key }) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
-                        };
+                        try data.print("{s}{s}=", .{ header, key });
                     }
 
                     const cPos = data.length();
-                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                    };
+                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
                     if (config.struct_union.escape_enabled) {
-                        _ = data.replaceAllFromPos(
+                        _ = try data.replaceAllFromPos(
                             cPos,
                             config.struct_union.src_escape_characters,
                             config.struct_union.dst_escape_characters,
-                        ) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                        };
+                        );
                     }
 
                     if (config.struct_union.escape_enabled) {
-                        data.appendf("\u{0022}", .{}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute {s}; {any}", .{ key, err });
-                        };
+                        try data.print("\u{0022}", .{});
                     }
                 },
                 .Array, .Vector => {
-                    data.appendf("{s}{s}=[", .{ header, key }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
-                    };
+                    try data.print("{s}{s}=[", .{ header, key });
 
                     for (value, 0..) |elem, i| {
-                        attributeSingle(i == 0, buffer, config, elem);
+                        try attributeSingle(i == 0, buffer, config, elem);
                     }
 
-                    data.appendf("]", .{}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
-                    };
+                    try data.print("]", .{});
                 },
-                else => data.appendf("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
+                else => try data.print("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }),
             }
         },
-        inline .json => {
+        .json => {
             const header = if (first) "{" else ", ";
             switch (ty) {
-                .Enum => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{s}; {any}", .{ key, @typeName(value), err });
-                },
-                .Bool => data.appendf("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
+                .Enum => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
+                .Bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, value }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}:{s}; {any}", .{ key, value, err });
-                    },
+                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, value }),
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
-                .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
-                .Null => data.appendf("{s}\u{0022}{s}\u{0022}:null", .{ header, key }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:null; {any}", .{ key, err });
-                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
+                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
+                .Null => try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
                 .Struct, .Union => {
-                    data.appendf("{s}\u{0022}{s}\u{0022}:", .{ header, key }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
-                    };
+                    try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
-                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                    };
+                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
                 },
                 .Array, .Vector => {
-                    data.appendf("{s}\u{0022}{s}\u{0022}: [", .{ header, key }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
-                    };
+                    try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
 
                     for (value, 0..) |elem, i| {
-                        attributeSingle(i == 0, buffer, config, elem);
+                        try attributeSingle(i == 0, buffer, config, elem);
                     }
 
-                    data.appendf("]", .{}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ key, err });
-                    };
+                    try data.print("]", .{});
                 },
-                else => data.appendf("{s}\u{0022}{s}\u{0022}: \u{0022}{any}\u{0022}", .{ header, key, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}:{any}; {any}", .{ key, value, err });
-                },
+                else => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{any}\u{0022}", .{ header, key, value }),
             }
         },
     }
 }
 
-fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) void {
+fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) !void {
     var data: *Utf8Buffer = @constCast(buffer);
 
     const T = @TypeOf(value);
     const ty = @typeInfo(T);
     switch (config.format) {
-        inline .text => {
+        .text => {
             const header = if (first) "" else ", ";
             switch (ty) {
-                .Enum => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ @typeName(value), err });
-                },
-                .Bool => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
+                .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
+                .Bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, value }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
-                    },
-                    else => {},
+                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value }),
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}{any}", .{ header, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
-                .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
-                },
-                .Null => data.appendf("{s}null", .{header}) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute null; {any}", .{err});
-                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
+                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
+                .Null => try data.print("{s}null", .{header}),
                 .Struct, .Union => {
                     if (config.struct_union.escape_enabled) {
-                        data.appendf("{s}\u{0022}", .{header}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
-                        };
+                        try data.print("{s}\u{0022}", .{header});
                     } else {
-                        data.appendf("{s}", .{header}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
-                        };
+                        try data.print("{s}", .{header});
                     }
 
                     const cPos = data.length();
-                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                    };
+                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
                     if (config.struct_union.escape_enabled) {
-                        _ = data.replaceAllFromPos(
+                        _ = try data.replaceAllFromPos(
                             cPos,
                             config.struct_union.src_escape_characters,
                             config.struct_union.dst_escape_characters,
-                        ) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                        };
+                        );
                     }
 
                     if (config.struct_union.escape_enabled) {
-                        data.appendf("\u{0022}", .{}) catch |err| {
-                            failureFn(config.internal_failure, "Failed to consider struct attribute; {any}", .{err});
-                        };
+                        try data.print("\u{0022}", .{});
                     }
                 },
                 .Array, .Vector => {
-                    data.appendf("{s} [", .{header}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
-                    };
+                    try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
-                        attributeSingle(i == 0, buffer, config, elem);
+                        try attributeSingle(i == 0, buffer, config, elem);
                     }
 
-                    data.appendf("]", .{}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
-                    };
+                    try data.print("]", .{});
                 },
-                else => data.appendf("{s}\u{0022}{any}\u{0022}", .{ header, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
+                else => try data.print("{s}\u{0022}{any}\u{0022}", .{ header, value }),
             }
         },
-        inline .json => {
+        .json => {
             const header = if (first) "" else ", ";
             switch (ty) {
-                .Enum => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ @typeName(value), err });
-                },
-                .Bool => data.appendf("{s}{s}", .{ header, if (value) "true" else "false" }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
+                .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
+                .Bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, value }) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {s}; {any}", .{ value, err });
-                    },
+                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value }),
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => data.appendf("{s}{any}", .{ header, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
-                .ErrorSet => data.appendf("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
-                .Null => data.appendf("{s}null", .{header}) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute null; {any}", .{err});
-                },
+                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
+                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
+                .Null => try data.print("{s}null", .{header}),
                 .Struct, .Union => {
-                    data.appendf("{s}", .{header}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
-                    };
+                    try data.print("{s}", .{header});
 
-                    std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16)) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                    };
+                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
                 },
                 .Array, .Vector => {
-                    data.appendf("{s} [", .{header}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
-                    };
+                    try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
-                        attributeSingle(i == 0, buffer, config, elem);
+                        try attributeSingle(i == 0, buffer, config, elem);
                     }
 
-                    data.appendf("]", .{}) catch |err| {
-                        failureFn(config.internal_failure, "Failed to consider attribute; {any}", .{err});
-                    };
+                    try data.print("]", .{});
                 },
-                else => data.appendf("{s}\u{0022}{any}\u{0022}", .{ header, value }) catch |err| {
-                    failureFn(config.internal_failure, "Failed to consider attribute {any}; {any}", .{ value, err });
-                },
+                else => try data.print("{s}\u{0022}{any}\u{0022}", .{ header, value }),
             }
         },
-    }
-}
-
-fn failureFn(on: InternalFailure, comptime format: []const u8, args: anytype) void {
-    switch (on) {
-        inline .panic => std.debug.panic(format, args),
-        inline .print => std.debug.print(format, args),
-        else => undefined,
     }
 }

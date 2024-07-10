@@ -65,9 +65,13 @@ pub fn shrink(self: *Self) !void {
 /// Write a byte to the buffer
 pub fn writeByte(self: *Self, byte: u8) !void {
     if (self.len + 1 > self.cap) {
-        const new_cap = self.len + 1 +
-            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
-        try self.resize(new_cap);
+        const f = if (self.len > 0) result: {
+            const t: f64 = @round(@as(f64, @floatFromInt(self.len)) * @as(f64, @floatCast(self.factor)));
+            const res: usize = @truncate(@as(usize, @intFromFloat(t)));
+            break :result @abs(res);
+        } else 1;
+
+        try self.resize(self.len + 1 + f);
     }
 
     self.ptr[self.len] = byte;
@@ -93,9 +97,13 @@ pub fn write(self: *Self, array: []const u8) !usize {
     if (array.len == 0) return 0;
 
     if (self.len + array.len > self.cap) {
-        const new_cap = self.len + array.len +
-            @as(usize, @intFromFloat(@as(f64, @floatFromInt(self.len)) * @as(f64, self.factor)));
-        try self.resize(new_cap);
+        const f = if (self.len > 0) result: {
+            const t: f64 = @round(@as(f64, @floatFromInt(self.len)) * @as(f64, @floatCast(self.factor)));
+            const res: usize = @truncate(@as(usize, @intFromFloat(t)));
+            break :result @abs(res);
+        } else 1;
+
+        try self.resize(self.len + array.len + f);
     }
 
     var i: usize = 0;

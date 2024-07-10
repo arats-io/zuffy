@@ -46,8 +46,8 @@ pub fn main() !void {
     });
     defer logger.deinit();
 
-    logger.With("major_version", 1);
-    logger.With("minor_version", 2);
+    try logger.With("major_version", 1);
+    try logger.With("minor_version", 2);
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
@@ -57,8 +57,8 @@ pub fn main() !void {
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
 
-        logger.Trace(
-            "Initialization...",
+        try logger.Trace(
+            "Initial\"ization...",
             .{
                 zlog.Source(@src()),
                 zlog.Field([]const u8, "database", value_database),
@@ -66,21 +66,21 @@ pub fn main() !void {
                 zlog.Field(?[]const u8, "attribute-null", null),
                 zlog.Field([4]i32, "array", [_]i32{ 1, 2, 3, 4 }),
                 zlog.Field([2]Element, "array_elements", [_]Element{
-                    Element{ .int = 32, .string = "Element1" },
-                    Element{ .int = 32, .string = "Element2" },
+                    Element{ .int = 32, .string = "Eleme\"nt1" },
+                    Element{ .int = 32, .string = "Eleme\"nt2" },
                 }),
                 zlog.Field([2][]const u8, "array_strings", [_][]const u8{
                     "eleme\"nt 1",
                     "eleme\"nt 2",
                 }),
-                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
+                zlog.Field(Element, "element1", Element{ .int = 32, .string = "Eleme\"nt1" }),
             },
         );
 
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        logger.Debug(
+        try logger.Debug(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -93,7 +93,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        logger.Info(
+        try logger.Info(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -106,7 +106,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        logger.Warn(
+        try logger.Warn(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -119,7 +119,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        logger.Error(
+        try logger.Error(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{
