@@ -33,14 +33,14 @@ Include the xstd into the `build.zig.zon` file.
 ### Bytes
 
 - [x] Buffer
-- [x] Utf8Buffer/StringBuilder
+- [x] Utf8Buffer (StringBuilder)
 
 ---
 
 ### Time and Time Zoneinfo
 
-- [x] Time as wrapper which is including the timezone
-- [x] Timezone
+- [x] Time
+- [x] Time Zoneinfo
 
 #### Usage
 
@@ -78,6 +78,6 @@ IMPORTANT: As the zip is embeded do affect the binary size. Zip(and gziped) is h
 
 ---
 
-### Logger
+### Improved Zig Logger
 
 [zlog](./src/zlog.md)
