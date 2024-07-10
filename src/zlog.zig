@@ -30,44 +30,29 @@ pub const Format = enum(u4) {
 };
 
 pub const Level = enum(u4) {
-    Trace = 0x0,
-    Debug = 0x1,
-    Info = 0x2,
-    Warn = 0x3,
-    Error = 0x4,
-    Fatal = 0x5,
-    Disabled = 0xF,
+    trace = 0x0,
+    debug = 0x1,
+    info = 0x2,
+    warn = 0x3,
+    @"error" = 0x4,
+    fatal = 0x5,
+    disabled = 0xF,
 
     pub fn String(self: Level) []const u8 {
-        return switch (self) {
-            .Trace => "trace",
-            .Debug => "debug",
-            .Info => "info",
-            .Warn => "warn",
-            .Error => "error",
-            .Fatal => "fatal",
-            .Disabled => "disabled",
-        };
+        return @tagName(self);
     }
     pub fn ParseString(val: []const u8) Level {
-        var buffer: [8]u8 = undefined;
-        const lVal = std.ascii.lowerString(&buffer, val);
-
-        if (std.mem.eql(u8, "trace", lVal)) return .Trace;
-        if (std.mem.eql(u8, "debug", lVal)) return .Debug;
-        if (std.mem.eql(u8, "info", lVal)) return .Info;
-        if (std.mem.eql(u8, "warn", lVal)) return .Warn;
-        if (std.mem.eql(u8, "error", lVal)) return .Error;
-        if (std.mem.eql(u8, "fatal", lVal)) return .Fatal;
-        if (std.mem.eql(u8, "disabled", lVal)) return .Disabled;
-        return .Disabled;
+        if (std.meta.stringToEnum(Level, val)) |tag| {
+            return tag;
+        }
+        return .disabled;
     }
 };
 
 /// Logger configuration configuration
 pub const Config = struct {
     /// log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
-    level: Level = Level.Info,
+    level: Level = .info,
     /// field name for the log level
     level_field_name: []const u8 = "level",
 
@@ -158,34 +143,34 @@ pub fn With(self: *const Self, name: []const u8, value: anytype) !void {
 }
 
 pub fn Trace(self: *const Self, message: []const u8, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Trace)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.trace)) return;
 
-    try self.send(Level.Trace, message, null, args);
+    try self.send(Level.trace, message, null, args);
 }
 pub fn Debug(self: *const Self, message: []const u8, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Debug)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.debug)) return;
 
-    try self.send(Level.Debug, message, null, args);
+    try self.send(Level.debug, message, null, args);
 }
 pub fn Info(self: *const Self, message: []const u8, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Info)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.info)) return;
 
-    try self.send(Level.Info, message, null, args);
+    try self.send(Level.info, message, null, args);
 }
 pub fn Warn(self: *const Self, message: []const u8, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Warn)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.warn)) return;
 
-    try self.send(Level.Warn, message, null, args);
+    try self.send(Level.warn, message, null, args);
 }
 pub fn Error(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Error)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.@"error")) return;
 
-    try self.send(Level.Error, message, err, args);
+    try self.send(Level.@"error", message, err, args);
 }
 pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytype) !void {
-    if (@intFromEnum(self.config.level) > @intFromEnum(Level.Fatal)) return;
+    if (@intFromEnum(self.config.level) > @intFromEnum(Level.fatal)) return;
 
-    try self.send(Level.Fatal, message, err, args);
+    try self.send(Level.fatal, message, err, args);
 }
 
 inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
@@ -281,7 +266,7 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     // send data
     _ = try self.config.writer.write(buffer.bytes());
 
-    if (op == .Fatal) {
+    if (op == .fatal) {
         @panic("fatal");
     }
 }
