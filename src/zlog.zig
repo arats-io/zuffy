@@ -107,14 +107,6 @@ pub const Config = struct {
     /// handler writing the data
     writer: std.fs.File = std.io.getStdOut(),
 
-    /// struct marchalling to string options
-    struct_union: StructUnionOptions = StructUnionOptions{},
-};
-
-/// struct marchalling to string options
-pub const StructUnionOptions = struct {
-    // flag enabling/disabling the escapping for marchalled structs
-    // searching for \" and replacing with \\\" as per default values
     escape_enabled: bool = false,
     src_escape_characters: []const u8 = "\"",
     dst_escape_characters: []const u8 = "\\\"",
@@ -335,13 +327,23 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                 .Enum => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
                 .Bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, value }),
+                    .Slice, .Many, .One, .C => {
+                        try data.print("{s}{s}=\u{0022}", .{ header, key });
+                        const cPos = data.length();
+                        try data.print("{s}", .{value});
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                        _ = try data.write("\u{0022}");
+                    },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{s}={any}", .{ header, key, value }),
                 .ErrorSet => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
                 .Null => try data.print("{s}{s}=null", .{ header, key }),
                 .Struct, .Union => {
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         try data.print("{s}{s}=\u{0022}", .{ header, key });
                     } else {
                         try data.print("{s}{s}=", .{ header, key });
@@ -350,15 +352,15 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                     const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         _ = try data.replaceAllFromPos(
                             cPos,
-                            config.struct_union.src_escape_characters,
-                            config.struct_union.dst_escape_characters,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
                         );
                     }
 
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         try data.print("\u{0022}", .{});
                     }
                 },
@@ -380,7 +382,17 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
                 .Bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, value }),
+                    .Slice, .Many, .One, .C => {
+                        try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
+                        const cPos = data.length();
+                        try data.print("{s}", .{value});
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                        _ = try data.write("\u{0022}");
+                    },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
@@ -417,13 +429,24 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
                 .Bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value }),
+                    .Slice, .Many, .One, .C => {
+                        try data.print("{s}\u{0022}", .{header});
+
+                        const cPos = data.length();
+                        try data.print("{s}", .{value});
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                        _ = try data.write("\u{0022}");
+                    },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
                 .Null => try data.print("{s}null", .{header}),
                 .Struct, .Union => {
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         try data.print("{s}\u{0022}", .{header});
                     } else {
                         try data.print("{s}", .{header});
@@ -432,15 +455,15 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                     const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         _ = try data.replaceAllFromPos(
                             cPos,
-                            config.struct_union.src_escape_characters,
-                            config.struct_union.dst_escape_characters,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
                         );
                     }
 
-                    if (config.struct_union.escape_enabled) {
+                    if (config.escape_enabled) {
                         try data.print("\u{0022}", .{});
                     }
                 },
@@ -462,7 +485,18 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
                 .Bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value }),
+                    .Slice, .Many, .One, .C => {
+                        try data.print("{s}\u{0022}", .{header});
+
+                        const cPos = data.length();
+                        try data.print("{s}", .{value});
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                        _ = try data.write("\u{0022}");
+                    },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),

@@ -38,14 +38,10 @@ Configuration for the logger with default values
 
     .writer = std.io.getStdOut(), // handler writing the data
 
-    // struct marchalling to string options
-    .struct_union: = StructUnionOptions{
-        // flag enabling/disabling the escapping for marchalled structs
-        // searching for \" and replacing with \\\" as per default values
-        .escape_enabled = false,
-        .src_escape_characters = "\"",
-        .dst_escape_characters = "\\\"",
-    },
+    // escaping options
+    .escape_enabled = false,
+    .src_escape_characters = "\"",
+    .dst_escape_characters = "\\\"",
 }
 
 ```

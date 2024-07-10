@@ -32,16 +32,14 @@ pub fn main() !void {
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
-        .struct_union = .{
-            .escape_enabled = true,
-        },
+        .escape_enabled = true,
     });
     defer logger.deinit();
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
     const start = std.time.nanoTimestamp();
-    const value_database = "mydb";
+    const value_database = "my\"db";
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
         try logger.Trace(
