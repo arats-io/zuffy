@@ -154,7 +154,7 @@ pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPoo
 }
 
 pub fn With(self: *const Self, name: []const u8, value: anytype) !void {
-    try attribute(false, &self.fields, self.config, name, value);
+    try injectKeyAndValue(false, &self.fields, self.config, name, value);
 }
 
 pub fn Trace(self: *const Self, message: []const u8, args: anytype) !void {
@@ -214,28 +214,28 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
 
         switch (opts.time_formating) {
             inline .timestamp => {
-                try attribute(true, &buffer, self.config, opts.time_field_name, t.value);
+                try injectKeyAndValue(true, &buffer, self.config, opts.time_field_name, t.value);
             },
             inline .pattern => {
                 var buf: [1024]u8 = undefined;
                 const len = try t.formatfInto(self.allocator, opts.time_pattern, &buf);
-                try attribute(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
+                try injectKeyAndValue(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
             },
         }
     }
 
     // append the level
-    try attribute(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
+    try injectKeyAndValue(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
 
     // append the message
-    try attribute(false, &buffer, opts, opts.message_field_name, message);
+    try injectKeyAndValue(false, &buffer, opts, opts.message_field_name, message);
 
     // append the static logger fields
     try buffer.append(@constCast(&self.fields).bytes());
 
     // append the error
     if (err_value) |value| {
-        try attribute(false, &buffer, self.config, self.config.error_field_name, @errorName(value));
+        try injectKeyAndValue(false, &buffer, self.config, self.config.error_field_name, @errorName(value));
 
         if (self.config.stacktrace_ebabled) {
             if (@errorReturnTrace()) |stacktrace| {
@@ -250,7 +250,7 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
                     try std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color);
 
                     if (buff.items.len > 0) {
-                        try attribute(false, &buffer, self.config, self.config.stacktrace_field_name, buff.items);
+                        try injectKeyAndValue(false, &buffer, self.config, self.config.stacktrace_field_name, buff.items);
                     }
                 }
             }
@@ -263,12 +263,12 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
         if (@hasField(arg_type, "src_value")) {
             if (self.config.caller_enabled) {
                 const data = self.config.caller_marshal_fn(args[i].src_value);
-                try attribute(false, &buffer, self.config, self.config.caller_field_name, data);
+                try injectKeyAndValue(false, &buffer, self.config, self.config.caller_field_name, data);
             }
         }
 
         if (@hasField(arg_type, "key") and @hasField(arg_type, "value")) {
-            try attribute(false, &buffer, self.config, args[i].key, args[i].value);
+            try injectKeyAndValue(false, &buffer, self.config, args[i].key, args[i].value);
         }
     }
 
@@ -286,7 +286,7 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     }
 }
 
-fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) !void {
+fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) !void {
     var data: *Utf8Buffer = @constCast(buffer);
 
     const T = @TypeOf(value);
@@ -294,26 +294,26 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
     switch (ty) {
         .ErrorUnion => {
             if (value) |payload| {
-                return try attribute(first, buffer, config, key, payload);
+                return try injectKeyAndValue(first, buffer, config, key, payload);
             } else |err| {
-                return try attribute(first, buffer, config, key, err);
+                return try injectKeyAndValue(first, buffer, config, key, err);
             }
         },
         .Type => {
-            return try attribute(first, buffer, config, key, @typeName(value));
+            return try injectKeyAndValue(first, buffer, config, key, @typeName(value));
         },
         .EnumLiteral => {
             const buf = [_]u8{'.'} ++ @tagName(value);
-            return try attribute(first, buffer, config, key, buf);
+            return try injectKeyAndValue(first, buffer, config, key, buf);
         },
         .Void => {
-            return try attribute(first, buffer, config, key, "void");
+            return try injectKeyAndValue(first, buffer, config, key, "void");
         },
         .Optional => {
             if (value) |payload| {
-                return try attribute(first, buffer, config, key, payload);
+                return try injectKeyAndValue(first, buffer, config, key, payload);
             } else {
-                return try attribute(first, buffer, config, key, null);
+                return try injectKeyAndValue(first, buffer, config, key, null);
             }
         },
         .Fn => {},
@@ -368,7 +368,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                     try data.print("{s}{s}=[", .{ header, key });
 
                     for (value, 0..) |elem, i| {
-                        try attributeSingle(i == 0, buffer, config, elem);
+                        try injectValue(i == 0, buffer, config, elem);
                     }
 
                     try data.print("]", .{});
@@ -415,7 +415,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
 
                     for (value, 0..) |elem, i| {
-                        try attributeSingle(i == 0, buffer, config, elem);
+                        try injectValue(i == 0, buffer, config, elem);
                     }
 
                     try data.print("]", .{});
@@ -426,7 +426,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
     }
 }
 
-fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) !void {
+fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) !void {
     var data: *Utf8Buffer = @constCast(buffer);
 
     const T = @TypeOf(value);
@@ -480,7 +480,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                     try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
-                        try attributeSingle(i == 0, buffer, config, elem);
+                        try injectValue(i == 0, buffer, config, elem);
                     }
 
                     try data.print("]", .{});
@@ -528,7 +528,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                     try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
-                        try attributeSingle(i == 0, buffer, config, elem);
+                        try injectValue(i == 0, buffer, config, elem);
                     }
 
                     try data.print("]", .{});
