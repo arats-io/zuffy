@@ -243,14 +243,14 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
                     break :res null;
                 };
                 if (debug_info) |di| {
-                    var buff = Utf8Buffer.init(self.allocator);
+                    var buff = std.ArrayList(u8).init(self.allocator);
                     errdefer buff.deinit();
                     defer buff.deinit();
 
                     try std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color);
 
-                    if (buff.length() > 0) {
-                        try attribute(false, &buffer, self.config, self.config.stacktrace_field_name, buff.bytes());
+                    if (buff.items.len > 0) {
+                        try attribute(false, &buffer, self.config, self.config.stacktrace_field_name, buff.items);
                     }
                 }
             }
@@ -400,7 +400,16 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                 .Struct, .Union => {
                     try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
+                    const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+
+                    if (config.escape_enabled) {
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                    }
                 },
                 .Array, .Vector => {
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
@@ -504,7 +513,16 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                 .Struct, .Union => {
                     try data.print("{s}", .{header});
 
+                    const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+
+                    if (config.escape_enabled) {
+                        _ = try data.replaceAllFromPos(
+                            cPos,
+                            config.src_escape_characters,
+                            config.dst_escape_characters,
+                        );
+                    }
                 },
                 .Array, .Vector => {
                     try data.print("{s} [", .{header});

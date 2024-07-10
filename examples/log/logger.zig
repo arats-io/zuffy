@@ -33,6 +33,7 @@ pub fn main() !void {
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .escape_enabled = true,
+        .stacktrace_ebabled = true,
     });
     defer logger.deinit();
 
