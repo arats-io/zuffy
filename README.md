@@ -44,14 +44,12 @@ Include the xstd into the `build.zig.zon` file.
 
 #### Usage
 
-The Time struct do include machine timezone adjustments as an offset.
-
 Environment variable `TZ` can be used to calculate a time for a different timezone.
 
 ```
 export TZ='Europe/Tiraspol';
 
-2023 Nov 5th Sun 22:33:05.477603
+2023 Nov 5th Sun 22:33:05.477603  UTC+03:00
 ```
 
 In case if machine is not having a way to fetch desired zoninfo, the library is considering embeded zip(and gziped) archive with all zone information.
@@ -59,10 +57,12 @@ In case if machine is not having a way to fetch desired zoninfo, the library is 
 ```
 export TZ='Europe/Tiraspol.zip';
 
-2023 Nov 5th Sun 22:33:05.477603
+2023 Nov 5th Sun 22:33:05.477603 UTC+03:00
 ```
 
-IMPORTANT: As the zip is embeded do affect the binary size. Zip(and gziped) is having 144KB.
+**NOTE**
+
+[time zones info](https://www.iana.org/time-zones) data are embeded (zip and gziped, having 92kb) into the code.
 
 - [x] \*nix systems
 - [ ] windows systems
