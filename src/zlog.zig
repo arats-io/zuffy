@@ -76,6 +76,9 @@ pub const Config = struct {
     /// field name for the error
     error_field_name: []const u8 = "error",
 
+    /// scope name for the error
+    scope_field_name: []const u8 = "scope",
+
     /// flag enabling/disabling the error tracing reporting in the log
     stacktrace_ebabled: bool = false,
     /// field name for the error stacktrace
@@ -146,7 +149,7 @@ pub fn Scope(self: *const Self, comptime value: @Type(.EnumLiteral)) !Self {
     var scope = Utf8Buffer.init(self.allocator);
     errdefer scope.deinit();
 
-    try injectKeyAndValue(false, &scope, self.config, "scope", value);
+    try injectKeyAndValue(false, &scope, self.config, self.config.scope_field_name, value);
 
     return Self{
         .allocator = self.allocator,
@@ -318,8 +321,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
             return try injectKeyAndValue(first, buffer, config, key, @typeName(value));
         },
         .EnumLiteral => {
-            const buf = [_]u8{'.'} ++ @tagName(value);
-            return try injectKeyAndValue(first, buffer, config, key, buf);
+            return try injectKeyAndValue(first, buffer, config, key, @tagName(value));
         },
         .Void => {
             return try injectKeyAndValue(first, buffer, config, key, "void");
