@@ -1,4 +1,8 @@
 const std = @import("std");
+// const build_zon = @import("build.zig.zon"); // not yet supported, see: https://github.com/ziglang/zig/issues/14531
+
+//const version: std.SemanticVersion = std.SemanticVersion.parse(build_zon.version) orelse unreachable;
+const version: std.SemanticVersion = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 4 };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -9,6 +13,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         .target = target,
         .optimize = optimize,
+        .version = version,
     });
 
     b.installArtifact(lib);
@@ -54,13 +59,18 @@ pub fn build(b: *std.Build) !void {
         const example_run_step = b.step(ex_run_stepname, ex_run_stepdesc);
         const example_step = b.step(ex_name, ex_build_desc);
 
+        const exe_options = b.addOptions();
+        exe_options.addOption(std.SemanticVersion, "semver", version);
+
         var example = b.addExecutable(.{
             .name = ex_name,
             .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = ex_src } },
             .target = target,
             .optimize = optimize,
             .single_threaded = false,
+            .version = version,
         });
+        example.root_module.addOptions("build_options", exe_options);
 
         example.linkLibrary(lib);
         example.root_module.addAnonymousImport("xstd", .{

@@ -1,5 +1,6 @@
 const std = @import("std");
 const xstd = @import("xstd");
+const build_options = @import("build_options");
 
 const Utf8Buffer = xstd.bytes.Utf8Buffer;
 const Buffer = xstd.bytes.Buffer;
@@ -45,8 +46,7 @@ pub fn main() !void {
     });
     defer logger.deinit();
 
-    try logger.With("major_version", 1);
-    try logger.With("minor_version", 2);
+    try logger.With("version", build_options.semver);
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
