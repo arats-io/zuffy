@@ -86,8 +86,8 @@ const logger = zlog.init(arena.allocator(), .{
 });
 defer logger.deinit();
 
-logger.With("major_version", 1);
-logger.With("minor_version", 2);
+try logger.With("major_version", 1);
+try logger.With("minor_version", 2);
 ```
 
 // Example not using pool for internal buffers
@@ -127,14 +127,14 @@ const logger = zlog.initWithPool(arena.allocator(), &pool, .{
 });
 defer logger.deinit();
 
-logger.With("major_version", 1);
-logger.With("minor_version", 2);
+try logger.With("major_version", 1);
+try logger.With("minor_version", 2);
 ```
 
 ## Examples:
 
 ```zig
-logger.Trace(
+try logger.Trace(
     "Initialization...",
     .{
         zlog.Source(@src()),
@@ -144,7 +144,7 @@ logger.Trace(
         zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
     },
 );
-logger.Debug(
+try logger.Debug(
     "Initialization...",
     .{
         zlog.Source(@src()),
@@ -154,7 +154,7 @@ logger.Debug(
         zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
     },
 );
-logger.Info(
+try logger.Info(
     "Initialization...",
     .{
         zlog.Source(@src()),
@@ -164,7 +164,7 @@ logger.Info(
         zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
     },
 );
-logger.Warn(
+try logger.Warn(
     "Initialization...",
     .{
         zlog.Source(@src()),
@@ -174,7 +174,7 @@ logger.Warn(
         zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
     },
 );
-logger.Error(
+try logger.Error(
     "Initialization...",
     Error.OutOfMemoryClient,
     .{
