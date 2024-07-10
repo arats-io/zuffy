@@ -221,10 +221,10 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
         const t = Time.new(opts.time_measure);
 
         switch (opts.time_formating) {
-            .timestamp => {
+            inline .timestamp => {
                 try attribute(true, &buffer, self.config, opts.time_field_name, t.value);
             },
-            .pattern => {
+            inline .pattern => {
                 var buf: [1024]u8 = undefined;
                 const len = try t.formatfInto(self.allocator, opts.time_pattern, &buf);
                 try attribute(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
@@ -281,14 +281,10 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     }
 
     // append the end of record
-    switch (self.config.format) {
-        .text => {
-            try buffer.append("\n");
-        },
-        .json => {
-            try buffer.append("}\n");
-        },
-    }
+    _ = try buffer.write(switch (self.config.format) {
+        inline .text => "\n",
+        inline .json => "}\n",
+    });
 
     // send data
     _ = try self.config.writer.write(buffer.bytes());
@@ -333,7 +329,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
     }
 
     switch (config.format) {
-        .text => {
+        inline .text => {
             const header = if (first) "" else " ";
             switch (ty) {
                 .Enum => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
@@ -378,7 +374,7 @@ fn attribute(first: bool, buffer: *const Utf8Buffer, config: Config, key: []cons
                 else => try data.print("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }),
             }
         },
-        .json => {
+        inline .json => {
             const header = if (first) "{" else ", ";
             switch (ty) {
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
@@ -415,7 +411,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
     const T = @TypeOf(value);
     const ty = @typeInfo(T);
     switch (config.format) {
-        .text => {
+        inline .text => {
             const header = if (first) "" else ", ";
             switch (ty) {
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
@@ -460,7 +456,7 @@ fn attributeSingle(first: bool, buffer: *const Utf8Buffer, config: Config, value
                 else => try data.print("{s}\u{0022}{any}\u{0022}", .{ header, value }),
             }
         },
-        .json => {
+        inline .json => {
             const header = if (first) "" else ", ";
             switch (ty) {
                 .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
