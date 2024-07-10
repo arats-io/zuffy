@@ -116,15 +116,14 @@ const Self = @This();
 
 allocator: std.mem.Allocator,
 config: Config,
-buffer_pool: ?*const GenericPool(Utf8Buffer),
+buffer_pool: ?*const GenericPool(Utf8Buffer) = null,
 fields: Utf8Buffer,
 scope: ?Utf8Buffer = null,
 
-pub fn init(allocator: std.mem.Allocator, config: Config) Self {
+pub fn init(allocator: std.mem.Allocator, comptime config: Config) Self {
     return .{
         .allocator = allocator,
         .config = config,
-        .buffer_pool = null,
         .fields = Utf8Buffer.init(allocator),
     };
 }
@@ -136,7 +135,7 @@ pub fn deinit(self: *const Self) void {
     }
 }
 
-pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPool(Utf8Buffer), config: Config) Self {
+pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPool(Utf8Buffer), comptime config: Config) Self {
     return .{
         .allocator = allocator,
         .config = config,
@@ -160,7 +159,7 @@ pub fn Scope(self: *const Self, comptime value: @Type(.EnumLiteral)) !Self {
     };
 }
 
-pub fn With(self: *const Self, args: anytype) !void {
+pub fn With(self: *const Self, comptime args: anytype) !void {
     inline for (0..args.len) |i| {
         const arg_type = @TypeOf(args[i]);
 
@@ -201,7 +200,7 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
     try self.send(Level.fatal, message, err, args);
 }
 
-inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
+fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
     var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.init(self.allocator);
     errdefer {
         buffer.deinit();
