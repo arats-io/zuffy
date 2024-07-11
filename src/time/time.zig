@@ -132,7 +132,7 @@ pub const Time = struct {
         return self;
     }
 
-    fn offset() i32 {
+    inline fn offset() i32 {
         const loc = @import("zoneinfo.zig").Local.Get() catch |err| {
             std.debug.panic("{any}", .{err});
         };
@@ -235,7 +235,7 @@ pub const Time = struct {
         return try sb.bytesInto(dst);
     }
 
-    fn format(self: Self, writer: anytype, pattern: []const u8) !void {
+    inline fn format(self: Self, writer: anytype, pattern: []const u8) !void {
         var i: usize = 0;
         while (i < pattern.len) {
             var j: usize = 4;

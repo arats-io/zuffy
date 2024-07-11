@@ -138,6 +138,7 @@ pub fn main() !void {
         );
         m += (std.time.nanoTimestamp() - startTime);
 
+        startTime = std.time.nanoTimestamp();
         try cache_logger.Error(
             "Initialization...",
             Error.OutOfMemoryClient,
@@ -149,9 +150,10 @@ pub fn main() !void {
                 zlog.Field(Element, "element1", Element{ .int = 32, .string = "Element1" }),
             },
         );
+        m += (std.time.nanoTimestamp() - startTime);
     }
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});
-    const total = max * 5;
+    const total = max * 6;
     std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.nanoTimestamp() - start), @divFloor(m, total) });
 }
