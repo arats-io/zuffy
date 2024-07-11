@@ -25,14 +25,14 @@ pub fn main() !void {
 
     const logger = zlog.init(arena.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
-        .format = zlog.Format.text,
+        .format = .text,
         .caller_enabled = true,
         .caller_field_name = "caller",
         .time_enabled = true,
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
-        .escape_enabled = false,
+        .escape_enabled = true,
         .stacktrace_ebabled = true,
     });
     defer logger.deinit();

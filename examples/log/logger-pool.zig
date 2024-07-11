@@ -41,7 +41,7 @@ pub fn main() !void {
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
-        .escape_enabled = false,
+        .escape_enabled = true,
         .stacktrace_ebabled = true,
     });
     errdefer logger.deinit();

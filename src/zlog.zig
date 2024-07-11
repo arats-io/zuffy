@@ -354,15 +354,19 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .Bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
-                        try data.print("{s}{s}=\u{0022}", .{ header, key });
-                        const cPos = data.length();
-                        try data.print("{s}", .{value});
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                        _ = try data.write("\u{0022}");
+                        if (config.escape_enabled) {
+                            try data.print("{s}{s}=\u{0022}", .{ header, key });
+                            const cPos = data.rawLength();
+                            try data.print("{s}", .{value});
+                            _ = try data.replaceAllFromPos(
+                                cPos,
+                                config.src_escape_characters,
+                                config.dst_escape_characters,
+                            );
+                            _ = try data.write("\u{0022}");
+                        } else {
+                            try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, value });
+                        }
                     },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{s}={any}", .{ header, key, value }),
@@ -375,7 +379,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                         try data.print("{s}{s}=", .{ header, key });
                     }
 
-                    const cPos = data.length();
+                    const cPos = data.rawLength();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
                     if (config.escape_enabled) {
@@ -409,15 +413,19 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .Bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
-                        try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
-                        const cPos = data.length();
-                        try data.print("{s}", .{value});
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                        _ = try data.write("\u{0022}");
+                        if (config.escape_enabled) {
+                            try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
+                            const cPos = data.rawLength();
+                            try data.print("{s}", .{value});
+                            _ = try data.replaceAllFromPos(
+                                cPos,
+                                config.src_escape_characters,
+                                config.dst_escape_characters,
+                            );
+                            _ = try data.write("\u{0022}");
+                        } else {
+                            try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, value });
+                        }
                     },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
@@ -426,16 +434,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .Struct, .Union => {
                     try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
-                    const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
-
-                    if (config.escape_enabled) {
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                    }
                 },
                 .Array, .Vector => {
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
@@ -465,16 +464,20 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .Bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
-                        try data.print("{s}\u{0022}", .{header});
+                        if (config.escape_enabled) {
+                            try data.print("{s}\u{0022}", .{header});
 
-                        const cPos = data.length();
-                        try data.print("{s}", .{value});
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                        _ = try data.write("\u{0022}");
+                            const cPos = data.rawLength();
+                            try data.print("{s}", .{value});
+                            _ = try data.replaceAllFromPos(
+                                cPos,
+                                config.src_escape_characters,
+                                config.dst_escape_characters,
+                            );
+                            _ = try data.write("\u{0022}");
+                        } else {
+                            try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value });
+                        }
                     },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
@@ -487,7 +490,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                         try data.print("{s}", .{header});
                     }
 
-                    const cPos = data.length();
+                    const cPos = data.rawLength();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
 
                     if (config.escape_enabled) {
@@ -521,16 +524,20 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .Bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
                 .Pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
-                        try data.print("{s}\u{0022}", .{header});
+                        if (config.escape_enabled) {
+                            try data.print("{s}\u{0022}", .{header});
 
-                        const cPos = data.length();
-                        try data.print("{s}", .{value});
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                        _ = try data.write("\u{0022}");
+                            const cPos = data.rawLength();
+                            try data.print("{s}", .{value});
+                            _ = try data.replaceAllFromPos(
+                                cPos,
+                                config.src_escape_characters,
+                                config.dst_escape_characters,
+                            );
+                            _ = try data.write("\u{0022}");
+                        } else {
+                            try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value });
+                        }
                     },
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
@@ -539,16 +546,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .Struct, .Union => {
                     try data.print("{s}", .{header});
 
-                    const cPos = data.length();
                     try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
-
-                    if (config.escape_enabled) {
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                    }
                 },
                 .Array, .Vector => {
                     try data.print("{s} [", .{header});

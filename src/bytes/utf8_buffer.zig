@@ -41,17 +41,17 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Append to the buffer an specific number of runes from the given bytes
-pub fn appendN(self: *Self, str: []const u8, numOfChars: usize) !void {
+pub inline fn appendN(self: *Self, str: []const u8, numOfChars: usize) !void {
     try self.insertAtWithLength(self.buffer.len, str, numOfChars);
 }
 
 /// Append to the buffer the whole given string
-pub fn append(self: *Self, str: []const u8) !void {
+pub inline fn append(self: *Self, str: []const u8) !void {
     try self.insertAtWithLength(self.buffer.len, str, str.len);
 }
 
 /// Insert the string st given position
-pub fn insertAt(self: *Self, str: []const u8, index: usize) !void {
+pub inline fn insertAt(self: *Self, str: []const u8, index: usize) !void {
     try self.insertAtWithLength(index, str, str.len);
 }
 
@@ -101,37 +101,37 @@ fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) 
 }
 
 /// Return a portion of bytes from the buffer based on the given range of indexes
-pub fn bytesRange(self: *Self, start: usize, end: usize) ![]const u8 {
+pub inline fn bytesRange(self: *Self, start: usize, end: usize) ![]const u8 {
     return self.buffer.rangeBytes(start, end);
 }
 
 /// Return a portion of bytes from the buffer based on the given start position
-pub fn bytesFrom(self: *Self, start: usize) ![]const u8 {
+pub inline fn bytesFrom(self: *Self, start: usize) ![]const u8 {
     self.buffer.bytesFromPos(start);
 }
 
 /// Return a portion of bytes from the buffer up to a given end position
-pub fn bytesUpTo(self: *Self, end: usize) ![]const u8 {
+pub inline fn bytesUpTo(self: *Self, end: usize) ![]const u8 {
     self.buffer.bytesUpTo(end);
 }
 
 /// Append to the buffer using formating
-pub fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
+pub inline fn appendf(self: *Self, comptime format: []const u8, args: anytype) !void {
     return self.buffer.print(format, args);
 }
 
 /// Write to the buffer the given array
-pub fn write(self: *Self, array: []const u8) !usize {
+pub inline fn write(self: *Self, array: []const u8) !usize {
     return self.buffer.write(array);
 }
 
 /// Print/Append to the buffer using formating
-pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
+pub inline fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
     return self.buffer.print(format, args);
 }
 
 /// Repead same buffer content `N` times
-pub fn repeat(self: *Self, n: usize) !void {
+pub inline fn repeat(self: *Self, n: usize) !void {
     try self.buffer.repeat(n);
 }
 
@@ -169,7 +169,7 @@ fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
 }
 
 /// Replace last matche in the buffer the source with destination
-pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
+pub inline fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
     if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
         try self.replace(pos, src, dst);
         return true;
@@ -178,7 +178,7 @@ pub fn replaceLast(self: *Self, src: []const u8, dst: []const u8) !bool {
 }
 
 /// Replace first matche in the buffer the source with destination
-pub fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
+pub inline fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
     if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |pos| {
         try self.replace(pos, src, dst);
         return true;
@@ -187,7 +187,7 @@ pub fn replaceFirst(self: *Self, src: []const u8, dst: []const u8) !bool {
 }
 
 /// Replace all matches in the buffer the source with destination
-pub fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
+pub inline fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
     return self.replaceAllFromPos(0, src, dst);
 }
 
@@ -224,22 +224,22 @@ pub fn removeFirst(self: *Self, src: []const u8) !bool {
 }
 
 /// Remove all matches with the source from the buffer
-pub fn removeAll(self: *Self, src: []const u8) !bool {
+pub inline fn removeAll(self: *Self, src: []const u8) !bool {
     return self.replaceAll(src, "");
 }
 
 /// Remove data from the buffer starting with given position
-pub fn removeFrom(self: *Self, pos: usize) !void {
+pub inline fn removeFrom(self: *Self, pos: usize) !void {
     try self.removeRange(pos, self.buffer.len);
 }
 
 /// Remove data from the buffer from beggining up to with given position
-pub fn removeEnd(self: *Self, len: usize) !void {
+pub inline fn removeEnd(self: *Self, len: usize) !void {
     try self.removeRange(self.buffer.len - len, self.buffer.len);
 }
 
 /// Remove data from the beggining of buffer up to given length
-pub fn removeStart(self: *Self, len: usize) !void {
+pub inline fn removeStart(self: *Self, len: usize) !void {
     try self.removeRange(0, len);
 }
 
@@ -308,20 +308,20 @@ fn in(byte: u8, arr: []const u8) bool {
 }
 
 /// Trim at the end of the buffer matching the given string
-pub fn trimEnd(self: *Self, str: []const u8) void {
+pub inline fn trimEnd(self: *Self, str: []const u8) void {
     self.reverse();
     self.trimStart(str);
     self.reverse();
 }
 
 /// Trim on both ends of the buffer matching the given string
-pub fn trim(self: *Self, str: []const u8) void {
+pub inline fn trim(self: *Self, str: []const u8) void {
     self.trimStart(str);
     self.trimEnd(str);
 }
 
 /// Split block at specific index from the buffer
-pub fn splitBlockAt(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
+pub inline fn splitBlockAt(self: *Self, delimiters: []const u8, index: usize) ?[]const u8 {
     return spliter(self.buffer.ptr[0..self.buffer.len], delimiters, index);
 }
 
@@ -347,7 +347,7 @@ pub fn splitBlockAtAsCopy(self: *Self, delimiters: []const u8, index: usize) !?S
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
-pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .sequence) {
+pub inline fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .sequence) {
     return self.buffer.splitSequence(delimiters);
 }
 
@@ -359,7 +359,7 @@ pub fn splitSequence(self: *Self, delimiters: []const u8) std.mem.SplitIterator(
 ///
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
+pub inline fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .any) {
     return self.buffer.splitAny(delimiters);
 }
 
@@ -371,7 +371,7 @@ pub fn splitAny(self: *Self, delimiters: []const u8) std.mem.SplitIterator(u8, .
 ///
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
+pub inline fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar) {
     return self.buffer.splitScalar(delimiter);
 }
 /// Returns an iterator that iterates backwards over the slices of `buffer` that
@@ -383,7 +383,7 @@ pub fn splitScalar(self: *Self, delimiter: u8) std.mem.SplitIterator(u8, .scalar
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
-pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
+pub inline fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .sequence) {
     return self.buffer.splitBackwardsSequence(delimiters);
 }
 
@@ -395,7 +395,7 @@ pub fn splitBackwardsSequence(self: *Self, delimiters: []const u8) std.mem.Split
 ///
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
+pub inline fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackwardsIterator(u8, .any) {
     return self.buffer.splitBackwardsAny(delimiters);
 }
 
@@ -407,7 +407,7 @@ pub fn splitBackwardsAny(self: *Self, delimiters: []const u8) std.mem.SplitBackw
 ///
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
+pub inline fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIterator(u8, .scalar) {
     return self.buffer.splitBackwardsScalar(delimiter);
 }
 
@@ -420,7 +420,7 @@ pub fn splitBackwardsScalar(self: *Self, delimiter: u8) std.mem.SplitBackwardsIt
 /// If `buffer` is empty, the iterator will return null.
 /// If none of `delimiters` exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
+pub inline fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8, .any) {
     return self.buffer.tokenizeAny(delimiters);
 }
 
@@ -434,7 +434,7 @@ pub fn tokenizeAny(self: *Self, delimiters: []const u8) std.mem.TokenIterator(u8
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
 /// The delimiter length must not be zero.
-pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterator(u8, .sequence) {
+pub inline fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterator(u8, .sequence) {
     return self.buffer.tokenizeSequence(delimiter);
 }
 
@@ -447,7 +447,7 @@ pub fn tokenizeSequence(self: *Self, delimiter: []const u8) std.mem.TokenIterato
 /// If `buffer` is empty, the iterator will return null.
 /// If `delimiter` does not exist in buffer,
 /// the iterator will return `buffer`, null, in that order.
-pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
+pub inline fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .scalar) {
     return self.buffer.tokenizeScalar(delimiter);
 }
 
@@ -472,17 +472,17 @@ pub fn toUppercase(self: *Self) void {
 }
 
 /// Clear the whole buffer
-pub fn clear(self: *Self) void {
+pub inline fn clear(self: *Self) void {
     self.buffer.clear();
 }
 
 /// Clear and free the whole buffer
-pub fn clearAndFree(self: *Self) void {
+pub inline fn clearAndFree(self: *Self) void {
     self.buffer.clearAndFree();
 }
 
 /// Shrink the whole buffer
-pub fn shrink(self: *Self) !void {
+pub inline fn shrink(self: *Self) !void {
     try self.buffer.shrink();
 }
 
@@ -511,7 +511,7 @@ pub fn runeAt(self: *Self, index: usize) ?[]const u8 {
 }
 
 /// For each rune in the buffer
-pub fn forEach(self: *Self, eachFn: *const fn ([]const u8) void) void {
+pub inline fn forEach(self: *Self, eachFn: *const fn ([]const u8) void) void {
     var iter = self.iterator();
     while (iter.next()) |item| {
         eachFn(item);
@@ -558,36 +558,36 @@ pub fn endWith(self: *Self, str: []const u8) bool {
 }
 
 /// Compare the buffer content with given string
-pub fn compare(self: *Self, str: []const u8) bool {
+pub inline fn compare(self: *Self, str: []const u8) bool {
     return self.buffer.compare(str);
 }
 
-pub fn eql(self: *Self, dst: *const Self) bool {
+pub inline fn eql(self: *Self, dst: *const Self) bool {
     return std.mem.eql(self.buffer.ptr, dst.buffer.ptr);
 }
 
 /// Clone the content of buffer using a given allocator
-pub fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
+pub inline fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
     return Self{ .buffer = try self.buffer.cloneUsingAllocator(allocator) };
 }
 
 /// Clone the content of buffer using same allocator
-pub fn clone(self: *Self) !Self {
+pub inline fn clone(self: *Self) !Self {
     return Self{ .buffer = try self.buffer.clone() };
 }
 
 /// Copy the content into a array of bytes
-pub fn copy(self: *Self) !?[]u8 {
+pub inline fn copy(self: *Self) !?[]u8 {
     return try self.buffer.copy();
 }
 
 /// Retrieve the buffer bytes
-pub fn bytes(self: *Self) []const u8 {
+pub inline fn bytes(self: *Self) []const u8 {
     return self.buffer.bytes();
 }
 
 /// Read the buffer bytes into a destination
-fn read(self: *Self, dst: []u8) !usize {
+inline fn read(self: *Self, dst: []u8) !usize {
     return self.bytesInto(dst);
 }
 
@@ -605,7 +605,7 @@ pub fn bytesWithAllocator(self: *Self, allocator: std.mem.Allocator) ![]const u8
 }
 
 /// Capacity of the buffer
-pub fn capacity(self: *Self) usize {
+pub inline fn capacity(self: *Self) usize {
     return self.buffer.cap;
 }
 
@@ -615,7 +615,7 @@ pub inline fn isEmpty(self: *Self) bool {
 }
 
 /// Retrieve the raw length of teh buffer
-pub fn rawLength(self: *Self) usize {
+pub inline fn rawLength(self: *Self) usize {
     return self.buffer.len;
 }
 
