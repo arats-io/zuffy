@@ -198,6 +198,8 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.fatal)) return;
 
     try self.send(Level.fatal, message, err, args);
+
+    @panic("fatal");
 }
 
 inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
@@ -205,69 +207,84 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     errdefer {
         buffer.deinit();
         if (self.buffer_pool) |p| {
-            p.push(&buffer) catch |err| {
-                std.debug.print("Error - {any}", .{err});
+            p.push(&buffer) catch |e| {
+                std.debug.print("Error - {any}", .{e});
             };
         }
     }
     defer {
         buffer.deinit();
         if (self.buffer_pool) |p| {
-            p.push(&buffer) catch |err| {
-                std.debug.print("Error - {any}", .{err});
+            p.push(&buffer) catch |e| {
+                std.debug.print("Error - {any}", .{e});
             };
         }
     }
+    try process(self.allocator, &buffer, self.scope, self.fields, self.config, op, message, err_value, args);
+
+    _ = try self.config.writer.write(buffer.bytes());
+}
+
+fn process(
+    allocator: std.mem.Allocator,
+    buffer: *Utf8Buffer,
+    scope_fields: ?Utf8Buffer,
+    fields: Utf8Buffer,
+    config: Config,
+    comptime op: Level,
+    message: []const u8,
+    err_value: ?anyerror,
+    args: anytype,
+) !void {
 
     // add the timstamp
-    const opts = self.config;
-    if (opts.time_enabled) {
-        const t = Time.new(opts.time_measure);
+    if (config.time_enabled) {
+        const t = Time.new(config.time_measure);
 
-        switch (opts.time_formating) {
+        switch (config.time_formating) {
             inline .timestamp => {
-                try injectKeyAndValue(true, &buffer, self.config, opts.time_field_name, t.value);
+                try injectKeyAndValue(true, buffer, config, config.time_field_name, t.value);
             },
             inline .pattern => {
                 var buf: [1024]u8 = undefined;
-                const len = try t.formatfInto(self.allocator, opts.time_pattern, &buf);
-                try injectKeyAndValue(true, &buffer, self.config, opts.time_field_name, buf[0..len]);
+                const len = try t.formatfInto(allocator, config.time_pattern, &buf);
+                try injectKeyAndValue(true, buffer, config, config.time_field_name, buf[0..len]);
             },
         }
     }
 
     // append the level
-    try injectKeyAndValue(!opts.time_enabled, &buffer, self.config, opts.level_field_name, op.String());
+    try injectKeyAndValue(!config.time_enabled, buffer, config, config.level_field_name, op.String());
 
     // append the scope if present
-    if (self.scope) |scope| {
+    if (scope_fields) |scope| {
         try buffer.append(@constCast(&scope).bytes());
     }
 
     // append the message
-    try injectKeyAndValue(false, &buffer, opts, opts.message_field_name, message);
+    try injectKeyAndValue(false, buffer, config, config.message_field_name, message);
 
     // append the static logger fields
-    try buffer.append(@constCast(&self.fields).bytes());
+    try buffer.append(@constCast(&fields).bytes());
 
     // append the error
     if (err_value) |value| {
-        try injectKeyAndValue(false, &buffer, self.config, self.config.error_field_name, @errorName(value));
+        try injectKeyAndValue(false, buffer, config, config.error_field_name, @errorName(value));
 
-        if (self.config.stacktrace_ebabled) {
+        if (config.stacktrace_ebabled) {
             if (@errorReturnTrace()) |stacktrace| {
                 const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
                     break :res null;
                 };
                 if (debug_info) |di| {
-                    var buff = std.ArrayList(u8).init(self.allocator);
+                    var buff = std.ArrayList(u8).init(allocator);
                     errdefer buff.deinit();
                     defer buff.deinit();
 
-                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), self.allocator, di, .no_color);
+                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, .no_color);
 
                     if (buff.items.len > 0) {
-                        try injectKeyAndValue(false, &buffer, self.config, self.config.stacktrace_field_name, buff.items);
+                        try injectKeyAndValue(false, buffer, config, config.stacktrace_field_name, buff.items);
                     }
                 }
             }
@@ -278,29 +295,22 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
     inline for (0..args.len) |i| {
         const arg_type = @TypeOf(args[i]);
         if (@hasField(arg_type, "src_value")) {
-            if (self.config.caller_enabled) {
-                const data = self.config.caller_marshal_fn(args[i].src_value);
-                try injectKeyAndValue(false, &buffer, self.config, self.config.caller_field_name, data);
+            if (config.caller_enabled) {
+                const data = config.caller_marshal_fn(args[i].src_value);
+                try injectKeyAndValue(false, buffer, config, config.caller_field_name, data);
             }
         }
 
         if (@hasField(arg_type, "key") and @hasField(arg_type, "value")) {
-            try injectKeyAndValue(false, &buffer, self.config, args[i].key, args[i].value);
+            try injectKeyAndValue(false, buffer, config, args[i].key, args[i].value);
         }
     }
 
     // append the end of record
-    _ = try buffer.write(switch (self.config.format) {
+    _ = try buffer.write(switch (config.format) {
         inline .text => "\n",
         inline .json => "}\n",
     });
-
-    // send data
-    _ = try self.config.writer.write(buffer.bytes());
-
-    if (op == .fatal) {
-        @panic("fatal");
-    }
 }
 
 fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) !void {
