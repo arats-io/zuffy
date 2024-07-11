@@ -200,7 +200,7 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
     try self.send(Level.fatal, message, err, args);
 }
 
-fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
+inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
     var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.init(self.allocator);
     errdefer {
         buffer.deinit();

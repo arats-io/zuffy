@@ -101,7 +101,7 @@ pub fn write(self: *Self, array: []const u8) !usize {
             const t: f64 = @round(@as(f64, @floatFromInt(self.len)) * @as(f64, @floatCast(self.factor)));
             const res: usize = @truncate(@as(usize, @intFromFloat(t)));
             break :result @abs(res);
-        } else 1;
+        } else 2;
 
         try self.resize(self.len + array.len + f);
     }

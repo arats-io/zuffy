@@ -135,11 +135,6 @@ pub fn repeat(self: *Self, n: usize) !void {
     try self.buffer.repeat(n);
 }
 
-const Direction = enum(u1) {
-    first = 0,
-    last,
-};
-
 fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
     if (dst.len > src.len) {
         // Make sure buffer has enough space
