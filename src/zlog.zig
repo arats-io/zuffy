@@ -80,7 +80,7 @@ pub const Config = struct {
     scope_field_name: []const u8 = "scope",
 
     /// flag enabling/disabling the error tracing reporting in the log
-    stacktrace_ebabled: bool = false,
+    stacktrace_enabled: bool = false,
     /// field name for the error stacktrace
     stacktrace_field_name: []const u8 = "stacktrace",
 
@@ -105,7 +105,8 @@ pub const Config = struct {
     emit_null_optional_fields: bool = false,
 
     /// stringify options
-    stingify: struct { level1: std.json.StringifyOptions, levelX: std.json.StringifyOptions } = .{
+    stingify: struct { escape_enabled: bool, level1: std.json.StringifyOptions, levelX: std.json.StringifyOptions } = .{
+        .escape_enabled = false,
         .level1 = .{
             .whitespace = .minified,
             .emit_null_optional_fields = false,
@@ -294,7 +295,7 @@ fn process(
     if (err_value) |value| {
         try injectKeyAndValue(false, buffer, config, config.error_field_name, @errorName(value));
 
-        if (config.stacktrace_ebabled) {
+        if (config.stacktrace_enabled) {
             if (@errorReturnTrace()) |stacktrace| {
                 const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
                     break :res null;
@@ -395,7 +396,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .ErrorSet => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
                 .Null => if (config.emit_null_optional_fields) try data.print("{s}{s}=null", .{ header, key }),
                 .Struct, .Union => {
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         try data.print("{s}{s}=\u{0022}", .{ header, key });
                     } else {
                         try data.print("{s}{s}=", .{ header, key });
@@ -404,7 +405,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                     const cPos = data.rawLength();
                     try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
 
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         _ = try data.replaceAllFromPos(
                             cPos,
                             config.src_escape_characters,
@@ -412,7 +413,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                         );
                     }
 
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         try data.print("\u{0022}", .{});
                     }
                 },
@@ -518,7 +519,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
                 .Null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
                 .Struct, .Union => {
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         try data.print("{s}\u{0022}", .{header});
                     } else {
                         try data.print("{s}", .{header});
@@ -527,7 +528,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                     const cPos = data.rawLength();
                     try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
 
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         _ = try data.replaceAllFromPos(
                             cPos,
                             config.src_escape_characters,
@@ -535,7 +536,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                         );
                     }
 
-                    if (config.escape_enabled) {
+                    if (config.stingify.escape_enabled) {
                         try data.print("\u{0022}", .{});
                     }
                 },
