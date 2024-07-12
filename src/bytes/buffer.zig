@@ -58,7 +58,7 @@ pub fn resize(self: *Self, cap: usize) !void {
 }
 
 /// Shrink the buffer capacity to the active length
-pub fn shrink(self: *Self) !void {
+pub inline fn shrink(self: *Self) !void {
     try self.resize(self.len);
 }
 
@@ -88,7 +88,7 @@ pub fn writeNBytes(self: *Self, reader: anytype, max_num: usize) !void {
 }
 
 /// Write an array of bytes to the buffer
-pub fn writeAll(self: *Self, array: []const u8) !void {
+pub inline fn writeAll(self: *Self, array: []const u8) !void {
     _ = try self.write(array);
 }
 
@@ -117,9 +117,8 @@ pub fn write(self: *Self, array: []const u8) !usize {
 }
 
 /// Write any array of values by formating them on given format
-pub fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
-    const writer = self.writer();
-    return std.fmt.format(writer, format, args);
+pub inline fn print(self: *Self, comptime format: []const u8, args: anytype) !void {
+    return std.fmt.format(self.writer(), format, args);
 }
 
 /// Read the content of buffer into the given destination
@@ -204,7 +203,7 @@ pub fn cloneUsingAllocator(self: *Self, allocator: std.mem.Allocator) !Self {
 }
 
 /// Retrieve the the whole copy of buffer as an array of bytes, using buffer allocator
-pub fn copy(self: *Self) ![]u8 {
+pub inline fn copy(self: *Self) ![]u8 {
     return self.copyUsingAllocator(self.allocator);
 }
 
@@ -231,18 +230,18 @@ pub fn repeat(self: *Self, n: usize) !void {
 }
 
 /// Verify if the buffer is empty
-pub fn isEmpty(self: *Self) bool {
+pub inline fn isEmpty(self: *Self) bool {
     return self.len == 0;
 }
 
 /// Clear the whole buffer content
-pub fn clear(self: *Self) void {
+pub inline fn clear(self: *Self) void {
     @memset(self.ptr[0..self.len], 0);
     self.len = 0;
 }
 
 ///Free and clear the whole buffer content
-pub fn clearAndFree(self: *Self) void {
+pub inline fn clearAndFree(self: *Self) void {
     self.deinit();
 }
 
@@ -422,7 +421,7 @@ pub fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u8, .sca
 }
 
 /// Retrieve the raw length of teh buffer
-pub fn rawLength(self: *Self) usize {
+pub inline fn rawLength(self: *Self) usize {
     return self.len;
 }
 

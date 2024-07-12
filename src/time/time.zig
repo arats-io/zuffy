@@ -260,7 +260,7 @@ pub const Time = struct {
         }
     }
 
-    fn suffix(m: i128) []const u8 {
+    inline fn suffix(m: i128) []const u8 {
         return switch (m) {
             1 => "st",
             2 => "nd",
@@ -373,14 +373,14 @@ pub const Time = struct {
         }
     }
 
-    pub fn getWeekday(self: Self) Weekday {
+    pub inline fn getWeekday(self: Self) Weekday {
         return @as(Weekday, @enumFromInt(self.dateTime().wday));
     }
-    pub fn getMonth(self: Self) Month {
+    pub inline fn getMonth(self: Self) Month {
         return @as(Month, @enumFromInt(self.dateTime().month));
     }
 
-    fn zzz(self: Self, writer: anytype, delimeter: []const u8) !void {
+    inline fn zzz(self: Self, writer: anytype, delimeter: []const u8) !void {
         var h = @divFloor(self.offset.?, std.time.s_per_hour);
         if (h > 0) {
             _ = try writer.write("+");
