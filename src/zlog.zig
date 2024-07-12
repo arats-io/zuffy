@@ -95,9 +95,32 @@ pub const Config = struct {
     /// handler writing the data
     writer: std.fs.File = std.io.getStdOut(),
 
+    /// escaping flag
     escape_enabled: bool = false,
+    /// escaping source set of characters
     src_escape_characters: []const u8 = "\"",
+    /// escaping destination set of characters
     dst_escape_characters: []const u8 = "\\\"",
+
+    emit_null_optional_fields: bool = false,
+
+    /// stringify options
+    stingify: struct { level1: std.json.StringifyOptions, levelX: std.json.StringifyOptions } = .{
+        .level1 = .{
+            .whitespace = .minified,
+            .emit_null_optional_fields = false,
+            .emit_strings_as_arrays = false,
+            .escape_unicode = true,
+            .emit_nonportable_numbers_as_strings = false,
+        },
+        .levelX = .{
+            .whitespace = .minified,
+            .emit_null_optional_fields = false,
+            .emit_strings_as_arrays = false,
+            .escape_unicode = true,
+            .emit_nonportable_numbers_as_strings = false,
+        },
+    },
 };
 
 pub fn Field(comptime T: type, key: []const u8, value: T) struct { key: []const u8, value: T } {
@@ -342,7 +365,6 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 return try injectKeyAndValue(first, buffer, config, key, null);
             }
         },
-        .Fn => {},
         else => {},
     }
 
@@ -371,7 +393,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{s}={any}", .{ header, key, value }),
                 .ErrorSet => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
-                .Null => try data.print("{s}{s}=null", .{ header, key }),
+                .Null => if (config.emit_null_optional_fields) try data.print("{s}{s}=null", .{ header, key }),
                 .Struct, .Union => {
                     if (config.escape_enabled) {
                         try data.print("{s}{s}=\u{0022}", .{ header, key });
@@ -380,7 +402,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                     }
 
                     const cPos = data.rawLength();
-                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+                    try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
 
                     if (config.escape_enabled) {
                         _ = try data.replaceAllFromPos(
@@ -430,11 +452,11 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
-                .Null => try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
+                .Null => if (config.emit_null_optional_fields) try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
                 .Struct, .Union => {
                     try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
-                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+                    try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
                 },
                 .Array, .Vector => {
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
@@ -456,6 +478,18 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
 
     const T = @TypeOf(value);
     const ty = @typeInfo(T);
+
+    switch (ty) {
+        .Optional => {
+            if (value) |payload| {
+                return injectValue(first, buffer, config, payload);
+            } else {
+                return injectValue(first, buffer, config, null);
+            }
+        },
+        else => {},
+    }
+
     switch (config.format) {
         inline .text => {
             const header = if (first) "" else ", ";
@@ -482,7 +516,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .Null => try data.print("{s}null", .{header}),
+                .Null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
                 .Struct, .Union => {
                     if (config.escape_enabled) {
                         try data.print("{s}\u{0022}", .{header});
@@ -491,7 +525,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                     }
 
                     const cPos = data.rawLength();
-                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+                    try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
 
                     if (config.escape_enabled) {
                         _ = try data.replaceAllFromPos(
@@ -542,11 +576,11 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 },
                 .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
                 .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .Null => try data.print("{s}null", .{header}),
+                .Null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
                 .Struct, .Union => {
                     try data.print("{s}", .{header});
 
-                    try std.json.stringifyMaxDepth(value, .{}, data.writer(), std.math.maxInt(u16));
+                    try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
                 },
                 .Array, .Vector => {
                     try data.print("{s} [", .{header});

@@ -75,9 +75,10 @@ pub fn main() !void {
                     Element{ .int = 32, .string = "Eleme\"nt1" },
                     Element{ .int = 32, .string = "Eleme\"nt2" },
                 }),
-                zlog.Field([2][]const u8, "array_strings", [_][]const u8{
+                zlog.Field([3]?[]const u8, "array_strings", [_]?[]const u8{
                     "eleme\"nt 1",
                     "eleme\"nt 2",
+                    null,
                 }),
                 zlog.Field(Element, "element1", Element{ .int = 32, .string = "Eleme\"nt1" }),
             },
