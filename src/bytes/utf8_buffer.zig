@@ -27,7 +27,7 @@ pub fn initWithFactor(allocator: std.mem.Allocator, factor: f16) Self {
 }
 
 /// Init the UTF8 buffer and resizing to the desired size
-pub fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
+pub inline fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
     var d = init(allocator);
     errdefer d.deinit();
 
@@ -36,7 +36,7 @@ pub fn initWithCapacity(allocator: std.mem.Allocator, size: usize) !Self {
 }
 
 /// Destroy the buffer
-pub fn deinit(self: *Self) void {
+pub inline fn deinit(self: *Self) void {
     self.buffer.deinit();
 }
 
@@ -55,7 +55,7 @@ pub inline fn insertAt(self: *Self, str: []const u8, index: usize) !void {
     try self.insertAtWithLength(index, str, str.len);
 }
 
-fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) !void {
+noinline fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len: usize) !void {
     if (len == 0) return;
 
     const numberOfChars = if (len > array.len) array.len else len;
@@ -135,7 +135,7 @@ pub inline fn repeat(self: *Self, n: usize) !void {
     try self.buffer.repeat(n);
 }
 
-fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
+noinline fn replace(self: *Self, index: usize, src: []const u8, dst: []const u8) !void {
     if (dst.len > src.len) {
         // Make sure buffer has enough space
         const size = self.buffer.len + (dst.len - src.len);
@@ -192,7 +192,7 @@ pub inline fn replaceAll(self: *Self, src: []const u8, dst: []const u8) !bool {
 }
 
 /// Replace all matches in the buffer the source with destination from given start position
-pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []const u8) !bool {
+pub noinline fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []const u8) !bool {
     var pos: usize = startPos;
     var found = false;
     while (std.mem.indexOf(u8, self.buffer.ptr[pos..self.buffer.len], src)) |index| {
@@ -204,7 +204,7 @@ pub fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8, dst: []c
 }
 
 /// Remove last matche with the source from the buffer
-pub fn removeLast(self: *Self, src: []const u8) !bool {
+pub inline fn removeLast(self: *Self, src: []const u8) !bool {
     if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
         try self.replace(index, src, "");
         return true;
@@ -214,7 +214,7 @@ pub fn removeLast(self: *Self, src: []const u8) !bool {
 }
 
 /// Remove first matche with the source from the buffer
-pub fn removeFirst(self: *Self, src: []const u8) !bool {
+pub inline fn removeFirst(self: *Self, src: []const u8) !bool {
     if (std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {
         try self.replace(index, src, "");
         return true;
@@ -244,7 +244,7 @@ pub inline fn removeStart(self: *Self, len: usize) !void {
 }
 
 /// Remove data from the buffer in the given range
-pub fn removeRange(self: *Self, start: usize, end: usize) !void {
+pub noinline fn removeRange(self: *Self, start: usize, end: usize) !void {
     if (end < start or end > self.buffer.len) return Buffer.Error.InvalidRange;
 
     const rStart = self.utf8Position(start, true).?;
@@ -260,7 +260,7 @@ pub fn removeRange(self: *Self, start: usize, end: usize) !void {
 }
 
 /// Reverse all runes in the buffer
-pub fn reverse(self: *Self) void {
+pub noinline fn reverse(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
         const size = utf8Size(self.buffer.ptr[i]);
@@ -272,7 +272,7 @@ pub fn reverse(self: *Self) void {
 }
 
 /// Substract a portion of buffer from a given Range
-pub fn substractRange(self: *Self, start: usize, end: usize) !Self {
+pub noinline fn substractRange(self: *Self, start: usize, end: usize) !Self {
     var result = Self{ .buffer = Buffer.init(self.buffer.allocator) };
 
     if (self.utf8Position(start, true)) |rStart| {
@@ -287,7 +287,7 @@ pub fn substractRange(self: *Self, start: usize, end: usize) !Self {
 }
 
 /// Trim from a begging of the buffer matching the given string
-pub fn trimStart(self: *Self, str: []const u8) void {
+pub noinline fn trimStart(self: *Self, str: []const u8) void {
     var i: usize = 0;
     while (i < self.buffer.len) : (i += 1) {
         const size = utf8Size(self.buffer.ptr[i]);
@@ -298,7 +298,7 @@ pub fn trimStart(self: *Self, str: []const u8) void {
         self.removeRange(0, k) catch {};
     }
 }
-fn in(byte: u8, arr: []const u8) bool {
+noinline fn in(byte: u8, arr: []const u8) bool {
     var i: usize = 0;
     while (i < arr.len) : (i += 1) {
         if (arr[i] == byte) return true;
@@ -326,7 +326,7 @@ pub inline fn splitBlockAt(self: *Self, delimiters: []const u8, index: usize) ?[
 }
 
 /// Split block at specific index from the buffer as a copy of buffer
-pub fn splitBlockAtAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
+pub noinline fn splitBlockAtAsCopy(self: *Self, delimiters: []const u8, index: usize) !?Self {
     if (self.splitBlockAt(delimiters, index)) |block| {
         var s = Self{ .buffer = Buffer.init(self.buffer.allocator) };
         errdefer s.deinit();
@@ -452,7 +452,7 @@ pub inline fn tokenizeScalar(self: *Self, delimiter: u8) std.mem.TokenIterator(u
 }
 
 /// Lowercase all runes in the buffer
-pub fn toLowercase(self: *Self) void {
+pub noinline fn toLowercase(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
         const size = utf8Size(self.buffer.ptr[i]);
@@ -462,7 +462,7 @@ pub fn toLowercase(self: *Self) void {
 }
 
 /// Uppercase all runes in the buffer
-pub fn toUppercase(self: *Self) void {
+pub noinline fn toUppercase(self: *Self) void {
     var i: usize = 0;
     while (i < self.buffer.len) {
         const size = utf8Size(self.buffer.ptr[i]);
@@ -486,7 +486,7 @@ pub inline fn shrink(self: *Self) !void {
     try self.buffer.shrink();
 }
 
-pub fn pop(self: *Self) ?[]const u8 {
+pub noinline fn pop(self: *Self) ?[]const u8 {
     if (self.buffer.len == 0) return null;
 
     var i: usize = 0;
@@ -502,7 +502,7 @@ pub fn pop(self: *Self) ?[]const u8 {
 }
 
 /// Get a rune at given index
-pub fn runeAt(self: *Self, index: usize) ?[]const u8 {
+pub noinline fn runeAt(self: *Self, index: usize) ?[]const u8 {
     if (self.utf8Position(index, true)) |i| {
         const size = utf8Size(self.buffer.ptr[i]);
         return self.buffer.ptr[i..(i + size)];
@@ -519,8 +519,14 @@ pub inline fn forEach(self: *Self, eachFn: *const fn ([]const u8) void) void {
 }
 
 /// Find the position index of the given string
-pub fn find(self: *Self, str: []const u8) ?usize {
-    const index = std.mem.indexOf(u8, self.buffer.ptr[0..self.buffer.len], str);
+pub inline fn find(self: *Self, str: []const u8) ?usize {
+    return self.findOn(str, 0);
+}
+
+/// Find the position index of the given string
+pub inline fn findOn(self: *Self, str: []const u8, pos: usize) ?usize {
+    if (pos > self.buffer.len) return null;
+    const index = std.mem.indexOf(u8, self.buffer.ptr[pos..self.buffer.len], str);
     if (index) |i| {
         return self.utf8Position(i, false);
     }
@@ -528,17 +534,26 @@ pub fn find(self: *Self, str: []const u8) ?usize {
 }
 
 /// Check if the string does contain in the buffer
-pub fn contains(self: *Self, str: []const u8) bool {
+pub inline fn contains(self: *Self, str: []const u8) bool {
     if (str.len == 0) return false;
 
-    if (self.find(str)) |_| {
+    if (self.findOn(str, 0)) |_| {
+        return true;
+    }
+    return false;
+}
+
+pub inline fn containsStartWith(self: *Self, str: []const u8, pos: usize) bool {
+    if (str.len == 0) return false;
+
+    if (self.findOn(str, pos)) |_| {
         return true;
     }
     return false;
 }
 
 /// Check if the buffer content does start with given string
-pub fn startWith(self: *Self, str: []const u8) bool {
+pub inline fn startWith(self: *Self, str: []const u8) bool {
     if (str.len == 0) return false;
 
     if (self.find(str)) |pos| {
@@ -548,7 +563,7 @@ pub fn startWith(self: *Self, str: []const u8) bool {
 }
 
 /// Check if the buffer content does end with given string
-pub fn endWith(self: *Self, str: []const u8) bool {
+pub inline fn endWith(self: *Self, str: []const u8) bool {
     if (str.len == 0) return false;
 
     if (self.find(str)) |pos| {
@@ -592,7 +607,7 @@ inline fn read(self: *Self, dst: []u8) !usize {
 }
 
 /// Read the buffer bytes into a destination
-pub fn bytesInto(self: *Self, dst: []const u8) !usize {
+pub inline fn bytesInto(self: *Self, dst: []const u8) !usize {
     try self.shrink();
     const bs = self.bytes();
     std.mem.copyForwards(u8, @constCast(dst), bs);
@@ -600,7 +615,7 @@ pub fn bytesInto(self: *Self, dst: []const u8) !usize {
 }
 
 /// Retrive the bytes using an external allocator
-pub fn bytesWithAllocator(self: *Self, allocator: std.mem.Allocator) ![]const u8 {
+pub inline fn bytesWithAllocator(self: *Self, allocator: std.mem.Allocator) ![]const u8 {
     return try self.buffer.copyUsingAllocator(allocator);
 }
 
@@ -620,7 +635,7 @@ pub inline fn rawLength(self: *Self) usize {
 }
 
 /// Retrieve the length rune string
-pub fn length(self: *Self) usize {
+pub noinline fn length(self: *Self) usize {
     var l: usize = 0;
     var i: usize = 0;
 
@@ -632,7 +647,7 @@ pub fn length(self: *Self) usize {
     return l;
 }
 
-fn utf8Position(self: *Self, index: usize, real: bool) ?usize {
+noinline fn utf8Position(self: *Self, index: usize, real: bool) ?usize {
     var i: usize = 0;
     var j: usize = 0;
     while (i < self.buffer.cap) {
