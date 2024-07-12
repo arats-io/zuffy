@@ -102,12 +102,12 @@ noinline fn insertAtWithLength(self: *Self, index: usize, array: []const u8, len
 
 /// Return a portion of bytes from the buffer based on the given range of indexes
 pub inline fn bytesRange(self: *Self, start: usize, end: usize) ![]const u8 {
-    return self.buffer.rangeBytes(start, end);
+    return self.buffer.bytesRange(start, end);
 }
 
 /// Return a portion of bytes from the buffer based on the given start position
 pub inline fn bytesFrom(self: *Self, start: usize) ![]const u8 {
-    self.buffer.bytesFromPos(start);
+    self.buffer.bytesFrom(start);
 }
 
 /// Return a portion of bytes from the buffer up to a given end position
