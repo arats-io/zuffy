@@ -17,11 +17,11 @@ pub const Month = enum(u4) {
     November,
     December,
 
-    pub fn string(self: Month) []const u8 {
+    pub inline fn string(self: Month) []const u8 {
         return @tagName(self);
     }
 
-    pub fn shortString(self: Month) []const u8 {
+    pub inline fn shortString(self: Month) []const u8 {
         return @tagName(self)[0..3];
     }
 };
@@ -35,14 +35,14 @@ pub const Weekday = enum(u3) {
     Saturday,
     Sunday,
 
-    pub fn string(self: Weekday) []const u8 {
+    pub inline fn string(self: Weekday) []const u8 {
         return @tagName(self);
     }
-    pub fn shortString(self: Weekday) []const u8 {
+    pub inline fn shortString(self: Weekday) []const u8 {
         return @tagName(self)[0..3];
     }
 
-    pub fn shorterString(self: Weekday) []const u8 {
+    pub inline fn shorterString(self: Weekday) []const u8 {
         return @tagName(self)[0..2];
     }
 };
@@ -82,11 +82,11 @@ pub const Time = struct {
         return t.*;
     }
 
-    fn dateTime(self: Self) DateTime {
+    inline fn dateTime(self: Self) DateTime {
         return self.date_time.?;
     }
 
-    fn pupulate(self: *Self) *Self {
+    inline fn pupulate(self: *Self) *Self {
         const seconds = switch (self.measure) {
             inline .seconds => self.value,
             inline .millis => blk: {
@@ -236,40 +236,22 @@ pub const Time = struct {
     }
 
     inline fn format(self: Self, writer: anytype, pattern: []const u8) !void {
-        var i: usize = 0;
-        while (i < pattern.len) {
-            var j: usize = 4;
-            while (j > 0) : (j -= 1) {
-                if (i > pattern.len - j) {
-                    continue;
-                }
-
-                const slice = pattern.ptr[i .. i + j];
-                const l1 = j == 1;
-                const l2 = j == 2 and in(2, slice);
-                const l3 = j == 3 and in(3, slice);
-                const l4 = j == 4 and in(4, slice);
-                if (l1 or l2 or l3 or l4) {
-                    const token = pattern.ptr[i .. i + j];
-                    try self.appendToken(token, writer);
-                    i += (j - 1);
-                    break;
-                }
-            }
-            i += 1;
+        var tokens = TokenIterator.init(pattern);
+        while (tokens.next()) |token| {
+            try self.appendToken(token, writer);
         }
     }
 
     inline fn suffix(m: i128) []const u8 {
         return switch (m) {
-            1 => "st",
-            2 => "nd",
-            3 => "rd",
+            inline 1 => "st",
+            inline 2 => "nd",
+            inline 3 => "rd",
             else => "th",
         };
     }
 
-    fn appendToken(self: Self, token: []const u8, writer: anytype) !void {
+    inline fn appendToken(self: Self, token: []const u8, writer: anytype) !void {
         const date_time = self.dateTime();
 
         if (std.meta.stringToEnum(FormatToken, token)) |tag| {
@@ -441,31 +423,8 @@ pub const daysBefore = [13]u32{
     31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31,
 };
 
-const tokens_2 = [_][]const u8{ "MM", "Mo", "DD", "Do", "YY", "ss", "kk", "NN", "mm", "hh", "HH", "ZZ", "dd", "Qo", "QQ", "wo", "ww" };
-const tokens_3 = [_][]const u8{ "MMM", "DDD", "ZZZ", "ddd", "SSS", "YYY" };
-const tokens_4 = [_][]const u8{ "MMMM", "DDDD", "DDDo", "dddd", "YYYY" };
-
-fn in(comptime tokentype: u4, elem: []const u8) bool {
-    inline for (switch (tokentype) {
-        inline 2 => tokens_2,
-        inline 3 => tokens_3,
-        inline 4 => tokens_4,
-        inline 5...15, 0...1 => [_][]const u8{},
-    }) |item| {
-        if (std.mem.eql(u8, item, elem)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-fn mceil(x: i128) i128 {
-    if (x > 0) {
-        return 1 + x;
-    } else if (x < 0) {
-        return x;
-    }
-    return 0;
+inline fn mceil(x: i128) i128 {
+    return if (x > 0) 1 + x else if (x < 0) x else 0;
 }
 
 const weekday_t = [_]u8{ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 };
@@ -657,4 +616,61 @@ const FormatToken = enum {
     ZZZ, // -07:00 -06:00 ... +05:00 +06:00
     x, // unix milli
     X, // unix
+};
+
+const tokens_2 = [_][]const u8{ "MM", "Mo", "DD", "Do", "YY", "ss", "kk", "NN", "mm", "hh", "HH", "ZZ", "dd", "Qo", "QQ", "wo", "ww" };
+const tokens_3 = [_][]const u8{ "MMM", "DDD", "ZZZ", "ddd", "SSS", "YYY" };
+const tokens_4 = [_][]const u8{ "MMMM", "DDDD", "DDDo", "dddd", "YYYY" };
+
+inline fn in(comptime tokentype: u4, elem: []const u8) bool {
+    inline for (switch (tokentype) {
+        inline 2 => tokens_2,
+        inline 3 => tokens_3,
+        inline 4 => tokens_4,
+        inline 5...15, 0...1 => [_][]const u8{},
+    }) |item| {
+        if (std.mem.eql(u8, item, elem)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const TokenIterator = struct {
+    const Self = @This();
+
+    i: usize = 0,
+    expression: []const u8,
+
+    pub fn init(expression: []const u8) Self {
+        return Self{ .expression = expression };
+    }
+
+    pub fn next(self: *Self) ?[]const u8 {
+        while (self.i < self.expression.len) {
+            var j: usize = 12;
+            var token: ?[]const u8 = null;
+            while (j > 0) : (j -= 1) {
+                if (self.i > self.expression.len - j) {
+                    continue;
+                }
+
+                const slice = self.expression.ptr[self.i .. self.i + j];
+                const l1 = j == 1;
+                const l2 = j == 2 and in(2, slice);
+                const l3 = j == 3 and in(3, slice);
+                const l4 = j == 4 and in(4, slice);
+                if (l1 or l2 or l3 or l4) {
+                    token = self.expression.ptr[self.i .. self.i + j];
+                    _ = @atomicRmw(usize, &self.i, .Add, j - 1, .seq_cst);
+                    break;
+                }
+            }
+            _ = @atomicRmw(usize, &self.i, .Add, 1, .seq_cst);
+            if (token) |item| {
+                return item;
+            }
+        }
+        return null;
+    }
 };
