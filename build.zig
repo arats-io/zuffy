@@ -27,6 +27,7 @@ pub fn build(b: *std.Build) !void {
     }{
         .{ .name = "ints-bitset", .src = "examples/ints/bitset.zig" },
         .{ .name = "list-circular", .src = "examples/list/circular.zig" },
+        .{ .name = "list-skiplist", .src = "examples/list/skiplist.zig" },
         .{ .name = "logger-pool", .src = "examples/log/logger-pool.zig" },
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
