@@ -11,6 +11,8 @@ Require zig version: **0.13.0**
 Include the xstd into the `build.zig.zon` file.
 
 ```
+zig fetch --save https://github.com/arats-io/zig-xstd/archive/refs/tags/v<version>.tar.gz
+
 .dependencies = .{
     .xstd = .{
         .url = "https://github.com/arats-io/zig-xstd/archive/refs/tags/v0.1.14.tar.gz",
@@ -81,3 +83,7 @@ export TZ='Europe/Tiraspol.zip';
 ### Improved Zig Logger
 
 [zlog](./src/zlog.md)
+
+# Contributing
+
+Contributions of all kinds is welcome!
