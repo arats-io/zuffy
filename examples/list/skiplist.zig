@@ -59,7 +59,7 @@ pub fn main() !void {
         }
     }
 
-    //list.deinit();
+    list.deinit();
 
     std.debug.print("Finished removing data \n", .{});
 
