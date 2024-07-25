@@ -1,14 +1,32 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const Buffer = @import("../bytes/buffer.zig");
+
 const debug = std.debug;
 const assert = debug.assert;
 const mem = std.mem;
 const math = std.math;
+
 const Allocator = mem.Allocator;
 
-const DefaultMaxLevel = 25;
-const DefaultProbability = 1.0 / std.math.e;
+pub const Config = struct {
+    max_level: usize = 25,
+    probability: f64 = 1.0 / std.math.e,
+
+    allow_multiple_values_same_key: bool = false,
+};
+
+pub const Measure = enum {
+    bytes,
+    kbytes,
+    mbytes,
+    gbytes,
+};
+
+const kb = 1024;
+const mb = kb * 1024;
+const gb = mb * 1024;
 
 pub fn SkipList(comptime K: type, comptime V: type) type {
     return struct {
@@ -26,31 +44,29 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         allocator: Allocator,
         mutex: std.Thread.Mutex = std.Thread.Mutex{},
-
-        node: *ElementNode,
-        prev_nodes: []?*ElementNode,
-
-        maxLevel: usize,
-        len: i32 = 0,
-        probability: f64 = DefaultProbability,
-        prob_table: std.ArrayList(f64),
+        cfg: Config = .{},
 
         rand: std.Random,
+        node: *ElementNode,
+        prev_nodes: []?*ElementNode,
+        prob_table: std.ArrayList(f64),
+        len: i32 = 0,
+
         bytes: u128 = 0,
 
-        pub fn init(allocator: Allocator) !Self {
-            return try initWithLevel(allocator, DefaultMaxLevel);
+        pub fn init(allocator: Allocator, cfg: Config) !Self {
+            return try initWithLevel(allocator, cfg);
         }
 
-        pub fn initWithLevel(allocator: Allocator, max_level: usize) !Self {
+        pub fn initWithLevel(allocator: Allocator, cfg: Config) !Self {
             var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
-            var elements: []?*Element = try allocator.alloc(?*Element, max_level);
-            for (0..max_level) |idx| {
+            var elements: []?*Element = try allocator.alloc(?*Element, cfg.max_level);
+            for (0..cfg.max_level) |idx| {
                 elements[idx] = null;
             }
 
-            var cache: []?*ElementNode = try allocator.alloc(?*ElementNode, max_level);
-            for (0..max_level) |idx| {
+            var cache: []?*ElementNode = try allocator.alloc(?*ElementNode, cfg.max_level);
+            for (0..cfg.max_level) |idx| {
                 cache[idx] = null;
             }
 
@@ -63,14 +79,42 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 .node = node,
                 .prev_nodes = cache,
                 .allocator = allocator,
-                .maxLevel = max_level,
+                .cfg = cfg,
                 .rand = prng.random(),
-                .prob_table = try probabilityTable(allocator, DefaultProbability, max_level),
+                .prob_table = try probabilityTable(allocator, cfg.probability, cfg.max_level),
             };
         }
 
+        pub fn size(self: *Self, comptime measure: Measure) u128 {
+            return switch (measure) {
+                inline .bytes => self.bytes,
+                inline .kbytes => self.bytes / kb,
+                inline .mbytes => self.bytes / mb,
+                inline .gbytes => self.bytes / gb,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            for (self.node.next) |elem| {
+                if (elem) |d| {
+                    self.deinitElement(d);
+                }
+            }
+        }
+
+        fn deinitElement(self: *Self, element: *Element) void {
+            for (element.node.next) |elem| {
+                if (elem) |d| {
+                    self.deinitElement(d);
+                    self.allocator.free(d.node.next);
+                    self.allocator.destroy(d.node);
+                    self.allocator.destroy(d);
+                }
+            }
+        }
+
         pub fn front(self: *Self) *Element {
-            return self.next[0];
+            return self.node.next[0];
         }
 
         pub fn Insert(self: *Self, key: K, value: V) !*Element {
@@ -85,10 +129,14 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         fn add(self: *Self, key: K, value: V) !*Element {
             var prevs = self.getPrevElementNodes(key);
 
-            var element = prevs[0].?.next[0];
-            if (element != null and element.?.key <= key) {
-                element.?.value = value;
-                return element.?;
+            var element: ?*Element = null;
+
+            if (self.cfg.allow_multiple_values_same_key == false) {
+                element = prevs[0].?.next[0];
+                if (element != null and element.?.key <= key) {
+                    element.?.value = value;
+                    return element.?;
+                }
             }
 
             const level = self.randLevel();
@@ -125,7 +173,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             var prev: *ElementNode = self.node;
             var next: ?*Element = null;
 
-            var i = self.maxLevel - 1;
+            var i = self.cfg.max_level - 1;
             while (i >= 0) : (i -= 1) {
                 next = prev.next[i];
 
@@ -188,7 +236,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             var prevs = self.prev_nodes;
 
-            var i = self.maxLevel - 1;
+            var i = self.cfg.max_level - 1;
             while (i >= 0) : (i -= 1) {
                 next = prev.next[i];
 
@@ -205,9 +253,28 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return prevs;
         }
 
-        fn SetProbability(self: *Self, newProbability: f64) void {
+        pub fn SetProbability(self: *Self, newProbability: f64) void {
             self.probability = newProbability;
             self.prob_table = probabilityTable(self.allocator, self.probability, self.maxLevel);
+        }
+
+        pub fn Print(self: *Self) void {
+            std.debug.print("=======================================================================\n", .{});
+            for (self.node.next) |elem| {
+                if (elem) |d| {
+                    print(d);
+                }
+            }
+            std.debug.print("=======================================================================\n", .{});
+        }
+
+        fn print(element: *Element) void {
+            std.debug.print("{}:{}\n", .{ element.value, element.key });
+            for (element.node.next) |elem| {
+                if (elem) |d| {
+                    print(d);
+                }
+            }
         }
 
         fn randLevel(self: *Self) usize {
@@ -217,7 +284,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             var level: usize = 1;
             while (true) {
-                if (level < self.maxLevel and r < self.prob_table.items[level]) break;
+                if (level < self.cfg.max_level and r < self.prob_table.items[level]) break;
                 level += 1;
             }
             return level;
