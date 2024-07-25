@@ -40,7 +40,7 @@ pub fn main() !void {
         }
 
         const startTime = std.time.nanoTimestamp();
-        const v = try list.Remove(key);
+        const v = list.Remove(key);
         const endTime = (std.time.nanoTimestamp() - startTime);
         std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
     }
@@ -52,7 +52,7 @@ pub fn main() !void {
             std.debug.print("Should not be there; Got - {}:{}\n", .{ v, key });
         }
 
-        if (try list.Remove(key)) |v| {
+        if (list.Remove(key)) |v| {
             std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
         }
     }

@@ -36,7 +36,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         prob_table: std.ArrayList(f64),
 
         rand: std.Random,
-        bytes_bytes: u128 = 0,
+        bytes: u128 = 0,
 
         pub fn init(allocator: Allocator) !Self {
             return try initWithLevel(allocator, DefaultMaxLevel);
@@ -77,7 +77,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            self.bytes_bytes += comptime (@sizeOf(K) + @sizeOf(V));
+            self.bytes += comptime (@sizeOf(K) + @sizeOf(V));
 
             return try self.add(key, value);
         }
@@ -144,7 +144,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        pub fn Remove(self: *Self, key: K) !?V {
+        pub fn Remove(self: *Self, key: K) ?V {
             self.mutex.lock();
             defer self.mutex.unlock();
 
@@ -158,13 +158,13 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 }
 
                 self.len -= 1;
+                self.bytes -= comptime (@sizeOf(K) + @sizeOf(V));
 
                 //try self.nextAddOnRemove(element.?);
                 self.allocator.free(element.?.node.next);
                 self.allocator.destroy(element.?.node);
                 self.allocator.destroy(element.?);
 
-                self.bytes_bytes -= comptime (@sizeOf(K) + @sizeOf(V));
                 return element.?.value;
             }
 
