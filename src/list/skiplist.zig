@@ -1,8 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Buffer = @import("../bytes/buffer.zig");
-
 const debug = std.debug;
 const assert = debug.assert;
 const mem = std.mem;
@@ -32,12 +30,12 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
     return struct {
         const Self = @This();
 
-        pub const ElementNode = struct {
+        pub const Node = struct {
             next: []?*Element,
         };
 
         pub const Element = struct {
-            node: *ElementNode,
+            node: *Node,
             key: K,
             value: V,
         };
@@ -47,8 +45,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         cfg: Config = .{},
 
         rand: std.Random,
-        node: *ElementNode,
-        prev_nodes: []?*ElementNode,
+        node: *Node,
+        prev_nodes: []?*Node,
         prob_table: std.ArrayList(f64),
         len: i32 = 0,
 
@@ -65,13 +63,13 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 elements[idx] = null;
             }
 
-            var cache: []?*ElementNode = try allocator.alloc(?*ElementNode, cfg.max_level);
+            var cache: []?*Node = try allocator.alloc(?*Node, cfg.max_level);
             for (0..cfg.max_level) |idx| {
                 cache[idx] = null;
             }
 
-            const node = try allocator.create(ElementNode);
-            node.* = ElementNode{
+            const node = try allocator.create(Node);
+            node.* = Node{
                 .next = elements,
             };
 
@@ -100,6 +98,18 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                     self.deinitElement(d);
                 }
             }
+
+            // for (self.prev_nodes) |node| {
+            //     if (node) |n| {
+            //         for (n.next) |elem| {
+            //             if (elem) |d| {
+            //                 self.deinitElement(d);
+            //             }
+            //         }
+            //     }
+            // }
+            // self.allocator.free(self.prev_nodes);
+            // self.prob_table.clearAndFree();
         }
 
         fn deinitElement(self: *Self, element: *Element) void {
@@ -117,7 +127,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return self.node.next[0];
         }
 
-        pub fn Insert(self: *Self, key: K, value: V) !*Element {
+        pub fn insert(self: *Self, key: K, value: V) !*Element {
             self.mutex.lock();
             defer self.mutex.unlock();
 
@@ -145,8 +155,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 elements[idx] = null;
             }
 
-            const node = try self.allocator.create(ElementNode);
-            node.* = ElementNode{
+            const node = try self.allocator.create(Node);
+            node.* = Node{
                 .next = elements,
             };
 
@@ -166,11 +176,15 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return element.?;
         }
 
-        pub fn Get(self: *Self, key: K) ?V {
+        pub fn has(self: *Self, key: K) bool {
+            return self.get(key) != null;
+        }
+
+        pub fn get(self: *Self, key: K) ?V {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            var prev: *ElementNode = self.node;
+            var prev: *Node = self.node;
             var next: ?*Element = null;
 
             var i = self.cfg.max_level - 1;
@@ -192,7 +206,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        pub fn Remove(self: *Self, key: K) ?V {
+        pub fn remove(self: *Self, key: K) ?V {
             self.mutex.lock();
             defer self.mutex.unlock();
 
@@ -219,19 +233,19 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        fn nextAddOnRemove(self: *Self, element: *Element) !void {
-            for (element.node.next) |elem| {
-                if (elem) |d| {
-                    _ = try self.add(d.key, d.value);
-                    std.debug.print("Re-Inserted - {}:{}\n", .{ d.value, d.key });
+        // fn nextAddOnRemove(self: *Self, element: *Element) !void {
+        //     for (element.node.next) |elem| {
+        //         if (elem) |d| {
+        //             _ = try self.add(d.key, d.value);
+        //             //std.debug.print("Re-Inserted - {}:{}\n", .{ d.value, d.key });
 
-                    //try self.nextAddOnRemove(d);
-                }
-            }
-        }
+        //             try self.nextAddOnRemove(d);
+        //         }
+        //     }
+        // }
 
-        fn getPrevElementNodes(self: *Self, key: K) []?*ElementNode {
-            var prev: *ElementNode = self.node;
+        fn getPrevElementNodes(self: *Self, key: K) []?*Node {
+            var prev: *Node = self.node;
             var next: ?*Element = null;
 
             var prevs = self.prev_nodes;
@@ -253,26 +267,24 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return prevs;
         }
 
-        pub fn SetProbability(self: *Self, newProbability: f64) void {
+        pub fn setProbability(self: *Self, newProbability: f64) void {
             self.probability = newProbability;
             self.prob_table = probabilityTable(self.allocator, self.probability, self.maxLevel);
         }
 
-        pub fn Print(self: *Self) void {
-            std.debug.print("=======================================================================\n", .{});
+        pub fn print(self: *Self) void {
             for (self.node.next) |elem| {
                 if (elem) |d| {
-                    print(d);
+                    print_element(d);
                 }
             }
-            std.debug.print("=======================================================================\n", .{});
         }
 
-        fn print(element: *Element) void {
-            std.debug.print("{}:{}\n", .{ element.value, element.key });
+        fn print_element(element: *Element) void {
+            //std.debug.print("{}:{}\n", .{ element.value, element.key });
             for (element.node.next) |elem| {
                 if (elem) |d| {
-                    print(d);
+                    print_element(d);
                 }
             }
         }

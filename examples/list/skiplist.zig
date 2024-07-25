@@ -25,45 +25,43 @@ pub fn main() !void {
     var keys = std.ArrayList(f64).init(allocator);
     defer keys.deinit();
 
-    list.Print();
-
     for (0..total) |v| {
         const key = random.float(f64);
         try keys.append(key);
 
         const startTime = std.time.nanoTimestamp();
-        _ = try list.Insert(key, v);
-        _ = try list.Insert(key, v + 100);
+        _ = try list.insert(key, v);
+        _ = try list.insert(key, v + 100);
         const endTime = (std.time.nanoTimestamp() - startTime);
         std.debug.print("Inserting value {}:{}, took {} millisec \n", .{ v, key, @divTrunc(endTime, 1000) });
     }
 
     for (keys.items) |key| {
         const startTime = std.time.nanoTimestamp();
-        const v = list.Remove(key);
+        const v = list.remove(key);
         const endTime = (std.time.nanoTimestamp() - startTime);
         std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
     }
 
     std.debug.print("Size {} \n", .{list.size(.bytes)});
 
-    list.Print();
-
-    std.debug.print("=============================== \n", .{});
+    std.debug.print("=======================================================================\n", .{});
+    list.print();
+    std.debug.print("=======================================================================\n", .{});
 
     for (keys.items) |key| {
-        if (list.Get(key)) |v| {
+        if (list.get(key)) |v| {
             std.debug.print("Should not be there; Got - {}:{}\n", .{ v, key });
         }
 
-        if (list.Remove(key)) |v| {
+        if (list.remove(key)) |v| {
             std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
         }
     }
 
-    list.deinit();
+    //list.deinit();
 
     std.debug.print("Finished removing data \n", .{});
 
-    std.time.sleep(@as(u64, 1 * 60 * 60) * std.time.ns_per_s);
+    //std.time.sleep(@as(u64, 1 * 60 * 60) * std.time.ns_per_s);
 }
