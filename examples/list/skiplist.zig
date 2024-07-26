@@ -14,13 +14,21 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var list = try SkipList(f128, usize).init(allocator, .{});
+    var list = try SkipList(f128, usize).init(allocator, .{
+        .allow_multiple_values_same_key = true,
+    });
     defer list.deinit();
 
     var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
     const random = prng.random();
 
     const total = std.math.maxInt(u4);
+
+    const handler = struct {
+        pub fn f(key: f128, value: usize) void {
+            std.debug.print("{}:{} \n", .{ value, key });
+        }
+    }.f;
 
     var keys = std.ArrayList(f64).init(allocator);
     defer keys.deinit();
@@ -46,7 +54,7 @@ pub fn main() !void {
     std.debug.print("Size {} \n", .{list.size(.bytes)});
 
     std.debug.print("=======================================================================\n", .{});
-    list.print();
+    list.forEach(handler);
     std.debug.print("=======================================================================\n", .{});
 
     for (keys.items) |key| {
@@ -58,8 +66,6 @@ pub fn main() !void {
             std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
         }
     }
-
-    list.deinit();
 
     std.debug.print("Finished removing data \n", .{});
 

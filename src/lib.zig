@@ -1,5 +1,6 @@
 pub const ints = @import("ints.zig");
 pub const pointers = @import("pointers.zig");
+pub const bits = @import("bits.zig");
 
 pub const atomic = @import("atomic/mod.zig");
 pub const archive = @import("archive/mod.zig");

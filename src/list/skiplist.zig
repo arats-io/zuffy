@@ -30,6 +30,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
     return struct {
         const Self = @This();
 
+        pub const Error = error{
+            Frozen,
+        };
+
         pub const Node = struct {
             next: []?*Element,
         };
@@ -49,6 +53,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         prev_nodes: []?*Node,
         prob_table: std.ArrayList(f64),
         len: i32 = 0,
+        frozen: bool = false,
 
         bytes: u128 = 0,
 
@@ -93,23 +98,20 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            self.len = 0;
+            self.frozen = true;
+
             for (self.node.next) |elem| {
                 if (elem) |d| {
                     self.deinitElement(d);
                 }
             }
 
-            // for (self.prev_nodes) |node| {
-            //     if (node) |n| {
-            //         for (n.next) |elem| {
-            //             if (elem) |d| {
-            //                 self.deinitElement(d);
-            //             }
-            //         }
-            //     }
-            // }
-            // self.allocator.free(self.prev_nodes);
-            // self.prob_table.clearAndFree();
+            self.allocator.free(self.prev_nodes);
+            self.prob_table.clearAndFree();
         }
 
         fn deinitElement(self: *Self, element: *Element) void {
@@ -123,6 +125,14 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }
         }
 
+        pub fn isFrozen(self: *Self) bool {
+            return self.frozen;
+        }
+
+        pub fn freeze(self: *Self) void {
+            self.frozen = true;
+        }
+
         pub fn front(self: *Self) *Element {
             return self.node.next[0];
         }
@@ -130,6 +140,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         pub fn insert(self: *Self, key: K, value: V) !*Element {
             self.mutex.lock();
             defer self.mutex.unlock();
+
+            if (self.frozen) return Error.Frozen;
 
             self.bytes += comptime (@sizeOf(K) + @sizeOf(V));
 
@@ -184,6 +196,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
+            if (self.len == 0) return null;
+
             var prev: *Node = self.node;
             var next: ?*Element = null;
 
@@ -209,6 +223,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         pub fn remove(self: *Self, key: K) ?V {
             self.mutex.lock();
             defer self.mutex.unlock();
+
+            if (self.frozen) return null;
 
             var prevs = self.getPrevElementNodes(key);
 
@@ -268,23 +284,28 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         }
 
         pub fn setProbability(self: *Self, newProbability: f64) void {
+            if (self.frozen) return;
+
             self.probability = newProbability;
             self.prob_table = probabilityTable(self.allocator, self.probability, self.maxLevel);
         }
 
-        pub fn print(self: *Self) void {
+        pub fn forEach(self: *Self, callback: *const fn (K, V) void) void {
+            if (self.len == 0) return;
+
             for (self.node.next) |elem| {
                 if (elem) |d| {
-                    print_element(d);
+                    forEachElement(d, callback);
                 }
             }
         }
 
-        fn print_element(element: *Element) void {
-            //std.debug.print("{}:{}\n", .{ element.value, element.key });
+        fn forEachElement(element: *Element, callback: *const fn (K, V) void) void {
+            callback(element.key, element.value);
+
             for (element.node.next) |elem| {
                 if (elem) |d| {
-                    print_element(d);
+                    forEachElement(d, callback);
                 }
             }
         }

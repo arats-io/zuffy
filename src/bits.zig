@@ -6,7 +6,7 @@ const deBruijn64tab = [64]u8{
     63, 55, 48, 27, 60, 41, 37, 16, 46, 35, 44, 21, 52, 32, 23, 11,
     54, 26, 40, 15, 34, 20, 31, 10, 25, 14, 19, 9,  13, 8,  7,  6,
 };
-fn trailingZeros64(x: u64) i32 {
+pub fn trailingZeros64(x: u64) i32 {
     if (x == 0) {
         return 64;
     }
@@ -17,21 +17,3 @@ fn trailingZeros64(x: u64) i32 {
     const idx: usize = @as(usize, @intCast(re * deBruijn64 >> (64 - 6)));
     return @as(i32, @intCast(deBruijn64tab[idx]));
 }
-
-// fn generateLevel(maxLevel: usize) usize {
-//     var level = maxLevel - 1;
-
-//     const one: u64 = @as(u64, 1);
-//     const lhs: u64 = @as(u64, @bitCast(maxLevel)) - one;
-//     const d: u64 = one << @as(u6, @intCast(lhs));
-
-//     const r64 = self.rand.int(u64);
-
-//     const x: u64 = r64 & (d - 1);
-//     const zeroes = trailingZeros64(x);
-//     if (zeroes <= maxLevel) {
-//         level = @as(usize, @intCast(zeroes));
-//     }
-
-//     return level;
-// }
