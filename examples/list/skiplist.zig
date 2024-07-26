@@ -51,7 +51,7 @@ pub fn main() !void {
         std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
     }
 
-    std.debug.print("Size {} \n", .{list.size(.bytes)});
+    std.debug.print("Size {} \n", .{list.contentSize(.bytes)});
 
     std.debug.print("=======================================================================\n", .{});
     list.forEach(handler);

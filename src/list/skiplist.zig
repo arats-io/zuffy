@@ -51,7 +51,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         rand: std.Random,
         node: *Node,
         prev_nodes: []?*Node,
-        prob_table: std.ArrayList(f64),
+        probarr: std.ArrayList(f64),
         len: i32 = 0,
         frozen: bool = false,
 
@@ -84,11 +84,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 .allocator = allocator,
                 .cfg = cfg,
                 .rand = prng.random(),
-                .prob_table = try probabilityTable(allocator, cfg.probability, cfg.max_level),
+                .probarr = try probabArr(allocator, cfg.probability, cfg.max_level),
             };
         }
 
-        pub fn size(self: *Self, comptime measure: Measure) u128 {
+        pub fn contentSize(self: *Self, comptime measure: Measure) u128 {
             return switch (measure) {
                 inline .bytes => self.bytes,
                 inline .kbytes => self.bytes / kb,
@@ -111,7 +111,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }
 
             self.allocator.free(self.prev_nodes);
-            self.prob_table.clearAndFree();
+            self.probarr.clearAndFree();
         }
 
         fn deinitElement(self: *Self, element: *Element) void {
@@ -131,10 +131,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         pub fn freeze(self: *Self) void {
             self.frozen = true;
-        }
-
-        pub fn front(self: *Self) *Element {
-            return self.node.next[0];
         }
 
         pub fn insert(self: *Self, key: K, value: V) !*Element {
@@ -283,11 +279,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return prevs;
         }
 
-        pub fn setProbability(self: *Self, newProbability: f64) void {
+        pub fn setProbability(self: *Self, newProbability: f64) !void {
             if (self.frozen) return;
 
             self.probability = newProbability;
-            self.prob_table = probabilityTable(self.allocator, self.probability, self.maxLevel);
+            self.probarr = try probabArr(self.allocator, self.probability, self.maxLevel);
         }
 
         pub fn forEach(self: *Self, callback: *const fn (K, V) void) void {
@@ -317,14 +313,16 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             var level: usize = 1;
             while (true) {
-                if (level < self.cfg.max_level and r < self.prob_table.items[level]) break;
+                if (level < self.cfg.max_level and r < self.probarr.items[level]) break;
                 level += 1;
             }
             return level;
         }
 
-        fn probabilityTable(allocator: Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
+        fn probabArr(allocator: Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
             var table = std.ArrayList(f64).init(allocator);
+            errdefer table.clearAndFree();
+
             for (0..maxLevel) |i| {
                 const f: f64 = @as(f64, @floatFromInt(i));
                 const prob = math.pow(f64, probability, f);
