@@ -5,6 +5,7 @@ const math = std.math;
 const Allocator = std.mem.Allocator;
 
 const SkipList = xstd.list.SkipList;
+const Skip = xstd.list.Skip;
 
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
@@ -14,10 +15,10 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    // var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
-    // const random = prng.random();
+    var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
+    const random = prng.random();
 
-    // const total = std.math.maxInt(u14);
+    const total = std.math.maxInt(u4);
 
     // const handler = struct {
     //     pub fn f(key: f128, value: usize) void {
@@ -26,24 +27,22 @@ pub fn main() !void {
     // }.f;
 
     for (0..1000000000000) |_| {
-        var list = try SkipList(f128, usize).init(allocator, .{
-            .allow_multiple_values_same_key = true,
-        });
+        var list = try SkipList(f128, usize).init(allocator, .{});
         defer list.deinit();
 
-        // var keys = std.ArrayList(f64).init(allocator);
-        // errdefer keys.deinit();
-        // defer keys.deinit();
+        var keys = std.ArrayList(f64).init(allocator);
+        errdefer keys.deinit();
+        defer keys.deinit();
 
-        // for (0..total) |v| {
-        //     const key = random.float(f64);
-        //     //try keys.append(key);
+        for (0..total) |v| {
+            const key = random.float(f64);
+            try keys.append(key);
 
-        //     //const startTime = std.time.nanoTimestamp();
-        //     _ = try list.insert(key, v);
-        //     //const endTime = (std.time.nanoTimestamp() - startTime);
-        //     //std.debug.print("Inserting value {}:{}, took {} millisec \n", .{ v, key, @divTrunc(endTime, 1000) });
-        // }
+            //const startTime = std.time.nanoTimestamp();
+            _ = try list.insert(key, v);
+            //const endTime = (std.time.nanoTimestamp() - startTime);
+            //std.debug.print("Inserting value {}:{}, took {} millisec \n", .{ v, key, @divTrunc(endTime, 1000) });
+        }
 
         //std.debug.print("=======================================================================\n", .{});
         //list.forEach(handler);
@@ -52,7 +51,7 @@ pub fn main() !void {
         //for (keys.items) |key| {
         //const startTime = std.time.nanoTimestamp();
         //_ = list.remove(key);
-        // const endTime = (std.time.nanoTimestamp() - startTime);
+        //const endTime = (std.time.nanoTimestamp() - startTime);
         //std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
         //}
 

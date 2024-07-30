@@ -89,45 +89,31 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            self.frozen = true;
+            self.len = 0;
+
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            self.frozen = true;
-
-            self.probarr.deinit();
-            for (0..self.cache.len) |idx| {
-                self.cache[idx] = null;
-            }
-            self.allocator.free(self.cache[0..self.cache.len]);
+            self.probarr.clearAndFree();
 
             self.deleteNode(self.node);
-
-            for (0..self.node.next.len) |idx| {
-                self.node.next[idx] = null;
-            }
             self.allocator.free(self.node.next);
             self.allocator.destroy(self.node);
 
-            self.len = 0;
+            self.allocator.free(self.cache);
         }
 
         fn deleteNode(self: *Self, node: *Node) void {
-            for (0..node.next.len) |idx| {
-                if (node.next[idx]) |e| {
-                    node.next[idx] = null;
-                    self.deleteNode(e.node);
-
-                    self.allocator.destroy(e);
-                    std.debug.print("Element destroyed\n", .{});
+            for (node.next) |element| {
+                if (element) |elem| {
+                    self.deleteNode(elem.node);
+                    self.allocator.destroy(elem);
                 }
             }
 
-            for (0..node.next.len) |idx| {
-                node.next[idx] = null;
-            }
-            self.allocator.free(node.next[0..node.next.len]);
+            self.allocator.free(node.next);
             self.allocator.destroy(node);
-            std.debug.print("Node destroyed\n", .{});
         }
 
         pub fn isFrozen(self: *Self) bool {
@@ -244,16 +230,16 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        // fn nextAddOnRemove(self: *Self, element: *Element) !void {
-        //     for (element.node.next) |elem| {
-        //         if (elem) |d| {
-        //             _ = try self.add(d.key, d.value);
-        //             //std.debug.print("Re-Inserted - {}:{}\n", .{ d.value, d.key });
+        // // fn nextAddOnRemove(self: *Self, element: *Element) !void {
+        // //     for (element.node.next) |elem| {
+        // //         if (elem) |d| {
+        // //             _ = try self.add(d.key, d.value);
+        // //             //std.debug.print("Re-Inserted - {}:{}\n", .{ d.value, d.key });
 
-        //             try self.nextAddOnRemove(d);
-        //         }
-        //     }
-        // }
+        // //             try self.nextAddOnRemove(d);
+        // //         }
+        // //     }
+        // // }
 
         fn getPrevElementNodes(self: *Self, key: K) []?*Node {
             var prev: *Node = self.node;
@@ -343,20 +329,15 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }
 
             const node = try allocator.create(Node);
-            node.* = Node{
-                .next = elements,
-            };
-
+            node.next = elements;
             return node;
         }
 
         fn newElement(allocator: Allocator, level: usize, key: K, value: V) !*Element {
             const element = try allocator.create(Element);
-            element.* = Element{
-                .node = try newNode(allocator, level),
-                .key = key,
-                .value = value,
-            };
+            element.node = try newNode(allocator, level);
+            element.key = key;
+            element.value = value;
             return element;
         }
     };
