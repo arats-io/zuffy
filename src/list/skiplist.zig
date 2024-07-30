@@ -10,7 +10,7 @@ const Allocator = mem.Allocator;
 
 pub const Config = struct {
     max_level: usize = 25,
-    probability: f64 = 1.0 / std.math.e,
+    probability: f64 = 0.00001 / std.math.e,
 
     allow_multiple_values_same_key: bool = false,
 };
@@ -50,7 +50,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         rand: std.Random,
         node: *Node,
-        prev_nodes: []?*Node,
+        cache: []?*Node,
         probarr: std.ArrayList(f64),
         len: i32 = 0,
         frozen: bool = false,
@@ -63,24 +63,15 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         pub fn initWithLevel(allocator: Allocator, cfg: Config) !Self {
             var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
-            var elements: []?*Element = try allocator.alloc(?*Element, cfg.max_level);
-            for (0..cfg.max_level) |idx| {
-                elements[idx] = null;
-            }
 
             var cache: []?*Node = try allocator.alloc(?*Node, cfg.max_level);
             for (0..cfg.max_level) |idx| {
                 cache[idx] = null;
             }
 
-            const node = try allocator.create(Node);
-            node.* = Node{
-                .next = elements,
-            };
-
             return Self{
-                .node = node,
-                .prev_nodes = cache,
+                .node = try newNode(allocator, cfg.max_level),
+                .cache = cache,
                 .allocator = allocator,
                 .cfg = cfg,
                 .rand = prng.random(),
@@ -101,28 +92,42 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            self.len = 0;
             self.frozen = true;
 
-            for (self.node.next) |elem| {
-                if (elem) |d| {
-                    self.deinitElement(d);
-                }
+            self.probarr.deinit();
+            for (0..self.cache.len) |idx| {
+                self.cache[idx] = null;
             }
+            self.allocator.free(self.cache[0..self.cache.len]);
 
-            self.allocator.free(self.prev_nodes);
-            self.probarr.clearAndFree();
+            self.deleteNode(self.node);
+
+            for (0..self.node.next.len) |idx| {
+                self.node.next[idx] = null;
+            }
+            self.allocator.free(self.node.next);
+            self.allocator.destroy(self.node);
+
+            self.len = 0;
         }
 
-        fn deinitElement(self: *Self, element: *Element) void {
-            for (element.node.next) |elem| {
-                if (elem) |d| {
-                    self.deinitElement(d);
-                    self.allocator.free(d.node.next);
-                    self.allocator.destroy(d.node);
-                    self.allocator.destroy(d);
+        fn deleteNode(self: *Self, node: *Node) void {
+            for (0..node.next.len) |idx| {
+                if (node.next[idx]) |e| {
+                    node.next[idx] = null;
+                    self.deleteNode(e.node);
+
+                    self.allocator.destroy(e);
+                    std.debug.print("Element destroyed\n", .{});
                 }
             }
+
+            for (0..node.next.len) |idx| {
+                node.next[idx] = null;
+            }
+            self.allocator.free(node.next[0..node.next.len]);
+            self.allocator.destroy(node);
+            std.debug.print("Node destroyed\n", .{});
         }
 
         pub fn isFrozen(self: *Self) bool {
@@ -157,23 +162,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 }
             }
 
-            const level = self.randLevel();
-            var elements: []?*Element = try self.allocator.alloc(?*Element, level);
-            for (0..level) |idx| {
-                elements[idx] = null;
-            }
-
-            const node = try self.allocator.create(Node);
-            node.* = Node{
-                .next = elements,
-            };
-
-            element = try self.allocator.create(Element);
-            element.?.* = Element{
-                .node = node,
-                .key = key,
-                .value = value,
-            };
+            element = try newElement(self.allocator, self.randLevel(), key, value);
 
             for (0..element.?.node.next.len) |i| {
                 element.?.node.next[i] = prevs[i].?.next[i];
@@ -235,6 +224,16 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 self.bytes -= comptime (@sizeOf(K) + @sizeOf(V));
 
                 //try self.nextAddOnRemove(element.?);
+
+                // const handler = struct {
+                //     pub fn f(k: f128, v: usize) void {
+                //         std.debug.print("{}:{} \n", .{ v, k });
+                //     }
+                // }.f;
+                // std.debug.print("---------------------------------------------------- \n", .{});
+                // self.forEachNode(element.?.node, handler);
+                // std.debug.print("---------------------------------------------------- \n", .{});
+
                 self.allocator.free(element.?.node.next);
                 self.allocator.destroy(element.?.node);
                 self.allocator.destroy(element.?);
@@ -260,7 +259,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             var prev: *Node = self.node;
             var next: ?*Element = null;
 
-            var prevs = self.prev_nodes;
+            var prevs = self.cache;
 
             var i = self.cfg.max_level - 1;
             while (i >= 0) : (i -= 1) {
@@ -289,19 +288,25 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         pub fn forEach(self: *Self, callback: *const fn (K, V) void) void {
             if (self.len == 0) return;
 
-            for (self.node.next) |elem| {
+            self.forEachNode(self.node, callback);
+        }
+
+        fn forEachNode(self: *Self, node: *Node, callback: *const fn (K, V) void) void {
+            if (self.len == 0) return;
+
+            for (node.next) |elem| {
                 if (elem) |d| {
-                    forEachElement(d, callback);
+                    self.forEachElement(d, callback);
                 }
             }
         }
 
-        fn forEachElement(element: *Element, callback: *const fn (K, V) void) void {
+        fn forEachElement(self: *Self, element: *Element, callback: *const fn (K, V) void) void {
             callback(element.key, element.value);
 
             for (element.node.next) |elem| {
-                if (elem) |d| {
-                    forEachElement(d, callback);
+                if (elem) |e| {
+                    self.forEachElement(e, callback);
                 }
             }
         }
@@ -321,7 +326,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         fn probabArr(allocator: Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
             var table = std.ArrayList(f64).init(allocator);
-            errdefer table.clearAndFree();
+            errdefer table.deinit();
 
             for (0..maxLevel) |i| {
                 const f: f64 = @as(f64, @floatFromInt(i));
@@ -329,6 +334,30 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 try table.append(prob);
             }
             return table;
+        }
+
+        fn newNode(allocator: Allocator, level: usize) !*Node {
+            var elements: []?*Element = try allocator.alloc(?*Element, level);
+            for (0..level) |idx| {
+                elements[idx] = null;
+            }
+
+            const node = try allocator.create(Node);
+            node.* = Node{
+                .next = elements,
+            };
+
+            return node;
+        }
+
+        fn newElement(allocator: Allocator, level: usize, key: K, value: V) !*Element {
+            const element = try allocator.create(Element);
+            element.* = Element{
+                .node = try newNode(allocator, level),
+                .key = key,
+                .value = value,
+            };
+            return element;
         }
     };
 }
