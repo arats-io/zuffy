@@ -60,10 +60,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         bytes: u128 = 0,
 
         pub fn init(allocator: Allocator, cfg: Config) !Self {
-            return try initWithLevel(allocator, cfg);
+            return try create(allocator, cfg);
         }
 
-        pub fn initWithLevel(allocator: Allocator, cfg: Config) !Self {
+        fn create(allocator: Allocator, cfg: Config) !Self {
             var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
 
             var cache: []?*Node = try allocator.alloc(?*Node, cfg.max_level);
