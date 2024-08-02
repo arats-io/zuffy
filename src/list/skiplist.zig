@@ -258,17 +258,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        // // fn nextAddOnRemove(self: *Self, element: *Element) !void {
-        // //     for (element.node.next) |elem| {
-        // //         if (elem) |d| {
-        // //             _ = try self.add(d.key, d.value);
-        // //             //std.debug.print("Re-Inserted - {}:{}\n", .{ d.value, d.key });
-
-        // //             try self.nextAddOnRemove(d);
-        // //         }
-        // //     }
-        // // }
-
         fn getPrevElementNodes(self: *Self, key: K) []?*Node {
             var prev: *Node = self.node.?;
             var next: ?*Element = null;
