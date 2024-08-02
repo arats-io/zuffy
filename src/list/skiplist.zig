@@ -34,9 +34,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             Frozen,
         };
 
-        const elem_empty = &[_]?*Element{};
-        const node_empty = &[_]?*Node{};
-
         pub const Node = struct {
             next: []?*Element,
         };
@@ -128,7 +125,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }
 
             self.allocator.free(node.next);
-            node.next = elem_empty;
         }
 
         pub fn isFrozen(self: *Self) bool {
@@ -161,7 +157,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 element = prevs[0].?.next[0];
                 if (element != null and element.?.key <= key) {
                     element.?.value = value;
-                    std.debug.print("Fast \n", .{});
                     return element.?;
                 }
             }
@@ -187,7 +182,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.len == 0) return null;
 
-            var prev: *Node = self.node;
+            var prev: *Node = self.node.?;
             var next: ?*Element = null;
 
             var i = self.cfg.max_level - 1;
@@ -195,8 +190,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 next = prev.next[i];
 
                 while (next != null and key > next.?.key) {
-                    prev = next.?.node;
-                    next = next.?.node.next[i];
+                    prev = next.?.node.?;
+                    next = next.?.node.?.next[i];
                 }
 
                 if (i == 0) break;
@@ -227,23 +222,18 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
                 defer {
                     self.len -= 1;
-                    self.bytes += comptime (@sizeOf(K) + @sizeOf(V));
+                    self.bytes -= comptime (@sizeOf(K) + @sizeOf(V));
                 }
 
-                //try self.nextAddOnRemove(element.?);
+                for (0..elem.node.?.next.len) |idx| {
+                    elem.node.?.next[idx] = null;
+                }
 
-                // const handler = struct {
-                //     pub fn f(k: f128, v: usize) void {
-                //         std.debug.print("{}:{} \n", .{ v, k });
-                //     }
-                // }.f;
-                // std.debug.print("---------------------------------------------------- \n", .{});
-                // self.forEachNode(element.?.node, handler);
-                // std.debug.print("---------------------------------------------------- \n", .{});
-
-                self.allocator.free(elem.node.?.next);
-                self.node_pool.destroy(elem.node.?);
-                self.element_pool.destroy(elem);
+                defer {
+                    self.allocator.free(elem.node.?.next);
+                    self.node_pool.destroy(elem.node.?);
+                    self.element_pool.destroy(elem);
+                }
 
                 return elem.value;
             };
