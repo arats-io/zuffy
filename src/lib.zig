@@ -12,4 +12,4 @@ pub const list = @import("list/mod.zig");
 pub const pool = @import("pool/mod.zig");
 pub const zlog = @import("zlog.zig");
 
-pub const cmp = @import("cmp/cmp.zig");
+pub const cmp = @import("cmp/mod.zig");

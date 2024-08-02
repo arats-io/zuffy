@@ -155,7 +155,12 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.cfg.allow_multiple_values_same_key == false) {
                 element = prevs[0].?.next[0];
-                if (element != null and element.?.key <= key) {
+
+                if (element != null and
+                    switch (comptime @typeInfo(K) == .Struct and @hasDecl(K, "cmper")) {
+                    inline true => element.?.key.cmper().le(&key),
+                    inline false => element.?.key <= key,
+                }) {
                     element.?.value = value;
                     return element.?;
                 }
@@ -189,7 +194,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             while (i >= 0) : (i -= 1) {
                 next = prev.next[i];
 
-                while (next != null and key > next.?.key) {
+                while (next != null and
+                    switch (comptime @typeInfo(K) == .Struct and @hasDecl(K, "cmper")) {
+                    inline true => key.cmper().gt(&next.?.key),
+                    inline false => key > next.?.key,
+                }) {
                     prev = next.?.node.?;
                     next = next.?.node.?.next[i];
                 }
@@ -197,7 +206,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 if (i == 0) break;
             }
 
-            if (next != null and next.?.key <= key) {
+            if (next != null and
+                switch (comptime @typeInfo(K) == .Struct and @hasDecl(K, "cmper")) {
+                inline true => next.?.key.cmper().le(&key),
+                inline false => next.?.key <= key,
+            }) {
                 return next.?.value;
             }
 
@@ -214,7 +227,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             // found the element, remove it
             const element: ?*Element = prevs[0].?.next[0];
-            if (element) |elem| if (elem.key <= key) {
+
+            if (element) |elem| if (switch (comptime @typeInfo(K) == .Struct and @hasDecl(K, "cmper")) {
+                inline true => elem.key.cmper().le(&key),
+                inline false => elem.key <= key,
+            }) {
                 for (elem.node.?.next, 0..) |v, k| {
                     prevs[k].?.next[k] = v;
                     elem.node.?.next[k] = null;
@@ -262,7 +279,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             while (i >= 0) : (i -= 1) {
                 next = prev.next[i];
 
-                while (next != null and key > next.?.key) {
+                while (next != null and
+                    switch (comptime @typeInfo(K) == .Struct and @hasDecl(K, "cmper")) {
+                    inline true => key.cmper().gt(&next.?.key),
+                    inline false => key > next.?.key,
+                }) {
                     prev = next.?.node.?;
                     next = next.?.node.?.next[i];
                 }

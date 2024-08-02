@@ -15,9 +15,11 @@ pub fn main() !void {
 
     const total = std.math.maxInt(u4);
 
+    const F64 = xstd.cmp.Wrapper(f64);
+
     const handler = struct {
-        pub fn f(key: f128, value: usize) void {
-            std.debug.print("{}:{} \n", .{ value, key });
+        pub fn f(key: F64, value: usize) void {
+            std.debug.print("{}:{} \n", .{ value, key.value });
         }
     }.f;
 
@@ -29,15 +31,15 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     for (0..1000000000000) |_| {
-        var list = try SkipList(f128, usize).init(allocator, .{});
+        var list = try SkipList(F64, usize).init(allocator, .{});
         defer list.deinit();
 
-        var keys = std.ArrayList(f64).init(allocator);
+        var keys = std.ArrayList(F64).init(allocator);
         errdefer keys.deinit();
         defer keys.deinit();
 
         for (0..total) |v| {
-            const key = random.float(f64);
+            const key = F64.fromLiteral(random.float(f64));
             try keys.append(key);
 
             // const startTime = std.time.nanoTimestamp();
@@ -58,18 +60,18 @@ pub fn main() !void {
 
         // std.debug.print("Size {} bytes \n", .{list.contentSize(.bytes)});
 
-        // std.debug.print("=======================================================================\n", .{});
+        //std.debug.print("=======================================================================\n", .{});
         list.forEach(handler);
 
-        // for (keys.items) |key| {
-        //     if (list.get(key)) |v| {
-        //         std.debug.print("Should not be there; Got - {}:{}\n", .{ v, key });
-        //     }
+        for (keys.items) |key| {
+            if (list.get(key)) |v| {
+                std.debug.print("Should not be there; Got - {}:{}\n", .{ v, key });
+            }
 
-        //     if (list.remove(key)) |v| {
-        //         std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
-        //     }
-        // }
+            if (list.remove(key)) |v| {
+                std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
+            }
+        }
 
         // std.debug.print("Finished removing data \n", .{});
     }
