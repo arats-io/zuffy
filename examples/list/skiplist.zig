@@ -13,24 +13,24 @@ pub fn main() !void {
     var prng = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
     const random = prng.random();
 
-    const total = std.math.maxInt(u4);
+    const total = std.math.maxInt(u22);
 
     const F64 = xstd.cmp.Wrapper(f64);
 
     const handler = struct {
         pub fn f(key: F64, value: usize) void {
-            std.debug.print("{}:{} \n", .{ value, key.value });
+            std.debug.print("{}:{} \n", .{ value, key });
         }
     }.f;
-
-    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // defer arena.deinit();
-    // const allocator = arena.allocator();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    for (0..1000000000000) |_| {
+    for (0..1000000000000) |i| {
+        // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        // defer arena.deinit();
+        // const allocator = arena.allocator();
+
         var list = try SkipList(F64, usize).init(allocator, .{});
         defer list.deinit();
 
@@ -38,17 +38,26 @@ pub fn main() !void {
         errdefer keys.deinit();
         defer keys.deinit();
 
+        var nanos: i128 = 0;
+        var items: i128 = 0;
         for (0..total) |v| {
             const key = F64.fromLiteral(random.float(f64));
+            // const key = random.float(f64);
             try keys.append(key);
 
-            // const startTime = std.time.nanoTimestamp();
+            const startTime = std.time.nanoTimestamp();
             _ = try list.insert(key, v);
-            // const endTime = (std.time.nanoTimestamp() - startTime);
-            // std.debug.print("Inserting value {}:{}, took {} millisec \n", .{ v, key, @divTrunc(endTime, 1000) });
+            nanos += (std.time.nanoTimestamp() - startTime);
+            items += 1;
+
+            if (v > 0 and v % 5000 == 0 or v == total - 1) {
+                std.debug.print("Inserting {} average took {} nanosec \n", .{ v, @divTrunc(nanos, items) });
+                nanos = 0;
+                items = 0;
+            }
         }
 
-        // std.debug.print("Size {} bytes \n", .{list.contentSize(.bytes)});
+        std.debug.print("{} - Added - Size {} bytes; Length {} \n", .{ i, list.contentSize(.bytes), list.len });
 
         for (keys.items) |key| {
             // const startTime = std.time.nanoTimestamp();
@@ -58,7 +67,7 @@ pub fn main() !void {
             // std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
         }
 
-        // std.debug.print("Size {} bytes \n", .{list.contentSize(.bytes)});
+        std.debug.print("{} - Removed - Size {} bytes; Length {} \n", .{ i, list.contentSize(.bytes), list.len });
 
         //std.debug.print("=======================================================================\n", .{});
         list.forEach(handler);
