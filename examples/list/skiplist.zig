@@ -18,8 +18,8 @@ pub fn main() !void {
     const F64 = xstd.cmp.Wrapper(f64);
 
     const handler = struct {
-        pub fn f(key: F64, value: usize) void {
-            std.debug.print("{}:{} \n", .{ value, key });
+        pub fn f(key: F64, value: []const u8) void {
+            std.debug.print("{any}:{} \n", .{ value, key });
         }
     }.f;
 
@@ -31,7 +31,7 @@ pub fn main() !void {
         // defer arena.deinit();
         // const allocator = arena.allocator();
 
-        var list = try SkipList(F64, usize).init(allocator, .{});
+        var list = try SkipList(F64, []const u8).init(allocator, .{});
         defer list.deinit();
 
         var keys = std.ArrayList(F64).init(allocator);
@@ -46,7 +46,7 @@ pub fn main() !void {
             try keys.append(key);
 
             const startTime = std.time.nanoTimestamp();
-            _ = try list.insert(key, v);
+            _ = try list.insert(key, "sasdasdasdadasdasdadsdasdasdadasdasd");
             nanos += (std.time.nanoTimestamp() - startTime);
             items += 1;
 
@@ -74,11 +74,11 @@ pub fn main() !void {
 
         for (keys.items) |key| {
             if (list.get(key)) |v| {
-                std.debug.print("Should not be there; Got - {}:{}\n", .{ v, key });
+                std.debug.print("Should not be there; Got - {any}:{}\n", .{ v, key });
             }
 
             if (list.remove(key)) |v| {
-                std.debug.print("Should not be there; Removed - {}:{}\n", .{ v, key });
+                std.debug.print("Should not be there; Removed - {any}:{}\n", .{ v, key });
             }
         }
 

@@ -131,15 +131,80 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             self.frozen = true;
         }
 
+        fn deepBitSizeOf(self: *Self, value: anytype) usize {
+            var size: usize = 0;
+
+            const T = @TypeOf(value);
+            const info = @typeInfo(T);
+            switch (info) {
+                .Float, .ComptimeFloat => size += info.Float.bits,
+                .Int, .ComptimeInt => size += info.Int.bits,
+                .Bool => size += info.Int.bits,
+                .Optional => {
+                    if (value) |payload| {
+                        size += self.deepBitSizeOf(@field(value, payload));
+                    }
+                },
+
+                .Enum => |enumInfo| {
+                    if (enumInfo.is_exhaustive) {
+                        size += self.deepBitSizeOf(@field(value, @tagName(value)));
+                        return;
+                    }
+
+                    // Use @tagName only if value is one of known fields
+                    @setEvalBranchQuota(3 * enumInfo.fields.len);
+                    inline for (enumInfo.fields) |enumField| {
+                        size += self.deepBitSizeOf(@field(value, enumField.value));
+                    }
+                },
+                .Union => |uinfo| {
+                    if (uinfo.tag_type) {
+                        inline for (uinfo.fields) |u_field| {
+                            size += self.deepBitSizeOf(@field(value, u_field.name));
+                        }
+                    }
+                },
+                .Struct => |sinfo| {
+                    inline for (sinfo.fields) |f| {
+                        size += self.deepBitSizeOf(@field(value, f.name));
+                    }
+                },
+                .Pointer => |ptr_info| switch (ptr_info.size) {
+                    .One => switch (@typeInfo(ptr_info.child)) {
+                        .Array, .Enum, .Union, .Struct => {
+                            size += self.deepBitSizeOf(value.*);
+                        },
+                        else => @compileError("unable to calculate the size for '" ++ @typeName(T) ++ "'"),
+                    },
+                    .Many, .C => {
+                        size += self.deepBitSizeOf(mem.span(value));
+                    },
+                    .Slice => {
+                        for (value) |elem| {
+                            size += self.deepBitSizeOf(elem);
+                        }
+                    },
+                },
+                .Array, .Vector => {
+                    for (value) |elem| {
+                        size += self.deepBitSizeOf(elem);
+                    }
+                },
+
+                else => @compileError("unable to calculate the size for '" ++ @typeName(T) ++ "'"),
+            }
+
+            return size;
+        }
+
         pub fn insert(self: *Self, key: K, value: V) !*Element {
             self.mutex.lock();
             defer self.mutex.unlock();
 
             if (self.frozen) return Error.Frozen;
 
-            defer {
-                self.bytes += comptime (@sizeOf(K) + @sizeOf(V));
-            }
+            self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
 
             return try self.add(key, value);
         }
@@ -233,14 +298,12 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                     elem.node.?.next[k] = null;
                 }
 
-                defer {
-                    self.len -= 1;
-                    self.bytes -= comptime (@sizeOf(K) + @sizeOf(V));
-                }
-
                 for (0..elem.node.?.next.len) |idx| {
                     elem.node.?.next[idx] = null;
                 }
+
+                self.len -= 1;
+                self.bytes -= (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(elem.value) / 8);
 
                 defer {
                     self.allocator.free(elem.node.?.next);
