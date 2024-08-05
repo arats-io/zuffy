@@ -73,7 +73,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }
 
             var self = Self{
-                .rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp()))),
+                .rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.microTimestamp()))),
                 .cache = cache,
                 .allocator = allocator,
                 .cfg = cfg,
@@ -206,13 +206,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
 
-            return try self.add(key, value);
-        }
-
-        fn add(self: *Self, key: K, value: V) !*Element {
-            var prevs = self.getPrevElementNodes(key);
-
             var element: ?*Element = null;
+            var prevs = self.getPrevElementNodes(key);
 
             if (self.cfg.allow_multiple_values_same_key == false) {
                 element = prevs[0].?.next[0];
@@ -295,16 +290,15 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }) {
                 for (elem.node.?.next, 0..) |v, k| {
                     prevs[k].?.next[k] = v;
+                    elem.node.?.next[k] = null;
                 }
 
                 self.len -= 1;
                 self.bytes -= (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(elem.value) / 8);
 
-                defer {
-                    self.allocator.free(elem.node.?.next);
-                    self.allocator.destroy(elem.node.?);
-                    self.allocator.destroy(elem);
-                }
+                self.allocator.free(elem.node.?.next);
+                self.allocator.destroy(elem.node.?);
+                self.allocator.destroy(elem);
 
                 return elem.value;
             };
@@ -365,7 +359,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         }
 
         fn randLevel(self: *Self) usize {
-            self.rand.seed(@as(u64, @intCast(std.time.nanoTimestamp())));
+            self.rand.seed(@as(u64, @intCast(std.time.microTimestamp())));
             const random = self.rand.random();
 
             const f: f64 = @as(f64, @floatFromInt(random.int(u63)));
@@ -379,20 +373,20 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         }
 
         fn probabArr(allocator: Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
-            var table = std.ArrayList(f64).init(allocator);
+            var table = try std.ArrayList(f64).initCapacity(allocator, maxLevel);
             errdefer table.deinit();
 
-            for (1..maxLevel + 1) |i| {
-                const f: f64 = @as(f64, @floatFromInt(i - 1));
-                const prob = math.pow(f64, probability, f);
-                try table.append(prob);
+            for (0..maxLevel) |i| {
+                try table.insert(i, math.pow(f64, probability, @as(f64, @floatFromInt(i))));
             }
             return table;
         }
 
         fn newNode(self: *Self, level: usize) !*Node {
             const node = try self.allocator.create(Node);
-            node.*.next = try self.allocator.alloc(?*Element, level);
+            node.* = Node{
+                .next = try self.allocator.alloc(?*Element, level),
+            };
             for (0..level) |idx| {
                 node.next[idx] = null;
             }
@@ -402,9 +396,11 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
         fn newElement(self: *Self, level: usize, key: K, value: V) !*Element {
             const element = try self.allocator.create(Element);
-            element.*.node = try self.newNode(level);
-            element.*.key = key;
-            element.*.value = value;
+            element.* = Element{
+                .node = try self.newNode(level),
+                .key = key,
+                .value = value,
+            };
 
             return element;
         }
