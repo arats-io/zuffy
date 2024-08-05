@@ -295,11 +295,6 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             }) {
                 for (elem.node.?.next, 0..) |v, k| {
                     prevs[k].?.next[k] = v;
-                    elem.node.?.next[k] = null;
-                }
-
-                for (0..elem.node.?.next.len) |idx| {
-                    elem.node.?.next[idx] = null;
                 }
 
                 self.len -= 1;
@@ -348,6 +343,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             if (self.frozen) return;
 
             self.probability = newProbability;
+
+            self.probarr.clearAndFree();
             self.probarr = try probabArr(self.allocator, self.probability, self.maxLevel);
         }
 

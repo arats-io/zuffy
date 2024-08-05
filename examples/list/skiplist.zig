@@ -50,7 +50,7 @@ pub fn main() !void {
             nanos += (std.time.nanoTimestamp() - startTime);
             items += 1;
 
-            if (v > 0 and v % 5000 == 0 or v == total - 1) {
+            if (v > 0 and v % 100000 == 0 or v == total - 1) {
                 std.debug.print("Inserting {} average took {} nanosec \n", .{ v, @divTrunc(nanos, items) });
                 nanos = 0;
                 items = 0;
@@ -59,12 +59,20 @@ pub fn main() !void {
 
         std.debug.print("{} - Added - Size {} bytes; Length {} \n", .{ i, list.contentSize(.bytes), list.len });
 
-        for (keys.items) |key| {
-            // const startTime = std.time.nanoTimestamp();
+        nanos = 0;
+        items = 0;
+        for (keys.items, 0..) |key, idx| {
+            const startTime = std.time.nanoTimestamp();
             const v = list.remove(key);
             if (v == null) unreachable;
-            // const endTime = (std.time.nanoTimestamp() - startTime);
-            // std.debug.print("Removed - {}:{}, took {} millisec \n", .{ v.?, key, @divTrunc(endTime, 1000) });
+            nanos += (std.time.nanoTimestamp() - startTime);
+            items += 1;
+
+            if (idx > 0 and idx % 100000 == 0 or idx == keys.items.len - 1) {
+                std.debug.print("Removed {} average took {} nanosec \n", .{ idx, @divTrunc(nanos, items) });
+                nanos = 0;
+                items = 0;
+            }
         }
 
         std.debug.print("{} - Removed - Size {} bytes; Length {} \n", .{ i, list.contentSize(.bytes), list.len });
