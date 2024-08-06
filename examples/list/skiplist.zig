@@ -51,7 +51,7 @@ pub fn main() !void {
             nanos += timeConsuption;
             items += 1;
 
-            if (v > 0 and v % 100000 == 0 or v == total - 1) {
+            if (v > 0 and v % 150000 == 0 or v == total - 1) {
                 std.debug.print("Inserting {} average took {} nanosec \n", .{ v, @divTrunc(nanos, items) });
                 nanos = 0;
                 items = 0;
@@ -72,7 +72,7 @@ pub fn main() !void {
             nanos += (std.time.nanoTimestamp() - startTime);
             items += 1;
 
-            if (idx > 0 and idx % 100000 == 0 or idx == keys.items.len - 1) {
+            if (idx > 0 and idx % 150000 == 0 or idx == keys.items.len - 1) {
                 std.debug.print("Removed {} average took {} nanosec \n", .{ idx, @divTrunc(nanos, items) });
                 nanos = 0;
                 items = 0;

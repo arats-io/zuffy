@@ -85,22 +85,22 @@ pub const Location = struct {
     zone: []zone,
     tx: []zoneTrans,
 
-    // The tzdata information can be followed by a string that describes
-    // how to handle DST transitions not recorded in zoneTrans.
-    // The format is the TZ environment variable without a colon; see
-    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap08.html.
-    // Example string, for America/Los_Angeles: PST8PDT,M3.2.0,M11.1.0
+    /// The tzdata information can be followed by a string that describes
+    /// how to handle DST transitions not recorded in zoneTrans.
+    /// The format is the TZ environment variable without a colon; see
+    /// https:///pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap08.html.
+    /// Example string, for America/Los_Angeles: PST8PDT,M3.2.0,M11.1.0
     extend: []const u8,
 
-    // Most lookups will be for the current time.
-    // To avoid the binary search through tx, keep a
-    // static one-element cache that gives the correct
-    // zone for the time when the Location was created.
-    // if cacheStart <= t < cacheEnd,
-    // lookup can return cacheZone.
-    // The units for cacheStart and cacheEnd are seconds
-    // since January 1, 1970 UTC, to match the argument
-    // to lookup.
+    /// Most lookups will be for the current time.
+    /// To avoid the binary search through tx, keep a
+    /// static one-element cache that gives the correct
+    /// zone for the time when the Location was created.
+    /// if cacheStart <= t < cacheEnd,
+    /// lookup can return cacheZone.
+    /// The units for cacheStart and cacheEnd are seconds
+    /// since January 1, 1970 UTC, to match the argument
+    /// to lookup.
     cacheStart: i64,
     cacheEnd: i64,
     cacheZone: zone,
@@ -189,21 +189,21 @@ pub const Location = struct {
         };
     }
 
-    // lookupFirstZone returns the index of the time zone to use for times
-    // before the first transition time, or when there are no transition
-    // times.
-    //
-    // The reference implementation in localtime.c from
-    // https://www.iana.org/time-zones/repository/releases/tzcode2013g.tar.gz
-    // implements the following algorithm for these cases:
-    //  1. If the first zone is unused by the transitions, use it.
-    //  2. Otherwise, if there are transition times, and the first
-    //     transition is to a zone in daylight time, find the first
-    //     non-daylight-time zone before and closest to the first transition
-    //     zone.
-    //  3. Otherwise, use the first zone that is not daylight time, if
-    //     there is one.
-    //  4. Otherwise, use the first zone.
+    /// lookupFirstZone returns the index of the time zone to use for times
+    /// before the first transition time, or when there are no transition
+    /// times.
+    ///
+    /// The reference implementation in localtime.c from
+    /// https://www.iana.org/time-zones/repository/releases/tzcode2013g.tar.gz
+    /// implements the following algorithm for these cases:
+    ///  1. If the first zone is unused by the transitions, use it.
+    ///  2. Otherwise, if there are transition times, and the first
+    ///     transition is to a zone in daylight time, find the first
+    ///     non-daylight-time zone before and closest to the first transition
+    ///     zone.
+    ///  3. Otherwise, use the first zone that is not daylight time, if
+    ///     there is one.
+    ///  4. Otherwise, use the first zone.
     fn lookupFirstZone(self: Self) usize {
         // Case 1.
         if (!self.firstZoneUsed()) {
@@ -231,8 +231,8 @@ pub const Location = struct {
         return 0;
     }
 
-    // firstZoneUsed reports whether the first zone is used by some
-    // transition.
+    /// firstZoneUsed reports whether the first zone is used by some
+    /// transition.
     fn firstZoneUsed(self: Self) bool {
         for (0..self.tx.len) |idx| {
             if (self.tx[idx].index == 0) {
@@ -311,10 +311,10 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
         .cacheZone = z.cacheZone,
     };
 }
-// loadLocation returns the Location with the given name from one of
-// the specified sources. See loadTzinfo for a list of supported sources.
-// The first timezone data matching the given name that is successfully loaded
-// and parsed is returned as a Location.
+/// loadLocation returns the Location with the given name from one of
+/// the specified sources. See loadTzinfo for a list of supported sources.
+/// The first timezone data matching the given name that is successfully loaded
+/// and parsed is returned as a Location.
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
     var arr = sources;
     while (arr.popOrNull()) |item| {
@@ -392,10 +392,10 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
     return Error.UnknownTimeZone;
 }
 
-// loadTzinfo returns the time zone information of the time zone
-// with the given name, from a given source. A source may be a
-// timezone database directory, tzdata database file or an uncompressed
-// zip file, containing the contents of such a directory.
+/// loadTzinfo returns the time zone information of the time zone
+/// with the given name, from a given source. A source may be a
+/// timezone database directory, tzdata database file or an uncompressed
+/// zip file, containing the contents of such a directory.
 fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8) ![]const u8 {
     if (source.len >= 6 and std.mem.eql(u8, source[source.len - 4 ..], ".zip")) {
         return loadTzinfoFromZip(allocator, name);
@@ -409,10 +409,10 @@ fn loadTzinfo(allocator: std.mem.Allocator, name: []const u8, source: []const u8
     return try std.fs.cwd().readFileAlloc(allocator, name, 1 * 1024 * 1024);
 }
 
-// LoadLocationFromTZData returns a Location with the given name
-// initialized from the IANA Time Zone database-formatted data.
-// The data should be in the format of a standard IANA time zone file
-// (for example, the content of /etc/localtime on Unix systems).
+/// LoadLocationFromTZData returns a Location with the given name
+/// initialized from the IANA Time Zone database-formatted data.
+/// The data should be in the format of a standard IANA time zone file
+/// (for example, the content of /etc/localtime on Unix systems).
 fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_data: anytype) Error!Location {
     // 4-byte magic "TZif"
     const header = (try in_data.readBoundedBytes(4)).slice();
@@ -433,13 +433,13 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
         return Error.BadData;
     }
 
-    // six big-endian 32-bit integers:
-    //	number of UTC/local indicators
-    //	number of standard/wall indicators
-    //	number of leap seconds
-    //	number of transition times
-    //	number of local time zones
-    //	number of characters of time zone abbrev strings
+    //six big-endian 32-bit integers:
+    //number of UTC/local indicators
+    //number of standard/wall indicators
+    //number of leap seconds
+    //number of transition times
+    //number of local time zones
+    //number of characters of time zone abbrev strings
     var n: [6]i32 = undefined;
     for (0..6) |idx| {
         n[idx] = try in_data.readInt(i32, .big);
@@ -533,7 +533,7 @@ fn LoadLocationFromTZData(allocator: std.mem.Allocator, name: []const u8, in_dat
 
     // Now we can build up a useful data structure.
     // First the zone information.
-    //	utcoff[4] isdst[1] nameindex[1]
+    // utcoff[4] isdst[1] nameindex[1]
     const nzone = @as(usize, @intCast(n[NZone]));
     if (nzone == 0) {
         // Reject tzdata files with no zones. There's nothing useful in them.

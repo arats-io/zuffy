@@ -44,7 +44,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         };
 
         pub const Element = struct {
-            node: ?*Node,
+            node: *Node,
             key: K,
             value: V,
         };
@@ -54,34 +54,33 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         cfg: Config = .{},
 
         rand: std.Random.Xoshiro256,
-        node: ?*Node = null,
-        cache: ?[]?*Node = null,
+        node: *Node,
+        cache: []?*Node,
         probarr: std.ArrayList(f64),
         len: i32 = 0,
         frozen: bool = false,
 
         bytes: u128 = 0,
 
+        //to be removed
+        // time: i128 = 0,
+        // counter: usize = 0,
+
         pub fn init(allocator: Allocator, cfg: Config) !Self {
             return try create(allocator, cfg);
         }
 
         fn create(allocator: Allocator, cfg: Config) !Self {
-            var cache: []?*Node = try allocator.alloc(?*Node, cfg.max_level);
-            for (0..cfg.max_level) |idx| {
-                cache[idx] = null;
-            }
+            std.debug.assert(cfg.max_level > 1 and cfg.max_level <= 64);
 
-            var self = Self{
-                .rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.microTimestamp()))),
-                .cache = cache,
+            return Self{
                 .allocator = allocator,
                 .cfg = cfg,
+                .node = try newNode(allocator, cfg.max_level),
+                .cache = try allocator.alignedAlloc(?*Node, @alignOf(*Node), cfg.max_level),
+                .rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.microTimestamp()))),
                 .probarr = try probabArr(allocator, cfg.probability, cfg.max_level),
             };
-            self.node = try self.newNode(cfg.max_level);
-
-            return self;
         }
 
         pub fn contentSize(self: *Self, comptime measure: Measure) u128 {
@@ -99,11 +98,9 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             self.probarr.clearAndFree();
 
-            self.deleteNode(self.node.?);
-            self.allocator.destroy(self.node.?);
-            self.node = null;
-            self.allocator.free(self.cache.?);
-            self.cache = null;
+            self.deleteNode(self.node);
+            self.allocator.destroy(self.node);
+            self.allocator.free(self.cache);
         }
 
         fn deleteNode(self: *Self, node: *Node) void {
@@ -111,9 +108,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 if (node.next[idx] == null) continue;
 
                 const elem = node.next[idx].?;
-                self.deleteNode(elem.node.?);
-                self.allocator.destroy(elem.node.?);
-                elem.node = null;
+                self.deleteNode(elem.node);
+                self.allocator.destroy(elem.node);
 
                 self.allocator.destroy(elem);
 
@@ -204,13 +200,26 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.frozen) return Error.Frozen;
 
-            self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
+            defer {
+                self.len += 1;
+                self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
+            }
+
+            // const startTime = std.time.nanoTimestamp();
+            self.cacheRefresh(key);
+            // self.counter += 1;
+            // self.time += std.time.nanoTimestamp() - startTime;
+
+            // if (self.counter > 0 and self.counter % 150000 == 0) {
+            //     std.debug.print("Cache Refresh took {} nanosec \n", .{@divTrunc(self.time, self.counter)});
+            //     self.counter = 0;
+            //     self.time = 0;
+            // }
 
             var element: ?*Element = null;
-            var prevs = self.getPrevElementNodes(key);
 
             if (self.cfg.allow_multiple_values_same_key == false) {
-                element = prevs[0].?.next[0];
+                element = self.cache[0].?.next[0];
 
                 if (element != null and
                     switch (cmper) {
@@ -222,14 +231,13 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 }
             }
 
-            element = try self.newElement(self.randLevel(), key, value);
+            element = try newElement(self.allocator, self.randLevel(), key, value);
 
-            for (0..element.?.node.?.next.len) |i| {
-                element.?.node.?.next[i] = prevs[i].?.next[i];
-                prevs[i].?.next[i] = element;
+            for (0..element.?.node.next.len) |i| {
+                element.?.node.next[i] = self.cache[i].?.next[i];
+                self.cache[i].?.next[i] = element;
             }
 
-            self.len += 1;
             return element.?;
         }
 
@@ -243,7 +251,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.len == 0) return null;
 
-            var prev: *Node = self.node.?;
+            var prev: *Node = self.node;
             var next: ?*Element = null;
 
             var i = self.cfg.max_level - 1;
@@ -255,8 +263,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                     inline true => key.cmper().gt(&next.?.key),
                     inline false => key > next.?.key,
                 }) {
-                    prev = next.?.node.?;
-                    next = next.?.node.?.next[i];
+                    prev = next.?.node;
+                    next = prev.next[i];
                 }
 
                 if (i == 0) break;
@@ -279,26 +287,28 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.frozen) return null;
 
-            var prevs = self.getPrevElementNodes(key);
+            self.cacheRefresh(key);
 
             // found the element, remove it
-            const element: ?*Element = prevs[0].?.next[0];
+            const element: ?*Element = self.cache[0].?.next[0];
 
             if (element) |elem| if (switch (cmper) {
                 inline true => elem.key.cmper().le(&key),
                 inline false => elem.key <= key,
             }) {
-                for (elem.node.?.next, 0..) |v, k| {
-                    prevs[k].?.next[k] = v;
-                    elem.node.?.next[k] = null;
+                for (elem.node.next, 0..) |v, k| {
+                    self.cache[k].?.next[k] = v;
+                    elem.node.next[k] = null;
                 }
 
-                self.len -= 1;
-                self.bytes -= (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(elem.value) / 8);
+                defer {
+                    self.len -= 1;
+                    self.bytes -= (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(elem.value) / 8);
 
-                self.allocator.free(elem.node.?.next);
-                self.allocator.destroy(elem.node.?);
-                self.allocator.destroy(elem);
+                    self.allocator.free(elem.node.next);
+                    self.allocator.destroy(elem.node);
+                    self.allocator.destroy(elem);
+                }
 
                 return elem.value;
             };
@@ -306,31 +316,26 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return null;
         }
 
-        fn getPrevElementNodes(self: *Self, key: K) []?*Node {
-            var prev: *Node = self.node.?;
-            var next: ?*Element = null;
-
-            var prevs = self.cache.?;
+        inline fn cacheRefresh(self: *Self, key: K) void {
+            var prev: *Node = self.node;
 
             var i = self.cfg.max_level - 1;
             while (i >= 0) : (i -= 1) {
-                next = prev.next[i];
+                var next = prev.next[i];
 
                 while (next != null and
                     switch (cmper) {
                     inline true => key.cmper().gt(&next.?.key),
                     inline false => key > next.?.key,
                 }) {
-                    prev = next.?.node.?;
-                    next = next.?.node.?.next[i];
+                    prev = next.?.node;
+                    next = prev.next[i];
                 }
 
-                prevs[i] = prev;
+                self.cache[i] = prev;
 
-                if (i == 0) break;
+                if (i == 0) return;
             }
-
-            return prevs;
         }
 
         pub fn setProbability(self: *Self, newProbability: f64) !void {
@@ -345,13 +350,13 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         pub fn forEach(self: *Self, callback: *const fn (K, V) void) void {
             if (self.len == 0) return;
 
-            self.forEachNode(self.node.?, callback);
+            self.forEachNode(self.node, callback);
         }
 
         fn forEachNode(self: *Self, node: *Node, callback: *const fn (K, V) void) void {
             for (node.next) |element| {
                 if (element) |elem| {
-                    self.forEachNode(elem.node.?, callback);
+                    self.forEachNode(elem.node, callback);
 
                     callback(elem.key, elem.value);
                 }
@@ -382,10 +387,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return table;
         }
 
-        fn newNode(self: *Self, level: usize) !*Node {
-            const node = try self.allocator.create(Node);
+        fn newNode(allocator: Allocator, level: usize) !*Node {
+            const node = try allocator.create(Node);
             node.* = Node{
-                .next = try self.allocator.alloc(?*Element, level),
+                .next = try allocator.alignedAlloc(?*Element, @alignOf(Element), level),
             };
             for (0..level) |idx| {
                 node.next[idx] = null;
@@ -394,10 +399,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return node;
         }
 
-        fn newElement(self: *Self, level: usize, key: K, value: V) !*Element {
-            const element = try self.allocator.create(Element);
+        fn newElement(allocator: Allocator, level: usize, key: K, value: V) !*Element {
+            const element = try allocator.create(Element);
             element.* = Element{
-                .node = try self.newNode(level),
+                .node = try newNode(allocator, level),
                 .key = key,
                 .value = value,
             };
