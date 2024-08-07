@@ -26,15 +26,20 @@ pub fn main() !void {
     // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     // const allocator = gpa.allocator();
 
-    for (0..1000000000000) |i| {
+    // var buffer = [_]u8{0} ** (500 * 1024 * 1024);
+    // var arena = std.heap.FixedBufferAllocator.init(buffer[0..]);
+
+    for (0..200) |i| {
+        // defer arena.reset();
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
-        const allocator = arena.allocator();
+
+        const allocator = &arena.allocator();
 
         var list = try SkipList(f64, usize).init(allocator, .{});
         defer list.deinit();
 
-        var keys = std.ArrayList(f64).init(allocator);
+        var keys = std.ArrayList(f64).init(@constCast(allocator).*);
         errdefer keys.deinit();
         defer keys.deinit();
 

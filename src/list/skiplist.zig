@@ -9,7 +9,7 @@ const math = std.math;
 const Allocator = mem.Allocator;
 
 pub const Config = struct {
-    max_level: usize = 25,
+    max_level: usize = 18,
     probability: f64 = 1.0 / std.math.e,
 
     allow_multiple_values_same_key: bool = false,
@@ -49,7 +49,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             value: V,
         };
 
-        allocator: Allocator,
+        allocator: *const Allocator,
         mutex: std.Thread.Mutex = std.Thread.Mutex{},
         cfg: Config = .{},
 
@@ -66,18 +66,18 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
         // time: i128 = 0,
         // counter: usize = 0,
 
-        pub fn init(allocator: Allocator, cfg: Config) !Self {
+        pub fn init(allocator: *const Allocator, cfg: Config) !Self {
             return try create(allocator, cfg);
         }
 
-        fn create(allocator: Allocator, cfg: Config) !Self {
+        fn create(allocator: *const Allocator, cfg: Config) !Self {
             std.debug.assert(cfg.max_level > 1 and cfg.max_level <= 64);
 
             return Self{
                 .allocator = allocator,
                 .cfg = cfg,
                 .node = try newNode(allocator, cfg.max_level),
-                .cache = try allocator.alignedAlloc(?*Node, @alignOf(*Node), cfg.max_level),
+                .cache = try allocator.alloc(?*Node, cfg.max_level),
                 .rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.microTimestamp()))),
                 .probarr = try probabArr(allocator, cfg.probability, cfg.max_level),
             };
@@ -200,10 +200,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
 
             if (self.frozen) return Error.Frozen;
 
-            defer {
-                self.len += 1;
-                self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
-            }
+            self.len += 1;
+            self.bytes += (self.deepBitSizeOf(key) / 8) + (self.deepBitSizeOf(value) / 8);
 
             // const startTime = std.time.nanoTimestamp();
             self.cacheRefresh(key);
@@ -333,8 +331,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                 }
 
                 self.cache[i] = prev;
-
-                if (i == 0) return;
+                if (i == 0) break;
             }
         }
 
@@ -377,8 +374,8 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return level;
         }
 
-        fn probabArr(allocator: Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
-            var table = try std.ArrayList(f64).initCapacity(allocator, maxLevel);
+        fn probabArr(allocator: *const Allocator, probability: f64, maxLevel: usize) !std.ArrayList(f64) {
+            var table = try std.ArrayList(f64).initCapacity(@constCast(allocator).*, maxLevel);
             errdefer table.deinit();
 
             for (0..maxLevel) |i| {
@@ -387,10 +384,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return table;
         }
 
-        fn newNode(allocator: Allocator, level: usize) !*Node {
+        fn newNode(allocator: *const Allocator, level: usize) !*Node {
             const node = try allocator.create(Node);
             node.* = Node{
-                .next = try allocator.alignedAlloc(?*Element, @alignOf(Element), level),
+                .next = try allocator.alloc(?*Element, level),
             };
             for (0..level) |idx| {
                 node.next[idx] = null;
@@ -399,7 +396,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             return node;
         }
 
-        fn newElement(allocator: Allocator, level: usize, key: K, value: V) !*Element {
+        fn newElement(allocator: *const Allocator, level: usize, key: K, value: V) !*Element {
             const element = try allocator.create(Element);
             element.* = Element{
                 .node = try newNode(allocator, level),
