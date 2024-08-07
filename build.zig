@@ -26,7 +26,8 @@ pub fn build(b: *std.Build) !void {
         src: []const u8,
     }{
         .{ .name = "ints-bitset", .src = "examples/ints/bitset.zig" },
-        .{ .name = "list-circular", .src = "examples/list/circular.zig" },
+        .{ .name = "circularlist", .src = "examples/list/circular.zig" },
+        .{ .name = "skiplist", .src = "examples/list/skiplist.zig" },
         .{ .name = "logger-pool", .src = "examples/log/logger-pool.zig" },
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
