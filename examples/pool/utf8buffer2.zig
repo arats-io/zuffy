@@ -1,12 +1,12 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const Allocator = std.mem.Allocator;
 const AllocatorError = std.mem.Allocator.Error;
 
-const Utf8Buffer = xstd.bytes.Utf8Buffer;
+const Utf8Buffer = zuffy.bytes.Utf8Buffer;
 
-const GenericPool = xstd.pool.Generic;
+const GenericPool = zuffy.pool.Generic;
 
 const assert = std.debug.assert;
 

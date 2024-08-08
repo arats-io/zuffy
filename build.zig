@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lib = b.addStaticLibrary(.{
-        .name = "xstd",
+        .name = "zuffy",
         .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         .target = target,
         .optimize = optimize,
@@ -74,7 +74,7 @@ pub fn build(b: *std.Build) !void {
         example.root_module.addOptions("build_options", exe_options);
 
         example.linkLibrary(lib);
-        example.root_module.addAnonymousImport("xstd", .{
+        example.root_module.addAnonymousImport("zuffy", .{
             .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
         });
 

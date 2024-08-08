@@ -1,11 +1,11 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const math = std.math;
 const Allocator = std.mem.Allocator;
 
-const SkipList = xstd.list.SkipList;
-const Skip = xstd.list.Skip;
+const SkipList = zuffy.list.SkipList;
+const Skip = zuffy.list.Skip;
 
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
@@ -15,7 +15,7 @@ pub fn main() !void {
 
     const total = std.math.maxInt(u22);
 
-    //const F64 = xstd.cmp.Wrapper(f64);
+    //const F64 = zuffy.cmp.Wrapper(f64);
 
     const handler = struct {
         pub fn f(key: f64, value: usize) void {

@@ -1,11 +1,11 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const math = std.math;
 const Allocator = std.mem.Allocator;
 
-const CircularLifoList = xstd.list.circular.CircularLifoList;
-const CircularFifoList = xstd.list.circular.CircularFifoList;
+const CircularLifoList = zuffy.list.circular.CircularLifoList;
+const CircularFifoList = zuffy.list.circular.CircularFifoList;
 
 const Package = struct {
     value: i128,

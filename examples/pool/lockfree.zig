@@ -1,10 +1,10 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 pub fn main() !void {
     std.debug.print("Start application \n", .{});
 
-    const PoolLockAllocationFree = xstd.pool.LockAllocationFree(u32);
+    const PoolLockAllocationFree = zuffy.pool.LockAllocationFree(u32);
 
     var list = PoolLockAllocationFree.init();
     defer list.deinit();

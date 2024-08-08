@@ -1,5 +1,5 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const math = std.math;
 const Allocator = std.mem.Allocator;
@@ -10,11 +10,11 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var buff = xstd.bytes.Buffer.init(arena.allocator());
+    var buff = zuffy.bytes.Buffer.init(arena.allocator());
     defer buff.deinit();
     errdefer buff.deinit();
 
-    var fbs = xstd.bytes.BufferStream(xstd.bytes.Buffer).init(buff);
+    var fbs = zuffy.bytes.BufferStream(zuffy.bytes.Buffer).init(buff);
 
     const stream = fbs.writer();
 

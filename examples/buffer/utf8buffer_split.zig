@@ -1,5 +1,5 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const math = std.math;
 const Allocator = std.mem.Allocator;
@@ -12,7 +12,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(page_allocator);
     defer arena.deinit();
 
-    var buffer = xstd.bytes.Utf8Buffer.init(arena.allocator());
+    var buffer = zuffy.bytes.Utf8Buffer.init(arena.allocator());
     defer buffer.deinit();
 
     try buffer.append("💯Hello💯💯Hello💯💯Hello💯💯💯💯");

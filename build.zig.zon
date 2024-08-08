@@ -1,6 +1,5 @@
 .{
-    // Extended zig std adding nice to have functionality
-    .name = "xstd",
+    .name = "zuffy",
     .version = "0.1.14",
     .minimum_zig_version = "0.13.0",
     .dependencies = .{},

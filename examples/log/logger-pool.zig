@@ -1,12 +1,12 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 const build_options = @import("build_options");
 
-const Utf8Buffer = xstd.bytes.Utf8Buffer;
-const Buffer = xstd.bytes.Buffer;
-const GenericPool = xstd.pool.Generic;
+const Utf8Buffer = zuffy.bytes.Utf8Buffer;
+const Buffer = zuffy.bytes.Buffer;
+const GenericPool = zuffy.pool.Generic;
 
-const zlog = xstd.zlog;
+const zlog = zuffy.zlog;
 
 const Error = error{OutOfMemoryClient};
 

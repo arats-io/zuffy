@@ -1,14 +1,14 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 const Allocator = std.mem.Allocator;
 const AllocatorError = std.mem.Allocator.Error;
 
-const Error = xstd.bytes.Error;
-const Utf8BufferPool = xstd.bytes.Utf8BufferPool;
-const Utf8Buffer = xstd.bytes.Utf8Buffer;
+const Error = zuffy.bytes.Error;
+const Utf8BufferPool = zuffy.bytes.Utf8BufferPool;
+const Utf8Buffer = zuffy.bytes.Utf8Buffer;
 
-const GenericPool = xstd.pool.Generic;
+const GenericPool = zuffy.pool.Generic;
 
 pub fn NewUtf8Buffer(allocator: std.mem.Allocator) Utf8Buffer {
     return Utf8Buffer.init(allocator);

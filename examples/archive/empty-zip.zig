@@ -1,6 +1,6 @@
 const std = @import("std");
-const xstd = @import("xstd");
-const zip = xstd.archive.zip;
+const zuffy = @import("zuffy");
+const zip = zuffy.archive.zip;
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -8,19 +8,19 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var buff = xstd.bytes.Buffer.init(arena.allocator());
+    var buff = zuffy.bytes.Buffer.init(arena.allocator());
     defer buff.deinit();
     errdefer buff.deinit();
 
-    const fbs = xstd.bytes.BufferStream(xstd.bytes.Buffer).init(buff);
+    const fbs = zuffy.bytes.BufferStream(zuffy.bytes.Buffer).init(buff);
 
-    var zipFile = xstd.archive.zip.fromBufferStream(allocator, fbs);
+    var zipFile = zuffy.archive.zip.fromBufferStream(allocator, fbs);
     defer zipFile.deinit();
 
     const Collector = struct {
         const Self = @This();
 
-        pub const GenericContent = xstd.archive.GenericContent(*Self, receive);
+        pub const GenericContent = zuffy.archive.GenericContent(*Self, receive);
 
         arr: std.ArrayList([]const u8),
 

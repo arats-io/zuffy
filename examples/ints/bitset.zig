@@ -1,10 +1,10 @@
 const std = @import("std");
-const xstd = @import("xstd");
+const zuffy = @import("zuffy");
 
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
-    const bitset = xstd.ints.toBitSet(u16, 999);
+    const bitset = zuffy.ints.toBitSet(u16, 999);
     std.debug.print("bitset - {any}\n", .{bitset});
 
     std.debug.print("bitset - ", .{});
@@ -17,7 +17,7 @@ pub fn main() !void {
     }
     std.debug.print("\n", .{});
 
-    const value = xstd.ints.fromBitSet(u16, bitset);
+    const value = zuffy.ints.fromBitSet(u16, bitset);
     std.debug.print("value - {any}\n", .{value});
 
     std.debug.print("Stoping application.\n", .{});
