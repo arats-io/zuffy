@@ -80,7 +80,14 @@ export TZ='Europe/Tiraspol.zip';
 
 ---
 
-### Improved Zig Logger
+### Lssts
+
+- [x] CircularList (FIFO & LIFO)
+- [x] SkipList
+
+---
+
+### Eazy Logger
 
 [zlog](./src/zlog.md)
 
