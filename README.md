@@ -80,7 +80,7 @@ export TZ='Europe/Tiraspol.zip';
 
 ---
 
-### Lssts
+### Lists
 
 - [x] CircularList (FIFO & LIFO)
 - [x] SkipList
