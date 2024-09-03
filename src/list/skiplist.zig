@@ -28,7 +28,7 @@ const gb = mb * 1024;
 
 pub fn SkipList(comptime K: type, comptime V: type) type {
     const cmper = comptime switch (@typeInfo(K)) {
-        .Struct, .Union, .Enum => true,
+        .@"struct", .@"union", .@"enum" => true,
         else => false,
     } and @hasDecl(K, "cmper");
 
@@ -133,16 +133,16 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             const T = @TypeOf(value);
             const info = @typeInfo(T);
             switch (info) {
-                .Float, .ComptimeFloat => size += info.Float.bits,
-                .Int, .ComptimeInt => size += info.Int.bits,
-                .Bool => size += info.Int.bits,
-                .Optional => {
+                .float, .comptime_float => size += info.float.bits,
+                .int, .comptime_int => size += info.int.bits,
+                .bool => size += info.int.bits,
+                .optional => {
                     if (value) |payload| {
                         size += self.deepBitSizeOf(@field(value, payload));
                     }
                 },
 
-                .Enum => |enumInfo| {
+                .@"enum" => |enumInfo| {
                     if (enumInfo.is_exhaustive) {
                         size += self.deepBitSizeOf(@field(value, @tagName(value)));
                         return;
@@ -154,19 +154,19 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                         size += self.deepBitSizeOf(@field(value, enumField.value));
                     }
                 },
-                .Union => |uinfo| {
+                .@"union" => |uinfo| {
                     if (uinfo.tag_type) {
                         inline for (uinfo.fields) |u_field| {
                             size += self.deepBitSizeOf(@field(value, u_field.name));
                         }
                     }
                 },
-                .Struct => |sinfo| {
+                .@"struct" => |sinfo| {
                     inline for (sinfo.fields) |f| {
                         size += self.deepBitSizeOf(@field(value, f.name));
                     }
                 },
-                .Pointer => |ptr_info| switch (ptr_info.size) {
+                .pointer => |ptr_info| switch (ptr_info.size) {
                     .One => switch (@typeInfo(ptr_info.child)) {
                         .Array, .Enum, .Union, .Struct => {
                             size += self.deepBitSizeOf(value.*);
@@ -182,7 +182,7 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                         }
                     },
                 },
-                .Array, .Vector => {
+                .array, .vector => {
                     for (value) |elem| {
                         size += self.deepBitSizeOf(elem);
                     }

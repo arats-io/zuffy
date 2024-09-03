@@ -13,3 +13,5 @@ pub const pool = @import("pool/mod.zig");
 pub const zlog = @import("zlog.zig");
 
 pub const cmp = @import("cmp/mod.zig");
+
+pub const BloomFilter = @import("bloomfilter/bloomfilter.zig");

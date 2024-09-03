@@ -126,13 +126,13 @@ pub const Time = struct {
             },
         };
 
-        self.offset = offset();
+        self.offset = offsetValue();
         self.date_time = absDate(seconds + self.offset.?);
 
         return self;
     }
 
-    inline fn offset() i32 {
+    inline fn offsetValue() i32 {
         const loc = @import("zoneinfo.zig").Local.Get() catch |err| {
             std.debug.panic("{any}", .{err});
         };

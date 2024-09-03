@@ -168,7 +168,7 @@ pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPoo
     };
 }
 
-pub fn Scope(self: *const Self, comptime value: @Type(.EnumLiteral)) !Self {
+pub fn Scope(self: *const Self, comptime value: @Type(.enum_literal)) !Self {
     var scope = Utf8Buffer.init(self.allocator);
     errdefer scope.deinit();
 
@@ -297,7 +297,7 @@ fn process(
 
         if (config.stacktrace_enabled) {
             if (@errorReturnTrace()) |stacktrace| {
-                const debug_info: ?*std.debug.DebugInfo = std.debug.getSelfDebugInfo() catch res: {
+                const debug_info: ?*std.debug.SelfInfo = std.debug.getSelfDebugInfo() catch res: {
                     break :res null;
                 };
                 if (debug_info) |di| {
@@ -343,23 +343,23 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
     const T = @TypeOf(value);
     const ty = @typeInfo(T);
     switch (ty) {
-        .ErrorUnion => {
+        .error_union => {
             if (value) |payload| {
                 return try injectKeyAndValue(first, buffer, config, key, payload);
             } else |err| {
                 return try injectKeyAndValue(first, buffer, config, key, err);
             }
         },
-        .Type => {
+        .type => {
             return try injectKeyAndValue(first, buffer, config, key, @typeName(value));
         },
-        .EnumLiteral => {
+        .enum_literal => {
             return try injectKeyAndValue(first, buffer, config, key, @tagName(value));
         },
-        .Void => {
+        .void => {
             return try injectKeyAndValue(first, buffer, config, key, "void");
         },
-        .Optional => {
+        .optional => {
             if (value) |payload| {
                 return try injectKeyAndValue(first, buffer, config, key, payload);
             } else {
@@ -370,12 +370,12 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
     }
 
     switch (config.format) {
-        inline .text => {
+        .text => {
             const header = if (first) "" else " ";
             switch (ty) {
-                .Enum => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
-                .Bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
-                .Pointer => |ptr_info| switch (ptr_info.size) {
+                .@"enum" => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
+                .bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
+                .pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
                         if (config.escape_enabled) {
                             try data.print("{s}{s}=\u{0022}", .{ header, key });
@@ -392,10 +392,10 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                         }
                     },
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{s}={any}", .{ header, key, value }),
-                .ErrorSet => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
-                .Null => if (config.emit_null_optional_fields) try data.print("{s}{s}=null", .{ header, key }),
-                .Struct, .Union => {
+                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{s}={any}", .{ header, key, value }),
+                .error_set => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
+                .null => if (config.emit_null_optional_fields) try data.print("{s}{s}=null", .{ header, key }),
+                .@"struct", .@"union" => {
                     if (config.stingify.escape_enabled) {
                         try data.print("{s}{s}=\u{0022}", .{ header, key });
                     } else {
@@ -417,7 +417,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                         try data.print("\u{0022}", .{});
                     }
                 },
-                .Array, .Vector => {
+                .array, .vector => {
                     try data.print("{s}{s}=[", .{ header, key });
 
                     for (value, 0..) |elem, i| {
@@ -429,12 +429,12 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 else => try data.print("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }),
             }
         },
-        inline .json => {
+        .json => {
             const header = if (first) "{" else ", ";
             switch (ty) {
-                .Enum => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
-                .Bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
-                .Pointer => |ptr_info| switch (ptr_info.size) {
+                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
+                .bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
+                .pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
@@ -451,15 +451,15 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                         }
                     },
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
-                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
-                .Null => if (config.emit_null_optional_fields) try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
-                .Struct, .Union => {
+                .comptime_int, .int, .comptime_float, .float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
+                .error_set => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
+                .null => if (config.emit_null_optional_fields) try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
+                .@"struct", .@"union" => {
                     try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
                     try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
                 },
-                .Array, .Vector => {
+                .array, .vector => {
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
 
                     for (value, 0..) |elem, i| {
@@ -481,7 +481,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
     const ty = @typeInfo(T);
 
     switch (ty) {
-        .Optional => {
+        .optional => {
             if (value) |payload| {
                 return injectValue(first, buffer, config, payload);
             } else {
@@ -495,9 +495,9 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
         inline .text => {
             const header = if (first) "" else ", ";
             switch (ty) {
-                .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
-                .Bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
-                .Pointer => |ptr_info| switch (ptr_info.size) {
+                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
+                .bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
+                .pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}", .{header});
@@ -515,10 +515,10 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                         }
                     },
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
-                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .Null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
-                .Struct, .Union => {
+                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{any}", .{ header, value }),
+                .error_set => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
+                .null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
+                .@"struct", .@"union" => {
                     if (config.stingify.escape_enabled) {
                         try data.print("{s}\u{0022}", .{header});
                     } else {
@@ -540,7 +540,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                         try data.print("\u{0022}", .{});
                     }
                 },
-                .Array, .Vector => {
+                .array, .vector => {
                     try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
@@ -555,9 +555,9 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
         inline .json => {
             const header = if (first) "" else ", ";
             switch (ty) {
-                .Enum => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
-                .Bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
-                .Pointer => |ptr_info| switch (ptr_info.size) {
+                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
+                .bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
+                .pointer => |ptr_info| switch (ptr_info.size) {
                     .Slice, .Many, .One, .C => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}", .{header});
@@ -575,15 +575,15 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                         }
                     },
                 },
-                .ComptimeInt, .Int, .ComptimeFloat, .Float => try data.print("{s}{any}", .{ header, value }),
-                .ErrorSet => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .Null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
-                .Struct, .Union => {
+                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{any}", .{ header, value }),
+                .error_set => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
+                .null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
+                .@"struct", .@"union" => {
                     try data.print("{s}", .{header});
 
                     try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
                 },
-                .Array, .Vector => {
+                .array, .vector => {
                     try data.print("{s} [", .{header});
 
                     for (value, 0..) |elem, i| {
