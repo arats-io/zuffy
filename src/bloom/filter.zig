@@ -83,7 +83,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         // Add a hashable item, v, to the filter
-        pub fn Add(self: *Self, v: *@TypeOf(FnvType)) !void {
+        pub fn add(self: *Self, v: *@TypeOf(FnvType)) !void {
             self.mu.lock();
             defer self.mu.unlock();
 
@@ -119,7 +119,7 @@ pub fn Filter(comptime T: type) type {
         // Contains tests if f contains v
         // false: f definitely does not contain value v
         // true:  f maybe contains value v
-        pub fn Contains(self: *Self, v: *@TypeOf(FnvType)) !bool {
+        pub fn contains(self: *Self, v: *@TypeOf(FnvType)) !bool {
             self.mu.lock();
             defer self.mu.unlock();
 
@@ -155,7 +155,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         // Copy f to a new Bloom filter
-        pub fn Copy(self: *Self) !Self {
+        pub fn copy(self: *Self) !Self {
             self.mu.lock();
             defer self.mu.unlock();
 
@@ -167,8 +167,8 @@ pub fn Filter(comptime T: type) type {
         }
 
         // UnionInPlace merges Bloom filter f2 into f
-        pub fn UnionInPlace(self: *Self, f2: *Self) !Self {
-            if (!self.IsCompatible(f2)) {
+        pub fn unionInPlace(self: *Self, f2: *Self) !Self {
+            if (!self.isCompatible(f2)) {
                 return Error.Incompatible;
             }
 
@@ -182,8 +182,8 @@ pub fn Filter(comptime T: type) type {
         }
 
         // Union merges f2 and f2 into a new Filter out
-        pub fn Union(self: *Self, f2: *Self) !Self {
-            if (!self.IsCompatible(f2)) {
+        pub fn unionAsCopy(self: *Self, f2: *Self) !Self {
+            if (!self.isCompatible(f2)) {
                 return Error.Incompatible;
             }
 
@@ -199,7 +199,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         // IsCompatible is true if f and f2 can be Union()ed together
-        pub fn IsCompatible(self: *Self, f2: *Self) bool {
+        pub fn isCompatible(self: *Self, f2: *Self) bool {
             self.mu.lock();
             defer self.mu.unlock();
 
@@ -207,7 +207,7 @@ pub fn Filter(comptime T: type) type {
             defer f2.mu.unlock();
 
             // 0 is true, non-0 is false
-            var compat = self.nbits() ^ f2.nbits();
+            var compat = self.size() ^ f2.size();
             compat |= self.countKeys() ^ f2.countKeys();
             compat |= noBranchCompareUint64s(self.keys, f2.keys);
 

@@ -21,9 +21,9 @@ pub fn main() !void {
     hash2.update("dfgasdf");
 
     std.debug.print("Added = asdasd.\n", .{});
-    try bloomf.Add(&hash);
+    try bloomf.add(&hash);
 
-    const result1 = try bloomf.Contains(&hash);
-    const result2 = try bloomf.Contains(&hash2);
+    const result1 = try bloomf.contains(&hash);
+    const result2 = try bloomf.contains(&hash2);
     std.debug.print("Contains asdasd={} dfgasdf={}.\n", .{ result1, result2 });
 }
