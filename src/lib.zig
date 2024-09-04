@@ -14,4 +14,4 @@ pub const zlog = @import("zlog.zig");
 
 pub const cmp = @import("cmp/mod.zig");
 
-pub const BloomFilter = @import("bloomfilter/bloomfilter.zig");
+pub const BloomFilter = @import("bloom/filter.zig").Filter;

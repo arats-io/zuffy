@@ -3,7 +3,7 @@ const zuffy = @import("zuffy");
 
 const Allocator = std.mem.Allocator;
 
-const BloomFilter = zuffy.BloomFilter;
+const BloomFilter = zuffy.BloomFilter(u128);
 
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
@@ -14,10 +14,10 @@ pub fn main() !void {
     var bloomf = try BloomFilter.init(1_000_000, 500, allocator);
     defer bloomf.deinit();
 
-    var hash = std.hash.Fnv1a_64.init();
+    var hash = std.hash.Fnv1a_128.init();
     hash.update("asdasd");
 
-    var hash2 = std.hash.Fnv1a_64.init();
+    var hash2 = std.hash.Fnv1a_128.init();
     hash2.update("dfgasdf");
 
     std.debug.print("Added = asdasd.\n", .{});
