@@ -22,42 +22,48 @@ mu: std.Thread.Mutex = std.Thread.Mutex{},
 allocator: std.mem.Allocator,
 bits: []u64,
 keys: []u64,
-m: usize, // number of bits the "bits" field should recognize
-n: usize, // number of inserted elements
+nbits: usize,
+nelements: usize,
 
-// OptimalK calculates the optimal k value for creating a new Bloom filter
-// maxn is the maximum anticipated number of elements
-fn optimalK(m: usize, maxN: usize) usize {
-    const v = std.math.ceil(m * std.math.ln2 / maxN);
-    return @as(usize, @intCast(v));
+// New Filter with CSPRNG keys
+//
+// m is the size of the Bloom filter, in bits, >= 2
+//
+// k is the number of random keys, >= 1
+pub fn init(nbits: usize, nelements: usize, allocator: std.mem.Allocator) !Self {
+    const keys = try newRandKeys(nelements, allocator);
+    defer allocator.free(keys);
+
+    return try initWithKeys(nbits, keys, allocator);
 }
 
-// OptimalM calculates the optimal m value for creating a new Bloom filter
-// p is the desired false positive probability
-// optimal m = ceiling( - n * ln(p) / ln(2)**2 )
-fn optimalM(maxN: usize, p: f64) usize {
-    const v = std.math.ceil(-maxN * std.math.log(f64, 10, p) / (std.math.ln2 * std.math.ln2));
-    return @as(usize, @intCast(v));
+pub fn deinit(self: *Self) void {
+    self.allocator.free(self.bits);
+    self.allocator.free(self.keys);
 }
 
-// Hashable -> hashes
-fn hash(self: *Self, v: *std.hash.Fnv1a_64) ![]u64 {
-    const rawHash: u64 = v.final();
-
-    const hashes = try self.allocator.alloc(u64, self.keys.len);
-    for (self.keys, 0..) |item, i| {
-        hashes[i] = rawHash ^ item;
-    }
-    return hashes;
+// NewOptimal Bloom filter with random CSPRNG keys
+pub fn initOptimal(maxN: usize, p: f64, allocator: std.mem.Allocator) !Self {
+    const nbits = optimalNBits(maxN, p);
+    const k = optimalNElements(nbits, maxN);
+    std.debug.print(
+        "New optimal bloom filter :: requested max elements (n):{}, probability of collision (p):{} -> recommends -> bits (m): {} ({} GiB), number of keys (k): {}",
+        .{
+            maxN,
+            p,
+            nbits,
+            @divTrunc(nbits, gigabitsPerGiB),
+            k,
+        },
+    );
+    return try init(nbits, k, allocator);
 }
 
-// M is the size of Bloom filter, in bits
-pub fn M(self: *Self) usize {
-    return self.m;
+pub fn size(self: *Self) usize {
+    return self.nbits;
 }
 
-// K is the count of keys
-pub fn K(self: *Self) usize {
+pub fn countKeys(self: *Self) usize {
     return self.keys.len;
 }
 
@@ -70,13 +76,13 @@ pub fn Add(self: *Self, v: *std.hash.Fnv1a_64) !void {
     defer self.allocator.free(hashes);
 
     for (hashes) |item| {
-        const i: u64 = item % @as(u64, @intCast(self.m));
+        const i: u64 = item % @as(u64, @intCast(self.nbits));
         const left: u6 = @as(u6, @intCast(i & 0x3f));
 
         const pos: usize = @as(usize, @intCast(i >> 6));
         self.bits[pos] |= @as(u64, @intCast(1)) << left;
     }
-    self.n += 1;
+    self.nelements += 1;
 }
 
 // Contains tests if f contains v
@@ -92,7 +98,7 @@ pub fn Contains(self: *Self, v: *std.hash.Fnv1a_64) !bool {
     defer self.allocator.free(hashes);
 
     for (hashes) |item| {
-        const i = item % self.m;
+        const i = item % self.nbits;
         const left: u6 = @as(u6, @intCast(i & 0x3f));
 
         const pos: usize = @as(usize, @intCast(i >> 6));
@@ -107,10 +113,10 @@ pub fn Copy(self: *Self) !Self {
     self.mu.lock();
     defer self.mu.unlock();
 
-    var out = try self.Compatible();
+    var out = try self.compatible();
     std.mem.copyForwards(u64, out.bits, self.bits);
 
-    out.n = self.n;
+    out.nelements = self.nelements;
     return out;
 }
 
@@ -138,7 +144,7 @@ pub fn Union(self: *Self, f2: *Self) !Self {
     self.mu.lock();
     defer self.mu.unlock();
 
-    var out = try self.Compatible();
+    var out = try self.compatible();
 
     for (f2.bits, 0..) |bitword, i| {
         out.bits[i] = self.bits[i] | bitword;
@@ -155,11 +161,37 @@ pub fn IsCompatible(self: *Self, f2: *Self) bool {
     defer f2.mu.unlock();
 
     // 0 is true, non-0 is false
-    var compat = self.M() ^ f2.M();
-    compat |= self.K() ^ f2.K();
+    var compat = self.nbits() ^ f2.nbits();
+    compat |= self.countKeys() ^ f2.countKeys();
     compat |= noBranchCompareUint64s(self.keys, f2.keys);
 
     return uint64ToBool(compat ^ compat);
+}
+
+// optimalNElements calculates the optimal nelements value for creating a new Bloom filter
+// maxn is the maximum anticipated number of elements
+fn optimalNElements(m: usize, maxN: usize) usize {
+    const v = std.math.ceil(m * std.math.ln2 / maxN);
+    return @as(usize, @intCast(v));
+}
+
+// optimalNBits calculates the optimal nbits value for creating a new Bloom filter
+// p is the desired false positive probability
+// optimal = ceiling( - n * ln(p) / ln(2)**2 )
+fn optimalNBits(maxN: usize, p: f64) usize {
+    const v = std.math.ceil(-maxN * std.math.log(f64, 10, p) / (std.math.ln2 ** 2));
+    return @as(usize, @intCast(v));
+}
+
+// Hashable -> hashes
+fn hash(self: *Self, v: *std.hash.Fnv1a_64) ![]u64 {
+    const rawHash: u64 = v.final();
+
+    const hashes = try self.allocator.alloc(u64, self.keys.len);
+    for (self.keys, 0..) |item, i| {
+        hashes[i] = rawHash ^ item;
+    }
+    return hashes;
 }
 
 fn uint64ToBool(x: u64) bool {
@@ -169,47 +201,47 @@ fn uint64ToBool(x: u64) bool {
 // returns 0 if equal, does not compare len(b0) with len(b1)
 fn noBranchCompareUint64s(b0: []u64, b1: []u64) u64 {
     var r: u64 = 0;
-    for (b0, 0..) |b0i, i| {
-        r |= b0i ^ b1[i];
+    for (0..b0.len) |i| {
+        r |= b0[i] ^ b1[i];
     }
     return r;
 }
 
-fn newBits(m: usize, allocator: std.mem.Allocator) ![]u64 {
-    if (m < MMin) {
+fn newBits(nbits: usize, allocator: std.mem.Allocator) ![]u64 {
+    if (nbits < MMin) {
         return Error.MinimumBitsRequired;
     }
 
-    return try allocator.alloc(u64, @as(usize, @intCast(@divTrunc(m + 63, 64))));
+    return try allocator.alloc(u64, @as(usize, @intCast(@divTrunc(nbits + 63, 64))));
 }
 
-fn newKeysBlank(k: usize, allocator: std.mem.Allocator) ![]u64 {
-    if (k < KMin) {
+fn newKeys(nelements: usize, allocator: std.mem.Allocator) ![]u64 {
+    if (nelements < KMin) {
         return Error.MinimumBitsRequired;
     }
-    return try allocator.alloc(u64, k);
+    return try allocator.alloc(u64, nelements);
 }
 
 fn newKeysCopy(origKeys: []u64, allocator: std.mem.Allocator) ![]u64 {
-    if (!UniqueKeys(origKeys)) {
+    if (!uniqueKeys(origKeys)) {
         return Error.KeysNotUnique;
     }
-    const keys = try newKeysBlank(origKeys.len, allocator);
+    const keys = try newKeys(origKeys.len, allocator);
     std.mem.copyForwards(u64, keys, origKeys);
 
     return keys;
 }
 
-fn newWithKeysAndBits(m: u64, keys: []u64, bits: []u64, n: u64, allocator: std.mem.Allocator) !Self {
-    const f = try NewWithKeys(m, keys, allocator);
+fn newWithKeysAndBits(nbits: u64, keys: []u64, bits: []u64, nelements: u64, allocator: std.mem.Allocator) !Self {
+    const f = try initWithKeys(nbits, keys, allocator);
     std.mem.copyForwards(u64, f.bits, bits);
 
-    f.n = n;
+    f.nelements = nelements;
     return f;
 }
 
 // UniqueKeys is true if all keys are unique
-fn UniqueKeys(keys: []u64) bool {
+fn uniqueKeys(keys: []u64) bool {
     for (0..keys.len - 1) |j| {
         const elemj = keys[j];
         if (j == 0) continue;
@@ -225,69 +257,33 @@ fn UniqueKeys(keys: []u64) bool {
 }
 
 // NewWithKeys creates a new Filter from user-supplied origKeys
-fn NewWithKeys(m: usize, origKeys: []u64, allocator: std.mem.Allocator) !Self {
-    const bits = try newBits(m, allocator);
+fn initWithKeys(nbits: usize, origKeys: []u64, allocator: std.mem.Allocator) !Self {
+    const bits = try newBits(nbits, allocator);
     const keys = try newKeysCopy(origKeys, allocator);
 
     return Self{
         .allocator = allocator,
-        .m = m,
-        .n = 0,
+        .nbits = nbits,
+        .nelements = 0,
         .bits = bits,
         .keys = keys,
     };
 }
 
-// NewCompatible Filter compatible with f
-fn Compatible(self: *Self) !Self {
-    return try NewWithKeys(self.m, self.keys, self.allocator);
+fn compatible(self: *Self) !Self {
+    return try initWithKeys(self.nbits, self.keys, self.allocator);
 }
 
-// New Filter with CSPRNG keys
-//
-// m is the size of the Bloom filter, in bits, >= 2
-//
-// k is the number of random keys, >= 1
-pub fn init(m: usize, k: usize, allocator: std.mem.Allocator) !Self {
-    const keys = try newRandKeys(k, allocator);
-    defer allocator.free(keys);
-
-    return try NewWithKeys(m, keys, allocator);
-}
-
-pub fn deinit(self: *Self) void {
-    self.allocator.free(self.bits);
-    self.allocator.free(self.keys);
-}
-
-fn newRandKeys(k: usize, allocator: std.mem.Allocator) ![]u64 {
+fn newRandKeys(nelements: usize, allocator: std.mem.Allocator) ![]u64 {
     var rand = std.Random.DefaultPrng.init(@as(u64, @intCast(std.time.nanoTimestamp())));
-
     rand.seed(@as(u64, @intCast(std.time.nanoTimestamp())));
 
-    var keys = try allocator.alloc(u64, k);
-    for (0..k) |i| {
-        const v: u64 = rand.random().int(u64);
+    const random = rand.random();
 
-        keys[i] = v;
+    const keys = try allocator.alloc(u64, nelements);
+    for (0..nelements) |i| {
+        keys[i] = random.int(u64);
     }
 
     return keys;
-}
-
-// NewOptimal Bloom filter with random CSPRNG keys
-pub fn initOptimal(maxN: usize, p: f64, allocator: std.mem.Allocator) !Self {
-    const m = optimalM(maxN, p);
-    const k = optimalK(m, maxN);
-    std.debug.print(
-        "New optimal bloom filter :: requested max elements (n):{}, probability of collision (p):{} -> recommends -> bits (m): {} ({} GiB), number of keys (k): {}",
-        .{
-            maxN,
-            p,
-            m,
-            @divTrunc(m, gigabitsPerGiB),
-            k,
-        },
-    );
-    return try init(m, k, allocator);
 }

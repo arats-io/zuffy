@@ -11,16 +11,19 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var bloomf = try BloomFilter.init(10000, 5, allocator);
+    var bloomf = try BloomFilter.init(1_000_000, 500, allocator);
     defer bloomf.deinit();
 
     var hash = std.hash.Fnv1a_64.init();
     hash.update("asdasd");
 
+    var hash2 = std.hash.Fnv1a_64.init();
+    hash2.update("dfgasdf");
+
+    std.debug.print("Added = asdasd.\n", .{});
     try bloomf.Add(&hash);
 
-    var hash2 = std.hash.Fnv1a_64.init();
-    hash2.update("asdasd1");
-    const result = try bloomf.Contains(&hash2);
-    std.debug.print("Contains {}.\n", .{result});
+    const result1 = try bloomf.Contains(&hash);
+    const result2 = try bloomf.Contains(&hash2);
+    std.debug.print("Contains asdasd={} dfgasdf={}.\n", .{ result1, result2 });
 }
