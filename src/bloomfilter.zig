@@ -7,8 +7,6 @@ const gigabitsPerGiB: f64 = 8.0 * 1024 * 1024 * 1024;
 const MMin = 2;
 // KMin is the minimum number of keys
 const KMin = 1;
-// Uint64Bytes is the number of bytes in type uint64
-const Uint64Bytes = 8;
 
 pub fn Filter(comptime T: type) type {
     comptime {
@@ -82,10 +80,10 @@ pub fn Filter(comptime T: type) type {
             return self.nelements;
         }
 
-        pub fn countKeys(self: *Self) usize {
+        pub fn keysSize(self: *Self) usize {
             return self.keys.len;
         }
-        pub fn countBits(self: *Self) usize {
+        pub fn bitsSize(self: *Self) usize {
             return self.bits.len;
         }
 
@@ -215,7 +213,7 @@ pub fn Filter(comptime T: type) type {
 
             // 0 is true, non-0 is false
             var compat = self.nbits() ^ f2.nbits();
-            compat |= self.countKeys() ^ f2.countKeys();
+            compat |= self.keysSize() ^ f2.keysSize();
             compat |= noBranchCompareUint64s(self.keys, f2.keys);
 
             return uint64ToBool(compat ^ compat);
@@ -224,7 +222,7 @@ pub fn Filter(comptime T: type) type {
         // FalsePosititveProbability is the upper-bound probability of false positives
         //  (1 - exp(-k*(n+0.5)/(m-1))) ** k
         pub fn falsePosititveProbability(self: *Self) f64 {
-            const k = @as(f64, @floatFromInt(self.countKeys()));
+            const k = @as(f64, @floatFromInt(self.keysSize()));
             const n = @as(f64, @floatFromInt(self.nElements()));
             const m = @as(f64, @floatFromInt(self.nBits()));
             return std.math.pow(f64, 1.0 - std.math.exp(-k) * @divExact(n + 0.5, m - 1.0), k);
@@ -393,17 +391,17 @@ pub fn Filter(comptime T: type) type {
                 errdefer out.clearAndFree();
 
                 var wr = out.writer();
-                try wr.writeInt(usize, self.filter.countBits(), .little);
-                try wr.writeInt(usize, self.filter.countKeys(), .little);
                 try wr.writeInt(usize, self.filter.nbits, .little);
                 try wr.writeInt(usize, self.filter.nelements, .little);
 
-                for (self.filter.keys) |k| {
-                    try wr.writeInt(T, k, .little);
-                }
-
+                try wr.writeInt(usize, self.filter.bitsSize(), .little);
                 for (self.filter.bits) |b| {
                     try wr.writeInt(T, b, .little);
+                }
+
+                try wr.writeInt(usize, self.filter.keysSize(), .little);
+                for (self.filter.keys) |k| {
+                    try wr.writeInt(T, k, .little);
                 }
 
                 var sha512 = std.crypto.hash.sha2.Sha512.init(.{});
@@ -435,21 +433,21 @@ pub fn Filter(comptime T: type) type {
                 var stream = std.io.fixedBufferStream(data);
                 var reader = stream.reader();
 
-                const count_bits = try reader.readInt(usize, .little);
-                const count_keys = try reader.readInt(usize, .little);
                 const nbits = try reader.readInt(usize, .little);
                 const nelements = try reader.readInt(usize, .little);
 
-                var keys = try self.allocator.alloc(T, count_keys);
-                errdefer self.allocator.free(keys);
-                for (0..count_keys) |i| {
-                    keys[i] = try reader.readInt(T, .little);
+                const bits_size = try reader.readInt(usize, .little);
+                var bits = try self.allocator.alloc(T, bits_size);
+                errdefer self.allocator.free(bits);
+                for (0..bits_size) |i| {
+                    bits[i] = try reader.readInt(T, .little);
                 }
 
-                var bits = try self.allocator.alloc(T, count_bits);
-                errdefer self.allocator.free(bits);
-                for (0..count_bits) |i| {
-                    bits[i] = try reader.readInt(T, .little);
+                const keys_size = try reader.readInt(usize, .little);
+                var keys = try self.allocator.alloc(T, keys_size);
+                errdefer self.allocator.free(keys);
+                for (0..keys_size) |i| {
+                    keys[i] = try reader.readInt(T, .little);
                 }
 
                 var checksum: []u8 = try self.allocator.alloc(u8, 64);
