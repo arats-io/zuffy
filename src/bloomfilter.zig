@@ -616,13 +616,13 @@ pub fn Filter(comptime T: type) type {
             nx = (nx & m2q) + ((nx >> 2) & m2q);
 
             switch (T) {
-                u32 => {
+                inline u32 => {
                     nx = nx & m4q;
 
                     const res = @mulWithOverflow(nx, hq).@"0" >> 24;
                     return @as(usize, @intCast(res));
                 },
-                u64 => {
+                inline u64 => {
                     // put count of each 8 bits into those 8 bits
                     nx = (nx + (nx >> 4)) & m4q;
 
@@ -630,7 +630,7 @@ pub fn Filter(comptime T: type) type {
                     const res = @mulWithOverflow(nx, hq).@"0" >> 56;
                     return @as(usize, @intCast(res));
                 },
-                u128 => {
+                inline u128 => {
                     // put count of each 8 bits into those 8 bits
                     nx = (nx + (nx >> 4)) & m4q;
 
