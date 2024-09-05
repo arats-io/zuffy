@@ -368,13 +368,10 @@ pub fn Filter(comptime T: type) type {
         }
 
         pub fn eql(self: Self, other: Self) bool {
-            if (!std.mem.eql(T, self.bits, other.bits)) return false;
-            if (!std.mem.eql(T, self.keys, other.keys)) return false;
-
-            if (self.nbits != other.nbits) return false;
-            if (self.nelements != other.nelements) return false;
-
-            return true;
+            return std.mem.eql(T, self.bits, other.bits) and
+                std.mem.eql(T, self.keys, other.keys) and
+                self.nbits == other.nbits and
+                self.nelements == other.nelements;
         }
 
         const BinaryMarshaler = struct {
