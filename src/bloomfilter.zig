@@ -563,5 +563,86 @@ pub fn Filter(comptime T: type) type {
                 }
             }
         };
+
+        // preciseFilledRatio is an exhaustive count # of 1's
+        pub fn preciseFilledRatio(self: *Self) f64 {
+            self.mu.lock();
+            defer self.mu.unlock();
+
+            return @divTrunc(@as(f64, @floatFromInt(countBits(self.bits))), @as(f64, @floatFromInt(self.nBits())));
+        }
+
+        // countBits count 1's in b
+        fn countBits(b: []T) usize {
+            var c: usize = 0;
+            for (b) |x| {
+                c += countBit(x);
+            }
+            return c;
+        }
+
+        const m1q: T = switch (T) {
+            inline u32 => 0x55555555,
+            inline u64 => 0x5555555555555555,
+            inline u128 => 0x55555555555555555555555555555555,
+            else => unreachable,
+        };
+        const m2q: T = switch (T) {
+            inline u32 => 0x33333333,
+            inline u64 => 0x3333333333333333,
+            inline u128 => 0x33333333333333333333333333333333,
+            else => unreachable,
+        };
+        const m4q: T = switch (T) {
+            inline u32 => 0x0f0f0f0f,
+            inline u64 => 0x0f0f0f0f0f0f0f0f,
+            inline u128 => 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f,
+            else => unreachable,
+        };
+        const hq: T = switch (T) {
+            inline u32 => 0x01010101,
+            inline u64 => 0x0101010101010101,
+            inline u128 => 0x01010101010101010101010101010101,
+            else => unreachable,
+        };
+
+        // CountBits count 1's in x
+        fn countBit(x: T) usize {
+            var nx: T = x;
+            // put count of each 2 bits into those 2 bits
+            nx -= (nx >> 1) & m1q;
+
+            // put count of each 4 bits into those 4 bits
+            nx = (nx & m2q) + ((nx >> 2) & m2q);
+
+            switch (T) {
+                u32 => {
+                    nx = nx & m4q;
+
+                    const res = @mulWithOverflow(nx, hq).@"0" >> 24;
+                    return @as(usize, @intCast(res));
+                },
+                u64 => {
+                    // put count of each 8 bits into those 8 bits
+                    nx = (nx + (nx >> 4)) & m4q;
+
+                    // returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
+                    const res = @mulWithOverflow(nx, hq).@"0" >> 56;
+                    return @as(usize, @intCast(res));
+                },
+                u128 => {
+                    // put count of each 8 bits into those 8 bits
+                    nx = (nx + (nx >> 4)) & m4q;
+
+                    // put count of each 16 bits into those 16 bits
+                    nx = (nx + (nx >> 8)) & m4q;
+
+                    // returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
+                    const res = @mulWithOverflow(nx, hq).@"0" >> 120;
+                    return @as(usize, @intCast(res));
+                },
+                else => unreachable,
+            }
+        }
     };
 }

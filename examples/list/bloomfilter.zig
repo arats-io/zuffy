@@ -32,6 +32,7 @@ pub fn main() !void {
     const false_positive_bloomf = bloomf.falsePosititveProbability();
 
     std.debug.print("Contains asdasd={} dfgasdf={} - with false positive = {}.\n", .{ result1_bloomf, result2_bloomf, false_positive_bloomf });
+    std.debug.print("FilledRation {}.\n", .{bloomf.preciseFilledRatio()});
 
     const bytes = try bloomf.marchal();
     defer allocator.free(bytes);
@@ -47,6 +48,7 @@ pub fn main() !void {
     const false_positive_newbloomf = newbloomf.falsePosititveProbability();
 
     std.debug.print("Contains asdasd={} dfgasdf={} - with false positive = {}.\n", .{ result1_newbloomf, result2_newbloomf, false_positive_newbloomf });
+    std.debug.print("FilledRation {}.\n", .{newbloomf.preciseFilledRatio()});
 
     if (bloomf.eql(newbloomf)) {
         std.debug.print("Success: Bloomfilter after unmarchaling is the same.\n", .{});
