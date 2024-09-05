@@ -32,6 +32,7 @@ pub fn Filter(comptime T: type) type {
             Incompatible,
             MinimumBitsRequired,
             KeysNotUnique,
+            InvalidCheecksum,
         };
 
         mu: std.Thread.Mutex = std.Thread.Mutex{},
@@ -74,12 +75,18 @@ pub fn Filter(comptime T: type) type {
             return try init(nbits, nelements, allocator);
         }
 
-        pub fn size(self: *Self) usize {
+        pub fn nBits(self: *Self) usize {
             return self.nbits;
+        }
+        pub fn nElements(self: *Self) usize {
+            return self.nelements;
         }
 
         pub fn countKeys(self: *Self) usize {
             return self.keys.len;
+        }
+        pub fn countBits(self: *Self) usize {
+            return self.bits.len;
         }
 
         // Add a hashable item, v, to the filter
@@ -207,11 +214,20 @@ pub fn Filter(comptime T: type) type {
             defer f2.mu.unlock();
 
             // 0 is true, non-0 is false
-            var compat = self.size() ^ f2.size();
+            var compat = self.nbits() ^ f2.nbits();
             compat |= self.countKeys() ^ f2.countKeys();
             compat |= noBranchCompareUint64s(self.keys, f2.keys);
 
             return uint64ToBool(compat ^ compat);
+        }
+
+        // FalsePosititveProbability is the upper-bound probability of false positives
+        //  (1 - exp(-k*(n+0.5)/(m-1))) ** k
+        pub fn falsePosititveProbability(self: *Self) f64 {
+            const k = @as(f64, @floatFromInt(self.countKeys()));
+            const n = @as(f64, @floatFromInt(self.nElements()));
+            const m = @as(f64, @floatFromInt(self.nBits()));
+            return std.math.pow(f64, 1.0 - std.math.exp(-k) * @divExact(n + 0.5, m - 1.0), k);
         }
 
         // optimalNElements calculates the optimal nelements value for creating a new Bloom filter
@@ -334,5 +350,137 @@ pub fn Filter(comptime T: type) type {
 
             return keys;
         }
+
+        pub fn marchal(self: *Self) ![]u8 {
+            self.mu.lock();
+            defer self.mu.unlock();
+
+            var bm = BinaryMarshaler.init(self, self.allocator);
+            return try bm.bytes();
+        }
+
+        pub fn unmarchal(self: *Self, data: []const u8) !void {
+            self.mu.lock();
+            defer self.mu.unlock();
+
+            var bm = BinaryUnmarshaler.init(self, self.allocator);
+            return try bm.read(data);
+        }
+
+        pub fn eql(self: Self, other: Self) bool {
+            if (!std.mem.eql(T, self.bits, other.bits)) return false;
+            if (!std.mem.eql(T, self.keys, other.keys)) return false;
+
+            if (self.nbits != other.nbits) return false;
+            if (self.nelements != other.nelements) return false;
+
+            return true;
+        }
+
+        const BinaryMarshaler = struct {
+            allocator: std.mem.Allocator,
+            filter: *Filter(T),
+
+            pub fn init(filter: *Filter(T), allocator: std.mem.Allocator) BinaryMarshaler {
+                return BinaryMarshaler{
+                    .filter = filter,
+                    .allocator = allocator,
+                };
+            }
+
+            pub fn bytes(self: *BinaryMarshaler) ![]u8 {
+                var out = std.ArrayList(u8).init(self.allocator);
+                errdefer out.clearAndFree();
+
+                var wr = out.writer();
+                try wr.writeInt(usize, self.filter.countBits(), .little);
+                try wr.writeInt(usize, self.filter.countKeys(), .little);
+                try wr.writeInt(usize, self.filter.nbits, .little);
+                try wr.writeInt(usize, self.filter.nelements, .little);
+
+                for (self.filter.keys) |k| {
+                    try wr.writeInt(T, k, .little);
+                }
+
+                for (self.filter.bits) |b| {
+                    try wr.writeInt(T, b, .little);
+                }
+
+                var sha512 = std.crypto.hash.sha2.Sha512.init(.{});
+                sha512.update(out.items);
+
+                var sha512out: [64]u8 = undefined;
+                sha512.final(sha512out[0..]);
+
+                for (sha512out[0..]) |b| {
+                    try wr.writeInt(u8, b, .little);
+                }
+
+                return out.toOwnedSlice();
+            }
+        };
+
+        const BinaryUnmarshaler = struct {
+            allocator: std.mem.Allocator,
+            filter: *Filter(T),
+
+            pub fn init(filter: *Filter(T), allocator: std.mem.Allocator) BinaryUnmarshaler {
+                return BinaryUnmarshaler{
+                    .filter = filter,
+                    .allocator = allocator,
+                };
+            }
+
+            pub fn read(self: *BinaryUnmarshaler, data: []const u8) !void {
+                var stream = std.io.fixedBufferStream(data);
+                var reader = stream.reader();
+
+                const count_bits = try reader.readInt(usize, .little);
+                const count_keys = try reader.readInt(usize, .little);
+                const nbits = try reader.readInt(usize, .little);
+                const nelements = try reader.readInt(usize, .little);
+
+                var keys = try self.allocator.alloc(T, count_keys);
+                errdefer self.allocator.free(keys);
+                for (0..count_keys) |i| {
+                    keys[i] = try reader.readInt(T, .little);
+                }
+
+                var bits = try self.allocator.alloc(T, count_bits);
+                errdefer self.allocator.free(bits);
+                for (0..count_bits) |i| {
+                    bits[i] = try reader.readInt(T, .little);
+                }
+
+                var checksum: []u8 = try self.allocator.alloc(u8, 64);
+                defer self.allocator.free(checksum);
+                errdefer self.allocator.free(checksum);
+                for (0..64) |i| {
+                    checksum[i] = try reader.readInt(u8, .little);
+                }
+
+                var sha512 = std.crypto.hash.sha2.Sha512.init(.{});
+                sha512.update(data[0 .. data.len - 64]);
+
+                var sha512out: [64]u8 = undefined;
+                sha512.final(sha512out[0..]);
+
+                if (!std.mem.eql(u8, sha512out[0..], checksum[0..])) {
+                    return Error.InvalidCheecksum;
+                }
+
+                self.filter.allocator.free(self.filter.keys);
+                self.filter.allocator.free(self.filter.bits);
+
+                self.filter.nbits = nbits;
+                self.filter.nelements = nelements;
+
+                self.filter.keys.ptr = keys.ptr;
+                self.filter.keys.len = keys.len;
+
+                self.filter.bits.ptr = bits.ptr;
+                self.filter.bits.len = bits.len;
+            }
+        };
     };
 }
