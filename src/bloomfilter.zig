@@ -4,10 +4,10 @@ const sha512 = std.crypto.hash.sha2.Sha512;
 
 const gigabitsPerGiB: f64 = 8.0 * 1024 * 1024 * 1024;
 
-// MMin is the minimum Bloom filter bits count
-const MMin = 2;
-// KMin is the minimum number of keys
-const KMin = 1;
+// Minimum Bloom filter bits count
+const MinBitsSize = 2;
+// Minimum number of keys
+const MinKeysSize = 1;
 
 pub fn Filter(comptime T: type) type {
     comptime {
@@ -269,7 +269,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         fn newBits(nbits: usize, allocator: std.mem.Allocator) ![]T {
-            if (nbits < MMin) {
+            if (nbits < MinBitsSize) {
                 return Error.MinimumBitsRequired;
             }
 
@@ -278,7 +278,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         fn newKeys(nelements: usize, allocator: std.mem.Allocator) ![]T {
-            if (nelements < KMin) {
+            if (nelements < MinKeysSize) {
                 return Error.MinimumBitsRequired;
             }
             return try allocator.alloc(T, nelements);
