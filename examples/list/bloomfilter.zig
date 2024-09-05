@@ -3,7 +3,7 @@ const zuffy = @import("zuffy");
 
 const Allocator = std.mem.Allocator;
 
-const BloomFilter = zuffy.BloomFilter(u128);
+const BloomFilter = zuffy.BloomFilter(u32);
 
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
