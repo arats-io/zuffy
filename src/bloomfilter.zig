@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const sha512 = std.crypto.hash.sha2.Sha512;
 
 const gigabitsPerGiB: f64 = 8.0 * 1024 * 1024 * 1024;
 
@@ -349,11 +350,11 @@ pub fn Filter(comptime T: type) type {
             return keys;
         }
 
-        pub fn marchal(self: *Self) ![]u8 {
+        pub fn marchal(self: *Self) ![]const u8 {
             self.mu.lock();
             defer self.mu.unlock();
 
-            var bm = BinaryMarshaler.init(self, self.allocator);
+            var bm = BinaryMarshaler.init(self);
             return try bm.bytes();
         }
 
@@ -361,8 +362,8 @@ pub fn Filter(comptime T: type) type {
             self.mu.lock();
             defer self.mu.unlock();
 
-            var bm = BinaryUnmarshaler.init(self, self.allocator);
-            return try bm.read(data);
+            var bum = BinaryUnmarshaler.init(self);
+            try bum.read(data);
         }
 
         pub fn eql(self: Self, other: Self) bool {
@@ -379,10 +380,10 @@ pub fn Filter(comptime T: type) type {
             allocator: std.mem.Allocator,
             filter: *Filter(T),
 
-            pub fn init(filter: *Filter(T), allocator: std.mem.Allocator) BinaryMarshaler {
+            pub fn init(filter: *Filter(T)) BinaryMarshaler {
                 return BinaryMarshaler{
                     .filter = filter,
-                    .allocator = allocator,
+                    .allocator = filter.allocator,
                 };
             }
 
@@ -404,15 +405,10 @@ pub fn Filter(comptime T: type) type {
                     try wr.writeInt(T, k, .little);
                 }
 
-                var sha512 = std.crypto.hash.sha2.Sha512.init(.{});
-                sha512.update(out.items);
+                var chechsum: [64]u8 = undefined;
+                sha512.hash(out.items, &chechsum, .{});
 
-                var sha512out: [64]u8 = undefined;
-                sha512.final(sha512out[0..]);
-
-                for (sha512out[0..]) |b| {
-                    try wr.writeInt(u8, b, .little);
-                }
+                try wr.writeAll(chechsum[0..]);
 
                 return out.toOwnedSlice();
             }
@@ -422,10 +418,10 @@ pub fn Filter(comptime T: type) type {
             allocator: std.mem.Allocator,
             filter: *Filter(T),
 
-            pub fn init(filter: *Filter(T), allocator: std.mem.Allocator) BinaryUnmarshaler {
+            pub fn init(filter: *Filter(T)) BinaryUnmarshaler {
                 return BinaryUnmarshaler{
                     .filter = filter,
-                    .allocator = allocator,
+                    .allocator = filter.allocator,
                 };
             }
 
@@ -450,20 +446,15 @@ pub fn Filter(comptime T: type) type {
                     keys[i] = try reader.readInt(T, .little);
                 }
 
-                var checksum: []u8 = try self.allocator.alloc(u8, 64);
-                defer self.allocator.free(checksum);
-                errdefer self.allocator.free(checksum);
-                for (0..64) |i| {
-                    checksum[i] = try reader.readInt(u8, .little);
-                }
+                var checksum_source: []u8 = try self.allocator.alloc(u8, 64);
+                defer self.allocator.free(checksum_source);
+                errdefer self.allocator.free(checksum_source);
+                _ = try reader.readAtLeast(checksum_source, 64);
 
-                var sha512 = std.crypto.hash.sha2.Sha512.init(.{});
-                sha512.update(data[0 .. data.len - 64]);
+                var chechsum_calculated: [64]u8 = undefined;
+                sha512.hash(data[0 .. data.len - 64], &chechsum_calculated, .{});
 
-                var sha512out: [64]u8 = undefined;
-                sha512.final(sha512out[0..]);
-
-                if (!std.mem.eql(u8, sha512out[0..], checksum[0..])) {
+                if (!std.mem.eql(u8, chechsum_calculated[0..], checksum_source[0..])) {
                     return Error.InvalidCheecksum;
                 }
 
