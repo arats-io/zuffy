@@ -469,5 +469,99 @@ pub fn Filter(comptime T: type) type {
                 self.filter.bits.len = bits.len;
             }
         };
+
+        pub fn writeTo(self: *Self, filepath: []const u8, options: File.Options) !void {
+            try File.write(self, filepath, options);
+        }
+
+        pub const File = struct {
+            allocator: std.mem.Allocator,
+
+            pub const Type = enum(u4) {
+                plain = 0,
+                gzip = 1,
+            };
+            pub const Options = struct {
+                type: Type = .gzip,
+            };
+
+            pub fn init(allocator: std.mem.Allocator) File {
+                return File{
+                    .allocator = allocator,
+                };
+            }
+
+            fn write(filter: *Filter(T), filepath: []const u8, options: Options) !void {
+                const file = try std.fs.cwd().createFile(
+                    filepath,
+                    .{ .read = false },
+                );
+                errdefer {
+                    file.close();
+                    std.fs.cwd().deleteFile(filepath);
+                }
+                defer file.close();
+
+                const content = try filter.marchal();
+                errdefer filter.allocator.free(content);
+                defer filter.allocator.free(content);
+
+                switch (options.type) {
+                    inline .plain => {
+                        try file.writeAll(content);
+                    },
+                    inline .gzip => {
+                        var in_stream = std.io.fixedBufferStream(content);
+
+                        const fbs = std.ArrayList(u8).init(filter.allocator);
+                        try std.compress.gzip.compress(in_stream.reader(), fbs.writer());
+
+                        const gziped = try fbs.toOwnedSlice();
+                        errdefer filter.allocator.free(gziped);
+                        defer filter.allocator.free(gziped);
+                        try file.writeAll(gziped);
+                    },
+                }
+            }
+
+            pub fn read(self: *File, filepath: []const u8, options: Options) !*Filter(T) {
+                const file = try std.fs.cwd().openFile(
+                    filepath,
+                    .{ .read = true },
+                );
+                errdefer file.close();
+                defer file.close();
+
+                const raw_data = try file.readToEndAlloc(self.allocator, @as(usize, @intCast(file.stat().size)));
+                errdefer self.allocator.free(raw_data);
+                defer self.allocator.free(raw_data);
+
+                return self.readBytes(raw_data, options);
+            }
+
+            pub fn readBytes(self: *File, data: []const u8, options: Options) !*Filter(T) {
+                switch (options.type) {
+                    inline .plain => {
+                        var filter = try Filter(T).init(2, 1, self.allocator);
+                        try filter.unmarchal(data);
+                        return filter;
+                    },
+                    inline .gzip => {
+                        var in_stream = std.io.fixedBufferStream(data);
+
+                        const fbs = std.ArrayList(u8).init(self.allocator);
+                        try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());
+
+                        const content = try fbs.toOwnedSlice();
+                        errdefer self.allocator.free(content);
+                        defer self.allocator.free(content);
+
+                        var filter = try Filter(T).init(2, 1, self.allocator);
+                        try filter.unmarchal(content);
+                        return filter;
+                    },
+                }
+            }
+        };
     };
 }
