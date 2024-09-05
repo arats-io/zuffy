@@ -14,17 +14,21 @@ pub fn main() !void {
     var bloomf = try BloomFilter.init(1_000_000, 500, allocator);
     defer bloomf.deinit();
 
-    var hash = std.hash.Fnv1a_128.init();
-    hash.update("asdasd");
+    var hash = std.ArrayList(u8).init(allocator);
+    defer hash.deinit();
 
-    var hash2 = std.hash.Fnv1a_128.init();
-    hash2.update("dfgasdf");
+    _ = try hash.writer().write("asdasd");
+
+    var hash2 = std.ArrayList(u8).init(allocator);
+    defer hash2.deinit();
+
+    _ = try hash2.writer().write("asdasdf");
 
     std.debug.print("Added = asdasd.\n", .{});
-    try bloomf.add(&hash);
+    try bloomf.add(hash.items[0..]);
 
-    const result1_bloomf = try bloomf.contains(&hash);
-    const result2_bloomf = try bloomf.contains(&hash2);
+    const result1_bloomf = try bloomf.contains(hash.items[0..]);
+    const result2_bloomf = try bloomf.contains(hash2.items[0..]);
     const false_positive_bloomf = bloomf.falsePosititveProbability();
 
     std.debug.print("Contains asdasd={} dfgasdf={} - with false positive = {}.\n", .{ result1_bloomf, result2_bloomf, false_positive_bloomf });
@@ -38,8 +42,8 @@ pub fn main() !void {
     defer newbloomf.deinit();
 
     try newbloomf.unmarchal(bytes);
-    const result1_newbloomf = try newbloomf.contains(&hash);
-    const result2_newbloomf = try newbloomf.contains(&hash2);
+    const result1_newbloomf = try newbloomf.contains(hash.items[0..]);
+    const result2_newbloomf = try newbloomf.contains(hash2.items[0..]);
     const false_positive_newbloomf = newbloomf.falsePosititveProbability();
 
     std.debug.print("Contains asdasd={} dfgasdf={} - with false positive = {}.\n", .{ result1_newbloomf, result2_newbloomf, false_positive_newbloomf });

@@ -17,13 +17,6 @@ pub fn Filter(comptime T: type) type {
         }
     }
 
-    const FnvType = switch (T) {
-        inline u32 => std.hash.Fnv1a_32.init(),
-        inline u64 => std.hash.Fnv1a_64.init(),
-        inline u128 => std.hash.Fnv1a_128.init(),
-        else => unreachable,
-    };
-
     return struct {
         const Self = @This();
 
@@ -89,11 +82,16 @@ pub fn Filter(comptime T: type) type {
         }
 
         // Add a hashable item, v, to the filter
-        pub fn add(self: *Self, v: *@TypeOf(FnvType)) !void {
+        pub fn add(self: *Self, input: []const u8) !void {
             self.mu.lock();
             defer self.mu.unlock();
 
-            const hashes: []T = try self.hash(v);
+            const hashes: []T = try self.hash(switch (T) {
+                inline u32 => std.hash.Fnv1a_32.hash(input),
+                inline u64 => std.hash.Fnv1a_64.hash(input),
+                inline u128 => std.hash.Fnv1a_128.hash(input),
+                else => unreachable,
+            });
             defer self.allocator.free(hashes);
 
             for (hashes) |item| {
@@ -125,13 +123,18 @@ pub fn Filter(comptime T: type) type {
         // Contains tests if f contains v
         // false: f definitely does not contain value v
         // true:  f maybe contains value v
-        pub fn contains(self: *Self, v: *@TypeOf(FnvType)) !bool {
+        pub fn contains(self: *Self, input: []const u8) !bool {
             self.mu.lock();
             defer self.mu.unlock();
 
             var r: T = 1;
 
-            const hashes: []T = try self.hash(v);
+            const hashes: []T = try self.hash(switch (T) {
+                inline u32 => std.hash.Fnv1a_32.hash(input),
+                inline u64 => std.hash.Fnv1a_64.hash(input),
+                inline u128 => std.hash.Fnv1a_128.hash(input),
+                else => unreachable,
+            });
             defer self.allocator.free(hashes);
 
             for (hashes) |item| {
@@ -245,9 +248,7 @@ pub fn Filter(comptime T: type) type {
         }
 
         // Hashable -> hashes
-        fn hash(self: *Self, v: anytype) ![]T {
-            const rawHash: T = v.final();
-
+        fn hash(self: *Self, rawHash: T) ![]T {
             const hashes = try self.allocator.alloc(T, self.keys.len);
             for (self.keys, 0..) |item, i| {
                 hashes[i] = rawHash ^ item;
