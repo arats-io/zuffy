@@ -135,10 +135,10 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
             switch (info) {
                 .float, .comptime_float => size += info.float.bits,
                 .int, .comptime_int => size += info.int.bits,
-                .bool => size += info.int.bits,
+                .bool => size += 8,
                 .optional => {
                     if (value) |payload| {
-                        size += self.deepBitSizeOf(@field(value, payload));
+                        size += self.deepBitSizeOf(payload);
                     }
                 },
 
@@ -356,6 +356,22 @@ pub fn SkipList(comptime K: type, comptime V: type) type {
                     self.forEachNode(elem.node, callback);
 
                     callback(elem.key, elem.value);
+                }
+            }
+        }
+
+        pub fn forEachWithContext(self: *Self, comptime Context: type, ctx: Context, callback: *const fn (ctx: Context, K, V) void) void {
+            if (self.len == 0) return;
+
+            self.forEachNodeWithContext(self.node, Context, ctx, callback);
+        }
+
+        fn forEachNodeWithContext(self: *Self, node: *Node, comptime Context: type, ctx: Context, callback: *const fn (ctx: Context, K, V) void) void {
+            for (node.next) |element| {
+                if (element) |elem| {
+                    self.forEachNodeWithContext(elem.node, Context, ctx, callback);
+
+                    callback(ctx, elem.key, elem.value);
                 }
             }
         }
