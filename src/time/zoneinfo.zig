@@ -317,7 +317,7 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
 /// and parsed is returned as a Location.
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
     var arr = sources;
-    while (arr.popOrNull()) |item| {
+    while (arr.pop()) |item| {
         const zoneData = loadTzinfo(allocator, name, item) catch "";
         defer allocator.free(zoneData);
 

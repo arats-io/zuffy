@@ -37,7 +37,7 @@ pub const Options = struct {
     mode: Mode = .fixed,
 };
 
-pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime LType: Type, comptime alignment: ?u29) type {
+pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime LType: Type, comptime alignment: ?mem.Alignment) type {
     if (alignment) |a| {
         if (a == @alignOf(T)) {
             return CircularListAligned(T, threadsafe, LType, null);

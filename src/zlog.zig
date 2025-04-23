@@ -305,7 +305,7 @@ fn process(
                     errdefer buff.deinit();
                     defer buff.deinit();
 
-                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), allocator, di, .no_color);
+                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), di, .no_color);
 
                     if (buff.items.len > 0) {
                         try injectKeyAndValue(false, buffer, config, config.stacktrace_field_name, buff.items);
@@ -376,7 +376,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .@"enum" => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
                 .bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
                 .pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => {
+                    .slice, .many, .one, .c => {
                         if (config.escape_enabled) {
                             try data.print("{s}{s}=\u{0022}", .{ header, key });
                             const cPos = data.rawLength();
@@ -435,7 +435,7 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
                 .bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
                 .pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => {
+                    .slice, .many, .one, .c => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
                             const cPos = data.rawLength();
@@ -498,7 +498,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
                 .bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
                 .pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => {
+                    .slice, .many, .one, .c => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}", .{header});
 
@@ -558,7 +558,7 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
                 .bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
                 .pointer => |ptr_info| switch (ptr_info.size) {
-                    .Slice, .Many, .One, .C => {
+                    .slice, .many, .one, .c => {
                         if (config.escape_enabled) {
                             try data.print("{s}\u{0022}", .{header});
 
