@@ -77,7 +77,14 @@ pub fn build(b: *std.Build) !void {
         example.linkLibrary(lib);
         example.root_module.addAnonymousImport("zuffy", .{
             .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
+            .imports = &.{.{ .name = "zuffy", .module = lib.root_module }},
         });
+
+        // example.addLibraryPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
+        // example.addIncludePath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
+        // example.addFrameworkPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
+        // example.addRPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
+        example.addEmbedPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
 
         // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
@@ -93,9 +100,10 @@ pub fn build(b: *std.Build) !void {
     // but does not run it.
     var tests_suite = b.step("test-suite", "Run unit tests");
     {
-        const dir = try std.fs.cwd().openDir("./src", .{});
+        const root = try std.fs.cwd().openDir(".", .{ .iterate = true });
+        const srcDir = try root.openDir("./src", .{ .iterate = true });
 
-        var iter = try dir.walk(b.allocator);
+        var iter = try srcDir.walk(b.allocator);
 
         const allowed_exts = [_][]const u8{".zig"};
         while (try iter.next()) |entry| {
@@ -109,7 +117,7 @@ pub fn build(b: *std.Build) !void {
 
                 var buff: [1024]u8 = undefined;
                 const testPath = try std.fmt.bufPrint(&buff, "src/{s}", .{entry.path});
-                //std.debug.print("Testing: {s}\n", .{testPath});
+                std.debug.print("Testing: {s}\n", .{testPath});
 
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
                     .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = testPath } },

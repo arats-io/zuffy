@@ -30,7 +30,7 @@ pub fn CircularList(comptime T: type, comptime LType: Type) type {
 
 pub const Mode = enum(u1) {
     fixed = 0,
-    flexible = 1,
+    dynamic = 1,
 };
 
 pub const Options = struct {
@@ -137,7 +137,7 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             }
 
             switch (self.options.mode) {
-                .flexible => {
+                .dynamic => {
                     if (self.len >= self.cap) {
                         var nextCap = self.cap * 2;
                         if (nextCap >= self.maxcap) {
@@ -255,6 +255,10 @@ pub fn CircularListAligned(comptime T: type, comptime threadsafe: bool, comptime
             }
 
             return self.items[pos];
+        }
+
+        pub fn isEmpty(self: Self) bool {
+            return self.len == 0;
         }
     };
 }

@@ -1,4 +1,6 @@
 const std = @import("std");
+const build_options = @import("build_options");
+
 const zuffy = @import("zuffy");
 
 const StringBuilder = zuffy.bytes.StringBuilder;
@@ -36,6 +38,9 @@ pub fn main() !void {
         .stacktrace_enabled = true,
     });
     defer logger.deinit();
+    try logger.With(.{
+        zlog.Field(std.SemanticVersion, "version", build_options.semver),
+    });
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;

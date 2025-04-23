@@ -16,23 +16,13 @@ const Element = struct {
     elem: ?*const Element = null,
 };
 
-const NewUtf8Buffer = struct {
-    fn f(allocator: std.mem.Allocator) Utf8Buffer {
-        return Utf8Buffer.init(allocator);
-    }
-}.f;
-
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const pool = GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer);
-    defer pool.deinit();
-    errdefer pool.deinit();
-
-    const logger = zlog.initWithPool(arena.allocator(), &pool, .{
+    const logger = zlog.init(arena.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
         .format = .json,
         .caller_enabled = true,
@@ -43,6 +33,7 @@ pub fn main() !void {
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .escape_enabled = true,
         .stacktrace_enabled = true,
+        .buffer_pool = .{ .enabled = true },
     });
     errdefer logger.deinit();
     defer logger.deinit();

@@ -5,6 +5,7 @@ const time = @import("time/mod.zig");
 
 const GenericPool = pool.Generic;
 const Utf8Buffer = @import("bytes/mod.zig").Utf8Buffer;
+const CircularLifoList = @import("list/circular.zig").CircularLifoList;
 
 const Time = time.Time;
 const Local = time.zoneinfo.Local;
@@ -58,6 +59,20 @@ pub const Config = struct {
 
     /// format for writing logs, possible values (json | simple)
     format: Format = Format.json,
+
+    /// buffer pool related configuration options
+    buffer_pool: struct {
+        /// flag enabling/disabling the buffer pool
+        /// if enabled, the buffer pool will be used to store the log records
+        /// if disabled, the log records will be written directly to the writer
+        /// this is useful for performance reasons, as it avoids the overhead of creating and destroying buffers
+        enabled: bool = false,
+        /// buffer pool size
+        size: u32 = 5,
+    } = .{
+        .enabled = false,
+        .size = 5,
+    },
 
     /// time related configuration options
     /// flag enabling/disabling the time  for each log record
@@ -140,32 +155,28 @@ const Self = @This();
 
 allocator: std.mem.Allocator,
 config: Config,
-buffer_pool: ?*const GenericPool(Utf8Buffer) = null,
 fields: Utf8Buffer,
 scope: ?Utf8Buffer = null,
+buffer_pool: CircularLifoList(Utf8Buffer),
 
 pub fn init(allocator: std.mem.Allocator, comptime config: Config) Self {
     return .{
         .allocator = allocator,
         .config = config,
         .fields = Utf8Buffer.init(allocator),
+        .buffer_pool = if (config.buffer_pool.enabled)
+            CircularLifoList(Utf8Buffer).init(allocator, config.buffer_pool.size, .{ .mode = .dynamic })
+        else
+            CircularLifoList(Utf8Buffer).initWithMaxCapacity(allocator, 0, 0, .{ .mode = .dynamic }),
     };
 }
 
 pub fn deinit(self: *const Self) void {
+    @constCast(&self.buffer_pool).deinit();
     @constCast(self).fields.deinit();
     if (self.scope) |s| {
         @constCast(&s).deinit();
     }
-}
-
-pub fn initWithPool(allocator: std.mem.Allocator, buffer_pool: *const GenericPool(Utf8Buffer), comptime config: Config) Self {
-    return .{
-        .allocator = allocator,
-        .config = config,
-        .buffer_pool = buffer_pool,
-        .fields = Utf8Buffer.init(allocator),
-    };
 }
 
 pub fn Scope(self: *const Self, comptime value: @Type(.enum_literal)) !Self {
@@ -226,22 +237,26 @@ pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytyp
     @panic("fatal");
 }
 
+fn getBuffer(self: *const Self) Utf8Buffer {
+    return if (self.buffer_pool.isEmpty()) Utf8Buffer.init(self.allocator) else @constCast(&self.buffer_pool).pop().?;
+}
+
 inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_value: ?anyerror, args: anytype) !void {
-    var buffer = if (self.buffer_pool) |p| p.pop() else Utf8Buffer.init(self.allocator);
+    var buffer = self.getBuffer();
     errdefer {
-        buffer.deinit();
-        if (self.buffer_pool) |p| {
-            p.push(&buffer) catch |e| {
-                std.debug.print("Error - {any}", .{e});
-            };
+        if (self.config.buffer_pool.enabled) {
+            buffer.clear();
+            _ = @constCast(&self.buffer_pool).push(buffer);
+        } else {
+            buffer.deinit();
         }
     }
     defer {
-        buffer.deinit();
-        if (self.buffer_pool) |p| {
-            p.push(&buffer) catch |e| {
-                std.debug.print("Error - {any}", .{e});
-            };
+        if (self.config.buffer_pool.enabled) {
+            buffer.clear();
+            _ = @constCast(&self.buffer_pool).push(buffer);
+        } else {
+            buffer.deinit();
         }
     }
     try process(self.allocator, &buffer, self.scope, self.fields, self.config, op, message, err_value, args);

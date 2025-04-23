@@ -8,6 +8,6 @@ const Self = @This();
 open: bool,
 closed: bool,
 
-file: std.io.File,
+file: std.fs.File,
 currentOffset: usize,
 compressionType: CompressionType = .none,
