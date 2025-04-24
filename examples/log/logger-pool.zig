@@ -38,11 +38,11 @@ pub fn main() !void {
     errdefer logger.deinit();
     defer logger.deinit();
 
-    try logger.With(.{
+    try logger.with(.{
         zlog.Field(std.SemanticVersion, "version", build_options.semver),
     });
 
-    const cache_logger = try logger.Scope(.cache);
+    const cache_logger = try logger.scope(.cache);
     errdefer cache_logger.deinit();
     defer cache_logger.deinit();
 
@@ -54,7 +54,7 @@ pub fn main() !void {
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
 
-        try logger.Trace(
+        try logger.trace(
             "Initial\"ization...",
             .{
                 zlog.Source(@src()),
@@ -78,7 +78,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Debug(
+        try logger.debug(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -91,7 +91,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Info(
+        try logger.info(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -104,7 +104,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Warn(
+        try logger.warn(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -117,7 +117,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Error(
+        try logger.@"error"(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{
@@ -131,7 +131,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try cache_logger.Error(
+        try cache_logger.@"error"(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{

@@ -156,7 +156,7 @@ const Self = @This();
 allocator: std.mem.Allocator,
 config: Config,
 fields: Utf8Buffer,
-scope: ?Utf8Buffer = null,
+scopes: ?Utf8Buffer = null,
 buffer_pool: CircularLifoList(Utf8Buffer),
 
 pub fn init(allocator: std.mem.Allocator, comptime config: Config) Self {
@@ -174,27 +174,27 @@ pub fn init(allocator: std.mem.Allocator, comptime config: Config) Self {
 pub fn deinit(self: *const Self) void {
     @constCast(&self.buffer_pool).deinit();
     @constCast(self).fields.deinit();
-    if (self.scope) |s| {
+    if (self.scopes) |s| {
         @constCast(&s).deinit();
     }
 }
 
-pub fn Scope(self: *const Self, comptime value: @Type(.enum_literal)) !Self {
-    var scope = Utf8Buffer.init(self.allocator);
-    errdefer scope.deinit();
+pub fn scope(self: *const Self, comptime value: @Type(.enum_literal)) !Self {
+    var scopes = Utf8Buffer.init(self.allocator);
+    errdefer scopes.deinit();
 
-    try injectKeyAndValue(false, &scope, self.config, self.config.scope_field_name, value);
+    try injectKeyAndValue(false, &scopes, self.config, self.config.scope_field_name, value);
 
     return Self{
         .allocator = self.allocator,
         .config = self.config,
         .buffer_pool = self.buffer_pool,
         .fields = try @constCast(self).fields.clone(),
-        .scope = scope,
+        .scopes = scopes,
     };
 }
 
-pub fn With(self: *const Self, comptime args: anytype) !void {
+pub fn with(self: *const Self, comptime args: anytype) !void {
     inline for (0..args.len) |i| {
         const arg_type = @TypeOf(args[i]);
 
@@ -204,32 +204,32 @@ pub fn With(self: *const Self, comptime args: anytype) !void {
     }
 }
 
-pub fn Trace(self: *const Self, message: []const u8, args: anytype) !void {
+pub fn trace(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.trace)) return;
 
     try self.send(Level.trace, message, null, args);
 }
-pub fn Debug(self: *const Self, message: []const u8, args: anytype) !void {
+pub fn debug(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.debug)) return;
 
     try self.send(Level.debug, message, null, args);
 }
-pub fn Info(self: *const Self, message: []const u8, args: anytype) !void {
+pub fn info(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.info)) return;
 
     try self.send(Level.info, message, null, args);
 }
-pub fn Warn(self: *const Self, message: []const u8, args: anytype) !void {
+pub fn warn(self: *const Self, message: []const u8, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.warn)) return;
 
     try self.send(Level.warn, message, null, args);
 }
-pub fn Error(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) !void {
+pub fn @"error"(self: *const Self, message: []const u8, err: ?anyerror, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.@"error")) return;
 
     try self.send(Level.@"error", message, err, args);
 }
-pub fn Fatal(self: *const Self, message: []const u8, err: anyerror, args: anytype) !void {
+pub fn fatal(self: *const Self, message: []const u8, err: anyerror, args: anytype) !void {
     if (@intFromEnum(self.config.level) > @intFromEnum(Level.fatal)) return;
 
     try self.send(Level.fatal, message, err, args);
@@ -259,7 +259,7 @@ inline fn send(self: *const Self, comptime op: Level, message: []const u8, err_v
             buffer.deinit();
         }
     }
-    try process(self.allocator, &buffer, self.scope, self.fields, self.config, op, message, err_value, args);
+    try process(self.allocator, &buffer, self.scopes, self.fields, self.config, op, message, err_value, args);
 
     _ = try self.config.writer.write(buffer.bytes());
 }
@@ -296,8 +296,8 @@ fn process(
     try injectKeyAndValue(!config.time_enabled, buffer, config, config.level_field_name, op.String());
 
     // append the scope if present
-    if (scope_fields) |scope| {
-        try buffer.append(@constCast(&scope).bytes());
+    if (scope_fields) |scope_field| {
+        try buffer.append(@constCast(&scope_field).bytes());
     }
 
     // append the message
