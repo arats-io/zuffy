@@ -3,7 +3,7 @@ const std = @import("std");
 const time = @import("time/mod.zig");
 
 const Utf8Buffer = @import("bytes/mod.zig").Utf8Buffer;
-const CircularLifoList = @import("list/circular.zig").CircularLifoList;
+const CircularLifoList = @import("list/mod.zig").circular.CircularLifoList;
 
 const Time = time.Time;
 const Local = time.zoneinfo.Local;
@@ -106,7 +106,7 @@ pub const Config = struct {
     caller_marshal_fn: *const fn (std.builtin.SourceLocation) []const u8 = default_caller_marshal_fn,
 
     /// handler writing the data
-    writer: std.fs.File = std.io.getStdOut(),
+    writer: std.fs.File = std.fs.File.stdout(),
 
     /// escaping flag
     escape_enabled: bool = false,
@@ -118,7 +118,7 @@ pub const Config = struct {
     emit_null_optional_fields: bool = false,
 
     /// stringify options
-    stingify: struct { escape_enabled: bool, level1: std.json.StringifyOptions, levelX: std.json.StringifyOptions } = .{
+    stingify: struct { escape_enabled: bool, level1: std.json.Stringify.Options, levelX: std.json.Stringify.Options } = .{
         .escape_enabled = false,
         .level1 = .{
             .whitespace = .minified,
@@ -309,21 +309,19 @@ fn process(
         try injectKeyAndValue(false, buffer, config, config.error_field_name, @errorName(value));
 
         if (config.stacktrace_enabled) {
-            if (@errorReturnTrace()) |stacktrace| {
-                const debug_info: ?*std.debug.SelfInfo = std.debug.getSelfDebugInfo() catch res: {
-                    break :res null;
+            if (@errorReturnTrace()) |st| {
+                var adapter = buffer.writer().adaptToNewApi();
+                const w = &adapter.new_interface;
+
+                const debug_info = std.debug.getSelfDebugInfo() catch |err| {
+                    w.print("Unable to dump stack trace: Unable to open debug info: {s}\n", .{
+                        @errorName(err),
+                    }) catch {};
+                    return;
                 };
-                if (debug_info) |di| {
-                    var buff = std.ArrayList(u8).init(allocator);
-                    errdefer buff.deinit();
-                    defer buff.deinit();
 
-                    try std.debug.writeStackTrace(stacktrace.*, buff.writer(), di, .no_color);
-
-                    if (buff.items.len > 0) {
-                        try injectKeyAndValue(false, buffer, config, config.stacktrace_field_name, buff.items);
-                    }
-                }
+                const tty_config = std.io.tty.detectConfig(std.fs.File.stderr());
+                try std.debug.writeStackTrace(st.*, w, debug_info, tty_config);
             }
         }
     }
@@ -416,7 +414,14 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                     }
 
                     const cPos = data.rawLength();
-                    try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
+
+                    var adapter = data.writer().adaptToNewApi();
+                    var write_stream: std.json.Stringify = .{
+                        .writer = &adapter.new_interface,
+                        .options = config.stingify.level1,
+                    };
+
+                    try write_stream.write(value);
 
                     if (config.stingify.escape_enabled) {
                         _ = try data.replaceAllFromPos(
@@ -470,7 +475,13 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
                 .@"struct", .@"union" => {
                     try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
 
-                    try std.json.stringifyMaxDepth(value, config.stingify.level1, data.writer(), std.math.maxInt(u16));
+                    var adapter = data.writer().adaptToNewApi();
+                    var write_stream: std.json.Stringify = .{
+                        .writer = &adapter.new_interface,
+                        .options = config.stingify.level1,
+                    };
+
+                    try write_stream.write(value);
                 },
                 .array, .vector => {
                     try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
@@ -539,7 +550,14 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                     }
 
                     const cPos = data.rawLength();
-                    try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
+
+                    var adapter = data.writer().adaptToNewApi();
+                    var write_stream: std.json.Stringify = .{
+                        .writer = &adapter.new_interface,
+                        .options = config.stingify.levelX,
+                    };
+
+                    try write_stream.write(value);
 
                     if (config.stingify.escape_enabled) {
                         _ = try data.replaceAllFromPos(
@@ -594,7 +612,13 @@ fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: an
                 .@"struct", .@"union" => {
                     try data.print("{s}", .{header});
 
-                    try std.json.stringifyMaxDepth(value, config.stingify.levelX, data.writer(), std.math.maxInt(u16));
+                    var adapter = data.writer().adaptToNewApi();
+                    var write_stream: std.json.Stringify = .{
+                        .writer = &adapter.new_interface,
+                        .options = config.stingify.levelX,
+                    };
+
+                    try write_stream.write(value);
                 },
                 .array, .vector => {
                     try data.print("{s} [", .{header});

@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const SkipList = @import("list/skiplist.zig").SkipList;
+const SkipList = @import("list/mod.zig").SkipList;
 
 const Self = @This();
 

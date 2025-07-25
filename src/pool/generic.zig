@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const CircularLifoList = @import("../list/circular.zig").CircularLifoList;
+
+const zuffy = @import("../lib.zig");
+const CircularLifoList = zuffy.list.circular.CircularLifoList;
 
 pub fn Generic(comptime T: type) type {
     const threadsafe: bool = !builtin.single_threaded;

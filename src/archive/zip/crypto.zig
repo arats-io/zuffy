@@ -1,7 +1,8 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
-const ints = @import("../../ints.zig");
+const zuffy = @import("../../lib.zig");
+const ints = zuffy.ints;
 
 pub const Crypto = struct {
     const Self = @This();

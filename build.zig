@@ -8,12 +8,36 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
+    // const bytes_mod = b.addModule("bytes", .{
+    //     .root_source_file = .{
+    //         .src_path = .{
+    //             .owner = b,
+    //             .sub_path = "src/bytes/mod.zig",
+    //         },
+    //     },
+    // });
+
+    const lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "zuffy",
-        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
-        .target = target,
-        .optimize = optimize,
-        .version = version,
+        .root_module = b.createModule(
+            .{
+                .root_source_file = .{
+                    .src_path = .{
+                        .owner = b,
+                        .sub_path = "src/lib.zig",
+                    },
+                },
+                // .imports = &.{.{
+                //     .name = "bytes",
+                //     .module = bytes_mod,
+                // }},
+                .target = target,
+                .optimize = optimize,
+            },
+        ),
+        .use_llvm = true,
+        .use_lld = false,
     });
 
     b.installArtifact(lib);
@@ -66,25 +90,26 @@ pub fn build(b: *std.Build) !void {
 
         var example = b.addExecutable(.{
             .name = ex_name,
-            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = ex_src } },
-            .target = target,
-            .optimize = optimize,
-            .single_threaded = false,
+            .root_module = b.createModule(.{
+                .root_source_file = .{
+                    .src_path = .{
+                        .owner = b,
+                        .sub_path = ex_src,
+                    },
+                },
+
+                .target = target,
+                .optimize = optimize,
+            }),
+            .linkage = .dynamic,
+            .use_llvm = true,
+            .use_lld = false,
             .version = version,
         });
         example.root_module.addOptions("build_options", exe_options);
+        example.root_module.addImport("zuffy", lib.root_module);
 
         example.linkLibrary(lib);
-        example.root_module.addAnonymousImport("zuffy", .{
-            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
-            .imports = &.{.{ .name = "zuffy", .module = lib.root_module }},
-        });
-
-        // example.addLibraryPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
-        // example.addIncludePath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
-        // example.addFrameworkPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
-        // example.addRPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
-        example.addEmbedPath(.{ .src_path = .{ .owner = b, .sub_path = "src" } });
 
         // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
@@ -119,10 +144,21 @@ pub fn build(b: *std.Build) !void {
                 const testPath = try std.fmt.bufPrint(&buff, "src/{s}", .{entry.path});
                 std.debug.print("Testing: {s}\n", .{testPath});
 
+                // tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
+                //     .name = "pointers",
+                //     .root_module = b.createModule(.{
+                //         .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/pointers.zig" } },
+                //         .target = target,
+                //         .optimize = optimize,
+                //     }),
+                //     .use_llvm = true,
+                //     .use_lld = false,
+                // })).step);
+
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                    .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = testPath } },
-                    .target = target,
-                    .optimize = optimize,
+                    .root_module = lib.root_module,
+                    .use_llvm = true,
+                    .use_lld = false,
                 })).step);
             }
         }

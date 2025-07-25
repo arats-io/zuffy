@@ -426,43 +426,39 @@ pub inline fn rawLength(self: *Self) usize {
 }
 
 // Reader and Writer functionality.
-pub usingnamespace struct {
-    pub const Writer = std.io.Writer(*Self, Error, appendWrite);
+pub const Writer = std.io.GenericWriter(*Self, Error, appendWrite);
 
-    pub fn writer(self: *Self) Writer {
-        return .{ .context = self };
-    }
+pub fn writer(self: *Self) Writer {
+    return .{ .context = self };
+}
 
-    fn appendWrite(self: *Self, m: []const u8) !usize {
-        return try self.write(m);
-    }
-};
+fn appendWrite(self: *Self, m: []const u8) !usize {
+    return try self.write(m);
+}
 
 // Iterator support
-pub usingnamespace struct {
-    pub const Iterator = struct {
-        sb: *Self,
-        index: usize,
+pub const Iterator = struct {
+    sb: *Self,
+    index: usize,
 
-        pub fn next(it: *Iterator) ?[]const u8 {
-            if (it.index >= it.sb.len) return null;
-            const i = it.index;
-            return it.sb.ptr[i..it.index];
-        }
+    pub fn next(it: *Iterator) ?[]const u8 {
+        if (it.index >= it.sb.len) return null;
+        const i = it.index;
+        return it.sb.ptr[i..it.index];
+    }
 
-        pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
-            if ((it.index + size) >= it.sb.len) return null;
+    pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
+        if ((it.index + size) >= it.sb.len) return null;
 
-            const i = it.index;
-            it.index += size;
-            return it.sb.ptr[i..it.index];
-        }
-    };
-
-    pub fn iterator(self: *Self) Iterator {
-        return Iterator{
-            .sb = self,
-            .index = 0,
-        };
+        const i = it.index;
+        it.index += size;
+        return it.sb.ptr[i..it.index];
     }
 };
+
+pub fn iterator(self: *Self) Iterator {
+    return Iterator{
+        .sb = self,
+        .index = 0,
+    };
+}
