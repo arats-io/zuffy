@@ -1,7 +1,8 @@
 .{
-    .name = "zuffy",
-    .version = "0.1.14",
-    .minimum_zig_version = "0.13.0",
+    .name = .zuffy,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.15.0-dev.383",
     .dependencies = .{},
     .paths = .{ "LICENSE", "README.md", "build.zig", "build.zig.zon", "src" },
+    .fingerprint = 0x7f85edf6f261ff3e,
 }

@@ -16,23 +16,13 @@ const Element = struct {
     elem: ?*const Element = null,
 };
 
-const NewUtf8Buffer = struct {
-    fn f(allocator: std.mem.Allocator) Utf8Buffer {
-        return Utf8Buffer.init(allocator);
-    }
-}.f;
-
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const pool = GenericPool(Utf8Buffer).init(arena.allocator(), NewUtf8Buffer);
-    defer pool.deinit();
-    errdefer pool.deinit();
-
-    const logger = zlog.initWithPool(arena.allocator(), &pool, .{
+    const logger = zlog.init(arena.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
         .format = .json,
         .caller_enabled = true,
@@ -43,15 +33,16 @@ pub fn main() !void {
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
         .escape_enabled = true,
         .stacktrace_enabled = true,
+        .buffer_pool = .{ .enabled = true },
     });
     errdefer logger.deinit();
     defer logger.deinit();
 
-    try logger.With(.{
+    try logger.with(.{
         zlog.Field(std.SemanticVersion, "version", build_options.semver),
     });
 
-    const cache_logger = try logger.Scope(.cache);
+    const cache_logger = try logger.scope(.cache);
     errdefer cache_logger.deinit();
     defer cache_logger.deinit();
 
@@ -63,7 +54,7 @@ pub fn main() !void {
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
 
-        try logger.Trace(
+        try logger.trace(
             "Initial\"ization...",
             .{
                 zlog.Source(@src()),
@@ -87,7 +78,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Debug(
+        try logger.debug(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -100,7 +91,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Info(
+        try logger.info(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -113,7 +104,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Warn(
+        try logger.warn(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -126,7 +117,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Error(
+        try logger.@"error"(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{
@@ -140,7 +131,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try cache_logger.Error(
+        try cache_logger.@"error"(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{

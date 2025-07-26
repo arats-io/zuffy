@@ -4,7 +4,9 @@ const mem = std.mem;
 const fs = std.fs;
 const io = std.io;
 
-const Buffer = @import("../../bytes/buffer.zig");
+const zuffy = @import("../../lib.zig");
+
+const Buffer = zuffy.bytes.Buffer;
 
 const types = @import("types.zig");
 const zarchive_types = @import("archive_types.zig");
@@ -473,8 +475,8 @@ pub fn readLocalFileEntry(allocator: mem.Allocator, cdheader: zarchive_types.Cen
     return fileentry;
 }
 
-const Utf8Buffer = @import("../../bytes/utf8_buffer.zig");
-const BufferStream = @import("../../bytes/mod.zig").BufferStream;
+const Utf8Buffer = zuffy.bytes.Utf8Buffer;
+const BufferStream = zuffy.bytes.BufferStream;
 
 pub fn Archive(comptime ParseSource: type) type {
     return struct {
@@ -667,9 +669,8 @@ pub fn Archive(comptime ParseSource: type) type {
 
             const Collector = struct {
                 const SelfCollector = @This();
-                const GenericContentType = @import("../content_receiver.zig");
 
-                pub const GenericContent = GenericContentType(*SelfCollector, receive);
+                pub const GenericContent = zuffy.archive.GenericContent(*SelfCollector, receive);
                 dir: fs.Dir,
 
                 pub fn init(all: std.mem.Allocator, dir: fs.Dir) SelfCollector {

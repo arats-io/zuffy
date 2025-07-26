@@ -1,7 +1,8 @@
 const std = @import("std");
-const Buffer = @import("../../bytes/buffer.zig");
+const zuffy = @import("../../lib.zig");
+const ints = zuffy.ints;
 
-const ints = @import("../../ints.zig");
+const Buffer = zuffy.bytes.Buffer;
 
 pub const ExtraFieldHeaderID = enum(u16) {
     Zip64ExtendedInfo = 0x0001,
@@ -162,7 +163,7 @@ pub fn decodeExtraFields(buffer: Buffer, handler: anytype) !void {
                         });
                     },
                     else => {
-                        std.debug.panic("header  {s} decoder not handled for version {!}\n", .{ ints.toHexBytes(u16, .lower, header), version });
+                        std.debug.panic("header  {s} decoder not handled for version {d}\n", .{ ints.toHexBytes(u16, .lower, header), version });
                     },
                 }
             },

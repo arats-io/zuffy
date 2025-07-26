@@ -140,7 +140,7 @@ fn startPuts(ctx: *Context) u8 {
 
     const random = rnd.random();
     while (put_count != 0) : (put_count -= 1) {
-        std.time.sleep(1); // let the os scheduler be our fuzz
+        std.Thread.sleep(1); // let the os scheduler be our fuzz
         const x = @as(i8, @bitCast(random.int(i8)));
         const node = ctx.allocator.create(Stack(i8).Node) catch unreachable;
         node.* = Stack(i8).Node{
@@ -156,7 +156,7 @@ fn startPuts(ctx: *Context) u8 {
 fn startGets(ctx: *Context) u8 {
     var last = @atomicLoad(bool, &ctx.puts_done, .seq_cst);
     while (!last) {
-        std.time.sleep(20); // let the os scheduler be our fuzz
+        std.Thread.sleep(20); // let the os scheduler be our fuzz
         while (ctx.stack.pop()) |node| {
             _ = @atomicRmw(i128, &ctx.get_sum, .Add, node.*.data, .seq_cst);
             _ = @atomicRmw(usize, &ctx.get_count, .Add, 1, .seq_cst);

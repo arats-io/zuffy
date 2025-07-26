@@ -1,22 +1,32 @@
 const std = @import("std");
-// const build_zon = @import("build.zig.zon"); // not yet supported, see: https://github.com/ziglang/zig/issues/14531
-
-//const version: std.SemanticVersion = std.SemanticVersion.parse(build_zon.version) orelse unreachable;
-const version: std.SemanticVersion = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 14 };
+const zon = @import("src/zon.zig");
 
 pub fn build(b: *std.Build) !void {
+    const version: std.SemanticVersion = try zon.semanticVersionDefault(b.allocator);
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
+    const staticLib = b.addLibrary(.{
+        .linkage = .static,
         .name = "zuffy",
-        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
-        .target = target,
-        .optimize = optimize,
-        .version = version,
+        .root_module = b.createModule(
+            .{
+                .root_source_file = .{
+                    .src_path = .{
+                        .owner = b,
+                        .sub_path = "src/lib.zig",
+                    },
+                },
+                .target = target,
+                .optimize = optimize,
+            },
+        ),
+        .use_llvm = true,
+        .use_lld = false,
     });
 
-    b.installArtifact(lib);
+    b.installArtifact(staticLib);
 
     // examples
     const examples_step = b.step("examples", "build all examples");
@@ -28,6 +38,7 @@ pub fn build(b: *std.Build) !void {
         .{ .name = "ints-bitset", .src = "examples/ints/bitset.zig" },
         .{ .name = "circularlist", .src = "examples/list/circular.zig" },
         .{ .name = "skiplist", .src = "examples/list/skiplist.zig" },
+        .{ .name = "bloomfilter", .src = "examples/list/bloomfilter.zig" },
         .{ .name = "logger-pool", .src = "examples/log/logger-pool.zig" },
         .{ .name = "logger", .src = "examples/log/logger.zig" },
         .{ .name = "pool-utf8buffer", .src = "examples/pool/utf8buffer.zig" },
@@ -65,20 +76,24 @@ pub fn build(b: *std.Build) !void {
 
         var example = b.addExecutable(.{
             .name = ex_name,
-            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = ex_src } },
-            .target = target,
-            .optimize = optimize,
-            .single_threaded = false,
+            .root_module = b.createModule(.{
+                .root_source_file = .{
+                    .src_path = .{
+                        .owner = b,
+                        .sub_path = ex_src,
+                    },
+                },
+
+                .target = target,
+                .optimize = optimize,
+            }),
+            .use_llvm = true,
+            .use_lld = false,
             .version = version,
         });
         example.root_module.addOptions("build_options", exe_options);
+        example.root_module.addImport("zuffy", staticLib.root_module);
 
-        example.linkLibrary(lib);
-        example.root_module.addAnonymousImport("zuffy", .{
-            .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/lib.zig" } },
-        });
-
-        // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
         example_run_step.dependOn(&example_run.step);
 
@@ -92,9 +107,10 @@ pub fn build(b: *std.Build) !void {
     // but does not run it.
     var tests_suite = b.step("test-suite", "Run unit tests");
     {
-        const dir = try std.fs.cwd().openDir("./src", .{});
+        const root = try std.fs.cwd().openDir(".", .{ .iterate = true });
+        const srcDir = try root.openDir("./src", .{ .iterate = true });
 
-        var iter = try dir.walk(b.allocator);
+        var iter = try srcDir.walk(b.allocator);
 
         const allowed_exts = [_][]const u8{".zig"};
         while (try iter.next()) |entry| {
@@ -108,12 +124,12 @@ pub fn build(b: *std.Build) !void {
 
                 var buff: [1024]u8 = undefined;
                 const testPath = try std.fmt.bufPrint(&buff, "src/{s}", .{entry.path});
-                //std.debug.print("Testing: {s}\n", .{testPath});
+                std.debug.print("Testing: {s}\n", .{testPath});
 
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                    .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = testPath } },
-                    .target = target,
-                    .optimize = optimize,
+                    .root_module = staticLib.root_module,
+                    .use_llvm = true,
+                    .use_lld = false,
                 })).step);
             }
         }

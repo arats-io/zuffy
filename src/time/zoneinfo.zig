@@ -1,7 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Buffer = @import("../bytes/mod.zig").Buffer;
+const zuffy = @import("../lib.zig");
+const Buffer = zuffy.bytes.Buffer;
 
 pub const Error = error{
     BadData,
@@ -317,7 +318,7 @@ fn unix(allocator: std.mem.Allocator, timezone: ?[]const u8) !Location {
 /// and parsed is returned as a Location.
 fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.ArrayList([]const u8)) !Location {
     var arr = sources;
-    while (arr.popOrNull()) |item| {
+    while (arr.pop()) |item| {
         const zoneData = loadTzinfo(allocator, name, item) catch "";
         defer allocator.free(zoneData);
 
@@ -331,7 +332,7 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
 }
 
 fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
-    const BufferStream = @import("../bytes/mod.zig").BufferStream;
+    const BufferStream = @import("../lib.zig").bytes.BufferStream;
 
     var filters = std.ArrayList([]const u8).init(allocator);
     try filters.append(name);
@@ -349,7 +350,7 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());
 
-    const archive = @import("../archive/mod.zig");
+    const archive = @import("../lib.zig").archive;
     var zipFile = archive.zip.fromBufferStream(allocator, fbs);
     defer zipFile.deinit();
 

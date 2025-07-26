@@ -670,17 +670,20 @@ noinline fn utf8Position(self: *Self, index: usize, real: bool) ?usize {
 }
 
 // Reader and Writer functionality.
-pub usingnamespace struct {
-    pub const Writer = std.io.Writer(*Self, Buffer.Error, appendWrite);
+pub const Writer = std.io.GenericWriter(*Self, Buffer.Error, appendWrite);
+pub const Reader = std.io.GenericReader(*Self, Buffer.Error, read);
 
-    pub fn writer(self: *Self) Writer {
-        return .{ .context = self };
-    }
+pub fn writer(self: *Self) Writer {
+    return .{ .context = self };
+}
 
-    fn appendWrite(self: *Self, m: []const u8) !usize {
-        return try self.write(m);
-    }
-};
+pub fn reader(self: *Self) Reader {
+    return .{ .context = self };
+}
+
+fn appendWrite(self: *Self, m: []const u8) !usize {
+    return try self.write(m);
+}
 
 /// Checks if byte is part of UTF-8 character
 inline fn isUTF8Byte(byte: u8) bool {
@@ -720,34 +723,32 @@ inline fn spliter(data: []const u8, delimiters: []const u8, index: usize) ?[]con
 }
 
 // Iterator support
-pub usingnamespace struct {
-    pub const Iterator = struct {
-        sb: *Self,
-        index: usize,
+pub const Iterator = struct {
+    sb: *Self,
+    index: usize,
 
-        pub fn next(it: *Iterator) ?[]const u8 {
-            if (it.index >= it.sb.buffer.len) return null;
-            const i = it.index;
-            it.index += utf8Size(it.sb.buffer.ptr[i]);
-            return it.sb.buffer.ptr[i..it.index];
-        }
+    pub fn next(it: *Iterator) ?[]const u8 {
+        if (it.index >= it.sb.buffer.len) return null;
+        const i = it.index;
+        it.index += utf8Size(it.sb.buffer.ptr[i]);
+        return it.sb.buffer.ptr[i..it.index];
+    }
 
-        pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
-            if ((it.index + size) >= it.sb.buffer.len) return null;
+    pub fn nextBytes(it: *Iterator, size: usize) ?[]const u8 {
+        if ((it.index + size) >= it.sb.buffer.len) return null;
 
-            const i = it.index;
-            it.index += size;
-            return it.sb.buffer.ptr[i..it.index];
-        }
-    };
-
-    pub fn iterator(self: *Self) Iterator {
-        return Iterator{
-            .sb = self,
-            .index = 0,
-        };
+        const i = it.index;
+        it.index += size;
+        return it.sb.buffer.ptr[i..it.index];
     }
 };
+
+pub fn iterator(self: *Self) Iterator {
+    return Iterator{
+        .sb = self,
+        .index = 0,
+    };
+}
 
 const ArenaAllocator = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
@@ -908,8 +909,8 @@ test "UTF8 Buffer Tests" {
     assert(buffer.capacity() == cap);
 
     // writer
-    const writer = buffer.writer();
-    const len = try writer.write("This is a Test!");
+    const w = buffer.writer();
+    const len = try w.write("This is a Test!");
     assert(len == 15);
 
     // owned

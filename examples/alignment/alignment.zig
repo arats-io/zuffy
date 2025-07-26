@@ -11,7 +11,7 @@ const Data = extern struct { a: i32, b: u8, c: f32, d: bool, e: bool };
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
-    std.debug.print("{}\n", .{@typeInfo(@TypeOf(&foo)).Pointer.alignment});
+    std.debug.print("{}\n", .{@typeInfo(@TypeOf(&foo)).pointer.alignment});
     std.debug.print("{}\n", .{@TypeOf(&foo) == *align(8) u8});
     const as_pointer_to_array: *align(8) [1]u8 = &foo;
     const as_slice: []align(8) u8 = as_pointer_to_array;

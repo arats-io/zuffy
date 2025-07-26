@@ -2,11 +2,13 @@ const builtin = @import("builtin");
 const std = @import("std");
 const mem = std.mem;
 
-const ints = @import("../../ints.zig");
+const zuffy = @import("../../lib.zig");
+
+const ints = zuffy.ints;
 const types = @import("types.zig");
 const eftypes = @import("extra_field_types.zig");
 
-const Buffer = @import("../../bytes/buffer.zig");
+const Buffer = zuffy.bytes.Buffer;
 
 ///   ZIP Archive structure
 ///      [local file header 1]
@@ -170,7 +172,7 @@ pub const CentralDirectoryHeader = struct {
 };
 
 pub const Flags = packed struct(u16) {
-    const pointers = @import("../../pointers.zig");
+    const pointers = zuffy.pointers;
     pub const Self = @This();
 
     EncryptedFile: bool = false,

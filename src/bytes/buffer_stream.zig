@@ -21,8 +21,8 @@ pub fn BufferStream(comptime T: type) type {
 
         pub const Error = ReadError || WriteError || SeekError || GetSeekPosError;
 
-        pub const Reader = io.Reader(*Self, ReadError, read);
-        pub const Writer = io.Writer(*Self, WriteError, write);
+        pub const Reader = io.GenericReader(*Self, ReadError, read);
+        pub const Writer = io.GenericWriter(*Self, WriteError, write);
 
         pub const SeekableStream = io.SeekableStream(
             *Self,

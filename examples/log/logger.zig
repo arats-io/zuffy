@@ -1,4 +1,6 @@
 const std = @import("std");
+const build_options = @import("build_options");
+
 const zuffy = @import("zuffy");
 
 const StringBuilder = zuffy.bytes.StringBuilder;
@@ -36,6 +38,9 @@ pub fn main() !void {
         .stacktrace_enabled = true,
     });
     defer logger.deinit();
+    try logger.with(.{
+        zlog.Field(std.SemanticVersion, "version", build_options.semver),
+    });
 
     const max = std.math.maxInt(u18);
     var m: i128 = 0;
@@ -43,7 +48,7 @@ pub fn main() !void {
     const value_database = "my\"db";
     for (0..max) |idx| {
         var startTime = std.time.nanoTimestamp();
-        try logger.Trace(
+        try logger.trace(
             "Initia\"ization...",
             .{
                 zlog.Source(@src()),
@@ -66,7 +71,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Debug(
+        try logger.debug(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -79,7 +84,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Info(
+        try logger.info(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -92,7 +97,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Warn(
+        try logger.warn(
             "Initialization...",
             .{
                 zlog.Source(@src()),
@@ -105,7 +110,7 @@ pub fn main() !void {
         m += (std.time.nanoTimestamp() - startTime);
 
         startTime = std.time.nanoTimestamp();
-        try logger.Error(
+        try logger.@"error"(
             "Initialization...",
             Error.OutOfMemoryClient,
             .{

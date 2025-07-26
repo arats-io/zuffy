@@ -1,5 +1,4 @@
 const std = @import("std");
-const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
@@ -126,13 +125,13 @@ pub const Time = struct {
             },
         };
 
-        self.offset = offset();
+        self.offset = offsetValue();
         self.date_time = absDate(seconds + self.offset.?);
 
         return self;
     }
 
-    inline fn offset() i32 {
+    inline fn offsetValue() i32 {
         const loc = @import("zoneinfo.zig").Local.Get() catch |err| {
             std.debug.panic("{any}", .{err});
         };
@@ -218,24 +217,25 @@ pub const Time = struct {
     ///   - `ZZ  -> -0700 -0600 ... +0500 +0600`
     ///   - `ZZZ -> -07:00 -06:00 ... +05:00 +06:00`
     ///
-    pub fn formatf(self: Self, allocator: std.mem.Allocator, pattern: []const u8, writer: anytype) !void {
-        var sb = try self.format(allocator, pattern);
-        defer sb.deinit();
-        errdefer sb.deinit();
-        _ = try writer.write(sb.bytes());
+    pub fn formatf(self: Self, pattern: []const u8, writer: *std.io.Writer) !void {
+        try self.format(writer, pattern);
     }
 
     /// Format the date and time according to requested pattern to a destination
     pub fn formatfInto(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
-        var sb = try Utf8Buffer.initWithCapacity(allocator, pattern.len);
+        var sb = std.ArrayList(u8).init(allocator);
         errdefer sb.deinit();
         defer sb.deinit();
 
-        try self.format(@constCast(&sb.writer()), pattern);
-        return try sb.bytesInto(dst);
+        var adapter = sb.writer().adaptToNewApi();
+        try self.format(&adapter.new_interface, pattern);
+        std.mem.copyForwards(u8, @constCast(dst), sb.items);
+
+        //return sb.bytesInto(dst);
+        return sb.items.len;
     }
 
-    inline fn format(self: Self, writer: anytype, pattern: []const u8) !void {
+    inline fn format(self: Self, writer: *std.io.Writer, pattern: []const u8) !void {
         var tokens = TokenIterator.init(pattern);
         while (tokens.next()) |token| {
             try self.appendToken(token, writer);
@@ -251,52 +251,52 @@ pub const Time = struct {
         };
     }
 
-    inline fn appendToken(self: Self, token: []const u8, writer: anytype) !void {
+    inline fn appendToken(self: Self, token: []const u8, writer: *std.io.Writer) !void {
         const date_time = self.dateTime();
 
         if (std.meta.stringToEnum(FormatToken, token)) |tag| {
             switch (tag) {
-                .Y => try writer.print("{}", .{date_time.year + 10000}),
+                .Y => try writer.print("{d}", .{date_time.year + 10000}),
                 .YY => {
                     var buf: [4]u8 = undefined;
                     var yy = try std.fmt.bufPrint(&buf, "{}", .{date_time.year});
                     try writer.print("{s}", .{yy[2..]});
                 },
-                .YYY => try writer.print("{}", .{date_time.year}),
+                .YYY => try writer.print("{d}", .{date_time.year}),
                 .YYYY => try writer.print("{d:0>4}", .{date_time.year}),
                 .MMMM => try writer.print("{s}", .{self.getMonth().string()}),
                 .MMM => try writer.print("{s}", .{self.getMonth().shortString()}),
                 .MM => try writer.print("{d:0>2}", .{date_time.month}),
-                .M => try writer.print("{}", .{date_time.month}),
+                .M => try writer.print("{d}", .{date_time.month}),
                 .Mo => try writer.print("{}{s}", .{ date_time.month, suffix(date_time.month) }),
                 .DD => try writer.print("{d:0>2}", .{date_time.day}),
-                .D => try writer.print("{}", .{date_time.day}),
+                .D => try writer.print("{d}", .{date_time.day}),
                 .Do => {
                     const rem = @rem(date_time.day, 30);
-                    try writer.print("{}{s}", .{ date_time.day, suffix(rem) });
+                    try writer.print("{d}{s}", .{ date_time.day, suffix(rem) });
                 },
                 .DDDD => try writer.print("{d:0>3}", .{date_time.yday}),
-                .DDD => try writer.print("{}", .{date_time.yday}),
+                .DDD => try writer.print("{d}", .{date_time.yday}),
                 .DDDo => {
                     const rem = @rem(date_time.yday, daysBefore[date_time.month]);
-                    try writer.print("{}{s}", .{ date_time.yday, suffix(rem) });
+                    try writer.print("{d}{s}", .{ date_time.yday, suffix(rem) });
                 },
                 .HH => try writer.print("{d:0>2}", .{date_time.hour}),
-                .H => try writer.print("{}", .{date_time.hour}),
+                .H => try writer.print("{d}", .{date_time.hour}),
                 .kk => try writer.print("{d:0>2}", .{date_time.hour}),
-                .k => try writer.print("{}", .{date_time.hour}),
+                .k => try writer.print("{d}", .{date_time.hour}),
                 .hh => {
                     const h = @rem(date_time.hour, 12);
                     try writer.print("{d:0>2}", .{h});
                 },
                 .h => {
                     const h = @rem(date_time.hour, 12);
-                    try writer.print("{}", .{h});
+                    try writer.print("{d}", .{h});
                 },
                 .mm => try writer.print("{d:0>2}", .{date_time.min}),
-                .m => try writer.print("{}", .{date_time.min}),
+                .m => try writer.print("{d}", .{date_time.min}),
                 .ss => try writer.print("{d:0>2}", .{date_time.sec}),
-                .s => try writer.print("{}", .{date_time.sec}),
+                .s => try writer.print("{d}", .{date_time.sec}),
 
                 .S => if (@intFromEnum(self.measure) < @intFromEnum(Measure.millis)) try writer.print("{}", .{self.rest / 100}),
                 .SS => if (@intFromEnum(self.measure) < @intFromEnum(Measure.millis)) try writer.print("{}", .{self.rest / 10}),
@@ -304,30 +304,30 @@ pub const Time = struct {
 
                 .A => _ = try writer.write(if (date_time.hour <= 11) "AM" else "PM"),
                 .a => _ = try writer.write(if (date_time.hour <= 11) "am" else "pm"),
-                .d => try writer.print("{}", .{date_time.wday - 1}),
-                .c => try writer.print("{}", .{date_time.wday}),
+                .d => try writer.print("{d}", .{date_time.wday - 1}),
+                .c => try writer.print("{d}", .{date_time.wday}),
                 .dd => try writer.print("{s}", .{self.getWeekday().shorterString()}),
                 .ddd => try writer.print("{s}", .{self.getWeekday().shortString()}),
                 .dddd => try writer.print("{s}", .{self.getWeekday().string()}),
-                .e => try writer.print("{}", .{date_time.wday}),
-                .E => try writer.print("{}", .{date_time.wday + 1}),
+                .e => try writer.print("{d}", .{date_time.wday}),
+                .E => try writer.print("{d}", .{date_time.wday + 1}),
                 .ZZZ => try self.zzz(writer, ":"),
                 .ZZ => try self.zzz(writer, ""),
                 .Z => {
                     const h = @divFloor(self.offset.?, std.time.s_per_hour);
-                    try writer.print("{s}{}", .{ if (h > 0) "+" else "", h });
+                    try writer.print("{s}{d}", .{ if (h > 0) "+" else "", h });
                 },
                 .NN => _ = try writer.write("BC"),
                 .N => _ = try writer.write("Before Christ"),
                 .w => {
                     const l: u32 = if (isLeap(date_time.year)) 1 else 0;
                     const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-                    try writer.print("{}", .{wy});
+                    try writer.print("{d}", .{wy});
                 },
                 .wo => {
                     const l: u32 = if (isLeap(date_time.year)) 1 else 0;
                     const wy = @divTrunc(mceil(date_time.day + daysBefore[date_time.month - 1] + l), 7);
-                    try writer.print("{}{s}", .{ wy, suffix(wy) });
+                    try writer.print("{d}{s}", .{ wy, suffix(wy) });
                 },
                 .ww => {
                     const l: u32 = if (isLeap(date_time.year)) 1 else 0;
@@ -336,18 +336,18 @@ pub const Time = struct {
                 },
                 .QQ => {
                     const q = @divTrunc(date_time.month - 1, 3) + 1;
-                    try writer.print("0{}", .{q});
+                    try writer.print("0{d}", .{q});
                 },
                 .Q => {
                     const q = @divTrunc(date_time.month - 1, 3) + 1;
-                    try writer.print("{}", .{q});
+                    try writer.print("{d}", .{q});
                 },
                 .Qo => {
                     const q = @divTrunc(date_time.month - 1, 3) + 1;
-                    try writer.print("{}{s}", .{ q, suffix(q) });
+                    try writer.print("{d}{s}", .{ q, suffix(q) });
                 },
-                .x => try writer.print("{}", .{std.time.milliTimestamp()}),
-                .X => try writer.print("{}", .{std.time.timestamp()}),
+                .x => try writer.print("{d}", .{std.time.milliTimestamp()}),
+                .X => try writer.print("{d}", .{std.time.timestamp()}),
                 else => {},
             }
         } else {
@@ -362,7 +362,7 @@ pub const Time = struct {
         return @as(Month, @enumFromInt(self.dateTime().month));
     }
 
-    inline fn zzz(self: Self, writer: anytype, delimeter: []const u8) !void {
+    inline fn zzz(self: Self, writer: *std.io.Writer, delimeter: []const u8) !void {
         var h = @divFloor(self.offset.?, std.time.s_per_hour);
         if (h > 0) {
             _ = try writer.write("+");
