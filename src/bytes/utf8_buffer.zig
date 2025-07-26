@@ -671,8 +671,13 @@ noinline fn utf8Position(self: *Self, index: usize, real: bool) ?usize {
 
 // Reader and Writer functionality.
 pub const Writer = std.io.GenericWriter(*Self, Buffer.Error, appendWrite);
+pub const Reader = std.io.GenericReader(*Self, Buffer.Error, read);
 
 pub fn writer(self: *Self) Writer {
+    return .{ .context = self };
+}
+
+pub fn reader(self: *Self) Reader {
     return .{ .context = self };
 }
 

@@ -1,23 +1,13 @@
 const std = @import("std");
-// const build_zon = @import("build.zig.zon"); // not yet supported, see: https://github.com/ziglang/zig/issues/14531
-
-//const version: std.SemanticVersion = std.SemanticVersion.parse(build_zon.version) orelse unreachable;
-const version: std.SemanticVersion = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 14 };
+const zon = @import("src/zon.zig");
 
 pub fn build(b: *std.Build) !void {
+    const version: std.SemanticVersion = try zon.semanticVersionDefault(b.allocator);
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // const bytes_mod = b.addModule("bytes", .{
-    //     .root_source_file = .{
-    //         .src_path = .{
-    //             .owner = b,
-    //             .sub_path = "src/bytes/mod.zig",
-    //         },
-    //     },
-    // });
-
-    const lib = b.addLibrary(.{
+    const staticLib = b.addLibrary(.{
         .linkage = .static,
         .name = "zuffy",
         .root_module = b.createModule(
@@ -28,10 +18,6 @@ pub fn build(b: *std.Build) !void {
                         .sub_path = "src/lib.zig",
                     },
                 },
-                // .imports = &.{.{
-                //     .name = "bytes",
-                //     .module = bytes_mod,
-                // }},
                 .target = target,
                 .optimize = optimize,
             },
@@ -40,7 +26,7 @@ pub fn build(b: *std.Build) !void {
         .use_lld = false,
     });
 
-    b.installArtifact(lib);
+    b.installArtifact(staticLib);
 
     // examples
     const examples_step = b.step("examples", "build all examples");
@@ -101,17 +87,13 @@ pub fn build(b: *std.Build) !void {
                 .target = target,
                 .optimize = optimize,
             }),
-            .linkage = .dynamic,
             .use_llvm = true,
             .use_lld = false,
             .version = version,
         });
         example.root_module.addOptions("build_options", exe_options);
-        example.root_module.addImport("zuffy", lib.root_module);
+        example.root_module.addImport("zuffy", staticLib.root_module);
 
-        example.linkLibrary(lib);
-
-        // const example_run = example.run();
         const example_run = b.addRunArtifact(example);
         example_run_step.dependOn(&example_run.step);
 
@@ -144,19 +126,8 @@ pub fn build(b: *std.Build) !void {
                 const testPath = try std.fmt.bufPrint(&buff, "src/{s}", .{entry.path});
                 std.debug.print("Testing: {s}\n", .{testPath});
 
-                // tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                //     .name = "pointers",
-                //     .root_module = b.createModule(.{
-                //         .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/pointers.zig" } },
-                //         .target = target,
-                //         .optimize = optimize,
-                //     }),
-                //     .use_llvm = true,
-                //     .use_lld = false,
-                // })).step);
-
                 tests_suite.dependOn(&b.addRunArtifact(b.addTest(.{
-                    .root_module = lib.root_module,
+                    .root_module = staticLib.root_module,
                     .use_llvm = true,
                     .use_lld = false,
                 })).step);

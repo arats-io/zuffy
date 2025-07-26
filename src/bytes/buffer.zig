@@ -80,9 +80,9 @@ pub fn writeByte(self: *Self, byte: u8) !void {
 }
 
 /// Write given `max_num` number of bytes which are read from the given `reader`
-pub fn writeNBytes(self: *Self, reader: anytype, max_num: usize) !void {
+pub fn writeNBytes(self: *Self, r: anytype, max_num: usize) !void {
     for (0..max_num) |_| {
-        const byte = try reader.readByte();
+        const byte = try r.readByte();
         try self.writeByte(byte);
     }
 }
@@ -259,7 +259,7 @@ fn _copy(comptime Type: type, dest: []Type, src: []const Type) void {
     const is_input_or_output_overlaping = (@intFromPtr(input.ptr) < @intFromPtr(output.ptr) and
         @intFromPtr(input.ptr) + input.len > @intFromPtr(output.ptr)) or
         (@intFromPtr(output.ptr) < @intFromPtr(input.ptr) and
-        @intFromPtr(output.ptr) + output.len > @intFromPtr(input.ptr));
+            @intFromPtr(output.ptr) + output.len > @intFromPtr(input.ptr));
 
     if (is_input_or_output_overlaping) {
         @memcpy(output, input);
@@ -427,8 +427,12 @@ pub inline fn rawLength(self: *Self) usize {
 
 // Reader and Writer functionality.
 pub const Writer = std.io.GenericWriter(*Self, Error, appendWrite);
+pub const Reader = std.io.GenericReader(*Self, Error, read);
 
 pub fn writer(self: *Self) Writer {
+    return .{ .context = self };
+}
+pub fn reader(self: *Self) Reader {
     return .{ .context = self };
 }
 

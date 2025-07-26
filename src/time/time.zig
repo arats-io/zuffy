@@ -1,5 +1,4 @@
 const std = @import("std");
-//const Utf8Buffer = @import("../bytes/mod.zig").Utf8Buffer;
 
 pub const Measure = enum(u2) { seconds = 0, millis = 1, micros = 2, nanos = 3 };
 
@@ -224,7 +223,6 @@ pub const Time = struct {
 
     /// Format the date and time according to requested pattern to a destination
     pub fn formatfInto(self: Self, allocator: std.mem.Allocator, pattern: []const u8, dst: []const u8) !usize {
-        //var sb = try Utf8Buffer.initWithCapacity(allocator, pattern.len);
         var sb = std.ArrayList(u8).init(allocator);
         errdefer sb.deinit();
         defer sb.deinit();
