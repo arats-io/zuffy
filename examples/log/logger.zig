@@ -22,19 +22,23 @@ const Element = struct {
 pub fn main() !void {
     std.debug.print("Starting application.\n", .{});
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
+    defer {
+        if (gpa.detectLeaks()) {
+            std.debug.panic("{s}", .{"Memory leak detected"});
+        }
+        _ = gpa.deinit(); // both funcs return values
+    }
 
-    const logger = zlog.init(arena.allocator(), .{
+    const logger = zlog.init(gpa.allocator(), .{
         .level = zlog.Level.ParseString("trace"),
         .format = .text,
         .caller_enabled = true,
-        .caller_field_name = "caller",
         .time_enabled = true,
         .time_measure = .nanos,
         .time_formating = .pattern,
         .time_pattern = "YYYY MMM Do ddd HH:mm:ss.SSS UTCZZZ - Qo",
-        .escape_enabled = true,
+        .escape_enabled = false,
         .stacktrace_enabled = true,
     });
     defer logger.deinit();

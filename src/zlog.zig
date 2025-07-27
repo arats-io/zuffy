@@ -19,7 +19,7 @@ const default_caller_marshal_fn = struct {
 }.handler;
 
 pub const TimeFormating = enum(u4) {
-    timestamp = 0,
+    unix = 0,
     pattern = 1,
 };
 
@@ -35,7 +35,7 @@ pub const Level = enum(u4) {
     warn = 0x3,
     @"error" = 0x4,
     fatal = 0x5,
-    disabled = 0xF,
+    disabled = 0xf,
 
     pub fn String(self: Level) []const u8 {
         return @tagName(self);
@@ -50,7 +50,7 @@ pub const Level = enum(u4) {
 
 /// Logger configuration configuration
 pub const Config = struct {
-    /// log level, possible values (Trace | Debug | Info | Warn | Error | Fatal | Disabled)
+    /// log level, possible values (trace | debug | info | warn | error | fatal | disabled)
     level: Level = .info,
     /// field name for the log level
     level_field_name: []const u8 = "level",
@@ -79,8 +79,8 @@ pub const Config = struct {
     time_field_name: []const u8 = "time",
     /// time measumerent, possible values (seconds | millis | micros, nanos)
     time_measure: Measure = Measure.seconds,
-    /// time formating, possible values (timestamp | pattern)
-    time_formating: TimeFormating = TimeFormating.timestamp,
+    /// time formating, possible values (unix | pattern)
+    time_formating: TimeFormating = TimeFormating.unix,
     /// petttern of time representation, applicable when .time_formating is sen on .pattern
     time_pattern: []const u8 = "DD/MM/YYYY'T'HH:mm:ss",
 
@@ -115,19 +115,9 @@ pub const Config = struct {
     /// escaping destination set of characters
     dst_escape_characters: []const u8 = "\\\"",
 
-    emit_null_optional_fields: bool = false,
-
     /// stringify options
-    stingify: struct { escape_enabled: bool, level1: std.json.Stringify.Options, levelX: std.json.Stringify.Options } = .{
-        .escape_enabled = false,
-        .level1 = .{
-            .whitespace = .minified,
-            .emit_null_optional_fields = false,
-            .emit_strings_as_arrays = false,
-            .escape_unicode = true,
-            .emit_nonportable_numbers_as_strings = false,
-        },
-        .levelX = .{
+    json: struct { options: std.json.Stringify.Options } = .{
+        .options = .{
             .whitespace = .minified,
             .emit_null_optional_fields = false,
             .emit_strings_as_arrays = false,
@@ -274,12 +264,18 @@ fn process(
     args: anytype,
 ) !void {
 
+    // start of record
+    _ = try buffer.write(switch (config.format) {
+        inline .json => "{ ",
+        inline else => "",
+    });
+
     // add the timstamp
     if (config.time_enabled) {
         const t = Time.new(config.time_measure);
 
         switch (config.time_formating) {
-            inline .timestamp => {
+            inline .unix => {
                 try injectKeyAndValue(true, buffer, config, config.time_field_name, t.value);
             },
             inline .pattern => {
@@ -344,16 +340,22 @@ fn process(
     // append the end of record
     _ = try buffer.write(switch (config.format) {
         inline .text => "\n",
-        inline .json => "}\n",
+        inline .json => " }\n",
     });
 }
 
 fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key: []const u8, value: anytype) !void {
     var data: *Utf8Buffer = @constCast(buffer);
 
-    const T = @TypeOf(value);
-    const ty = @typeInfo(T);
+    const ty = @typeInfo(@TypeOf(value));
     switch (ty) {
+        .optional => {
+            if (value) |payload| {
+                return try injectKeyAndValue(first, buffer, config, key, payload);
+            } else {
+                return try injectKeyAndValue(first, buffer, config, key, "null");
+            }
+        },
         .error_union => {
             if (value) |payload| {
                 return try injectKeyAndValue(first, buffer, config, key, payload);
@@ -364,272 +366,56 @@ fn injectKeyAndValue(first: bool, buffer: *const Utf8Buffer, config: Config, key
         .type => {
             return try injectKeyAndValue(first, buffer, config, key, @typeName(value));
         },
-        .enum_literal => {
-            return try injectKeyAndValue(first, buffer, config, key, @tagName(value));
-        },
-        .void => {
-            return try injectKeyAndValue(first, buffer, config, key, "void");
-        },
-        .optional => {
-            if (value) |payload| {
-                return try injectKeyAndValue(first, buffer, config, key, payload);
-            } else {
-                return try injectKeyAndValue(first, buffer, config, key, null);
-            }
-        },
         else => {},
     }
+
+    var adapter = data.writer().adaptToNewApi();
+    const writer = &adapter.new_interface;
+    var json_writer: std.json.Stringify = .{
+        .writer = writer,
+        .options = config.json.options,
+    };
 
     switch (config.format) {
         .text => {
-            const header = if (first) "" else " ";
-            switch (ty) {
-                .@"enum" => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
-                .bool => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, if (value) "true" else "false" }),
-                .pointer => |ptr_info| switch (ptr_info.size) {
-                    .slice, .many, .one, .c => {
-                        if (config.escape_enabled) {
-                            try data.print("{s}{s}=\u{0022}", .{ header, key });
-                            const cPos = data.rawLength();
-                            try data.print("{s}", .{value});
-                            _ = try data.replaceAllFromPos(
-                                cPos,
-                                config.src_escape_characters,
-                                config.dst_escape_characters,
-                            );
-                            _ = try data.write("\u{0022}");
-                        } else {
-                            try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, key, value });
-                        }
-                    },
-                },
-                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{s}={any}", .{ header, key, value }),
-                .error_set => try data.print("{s}{s}=\u{0022}{s}\u{0022}", .{ header, config.error_field_name, @errorName(value) }),
-                .null => if (config.emit_null_optional_fields) try data.print("{s}{s}=null", .{ header, key }),
-                .@"struct", .@"union" => {
-                    if (config.stingify.escape_enabled) {
-                        try data.print("{s}{s}=\u{0022}", .{ header, key });
-                    } else {
-                        try data.print("{s}{s}=", .{ header, key });
-                    }
-
-                    const cPos = data.rawLength();
-
-                    var adapter = data.writer().adaptToNewApi();
-                    var write_stream: std.json.Stringify = .{
-                        .writer = &adapter.new_interface,
-                        .options = config.stingify.level1,
-                    };
-
-                    try write_stream.write(value);
-
-                    if (config.stingify.escape_enabled) {
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                    }
-
-                    if (config.stingify.escape_enabled) {
-                        try data.print("\u{0022}", .{});
-                    }
-                },
-                .array, .vector => {
-                    try data.print("{s}{s}=[", .{ header, key });
-
-                    for (value, 0..) |elem, i| {
-                        try injectValue(i == 0, buffer, config, elem);
-                    }
-
-                    try data.print("]", .{});
-                },
-                else => try data.print("{s}{s}=\u{0022}{any}\u{0022}", .{ header, key, value }),
-            }
+            try writer.print("{s}{s}=", .{ if (first) "" else " ", key });
         },
         .json => {
-            const header = if (first) "{" else ", ";
-            switch (ty) {
-                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @typeName(value) }),
-                .bool => try data.print("{s}\u{0022}{s}\u{0022}: {s}", .{ header, key, if (value) "true" else "false" }),
-                .pointer => |ptr_info| switch (ptr_info.size) {
-                    .slice, .many, .one, .c => {
-                        if (config.escape_enabled) {
-                            try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}", .{ header, key });
-                            const cPos = data.rawLength();
-                            try data.print("{s}", .{value});
-                            _ = try data.replaceAllFromPos(
-                                cPos,
-                                config.src_escape_characters,
-                                config.dst_escape_characters,
-                            );
-                            _ = try data.write("\u{0022}");
-                        } else {
-                            try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, value });
-                        }
-                    },
-                },
-                .comptime_int, .int, .comptime_float, .float => try data.print("{s}\u{0022}{s}\u{0022}:{any}", .{ header, key, value }),
-                .error_set => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{s}\u{0022}", .{ header, key, @errorName(value) }),
-                .null => if (config.emit_null_optional_fields) try data.print("{s}\u{0022}{s}\u{0022}:null", .{ header, key }),
-                .@"struct", .@"union" => {
-                    try data.print("{s}\u{0022}{s}\u{0022}:", .{ header, key });
-
-                    var adapter = data.writer().adaptToNewApi();
-                    var write_stream: std.json.Stringify = .{
-                        .writer = &adapter.new_interface,
-                        .options = config.stingify.level1,
-                    };
-
-                    try write_stream.write(value);
-                },
-                .array, .vector => {
-                    try data.print("{s}\u{0022}{s}\u{0022}: [", .{ header, key });
-
-                    for (value, 0..) |elem, i| {
-                        try injectValue(i == 0, buffer, config, elem);
-                    }
-
-                    try data.print("]", .{});
-                },
-                else => try data.print("{s}\u{0022}{s}\u{0022}: \u{0022}{any}\u{0022}", .{ header, key, value }),
-            }
+            try writer.print("{s}{s}:", .{ if (first) "" else ", ", key });
         },
     }
-}
-
-fn injectValue(first: bool, buffer: *const Utf8Buffer, config: Config, value: anytype) !void {
-    var data: *Utf8Buffer = @constCast(buffer);
-
-    const T = @TypeOf(value);
-    const ty = @typeInfo(T);
 
     switch (ty) {
-        .optional => {
-            if (value) |payload| {
-                return injectValue(first, buffer, config, payload);
-            } else {
-                return injectValue(first, buffer, config, null);
+        .@"struct", .@"union", .array, .vector => {
+            if (config.escape_enabled) {
+                _ = try writer.write("\u{0022}");
+            }
+
+            const cPos = data.rawLength();
+
+            try json_writer.write(value);
+
+            if (config.escape_enabled) {
+                _ = try data.replaceAllBoundary(
+                    cPos + 1,
+                    1,
+                    config.src_escape_characters,
+                    config.dst_escape_characters,
+                );
+                _ = try writer.write("\u{0022}");
             }
         },
-        else => {},
-    }
 
-    switch (config.format) {
-        inline .text => {
-            const header = if (first) "" else ", ";
-            switch (ty) {
-                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
-                .bool => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, if (value) "true" else "false" }),
-                .pointer => |ptr_info| switch (ptr_info.size) {
-                    .slice, .many, .one, .c => {
-                        if (config.escape_enabled) {
-                            try data.print("{s}\u{0022}", .{header});
-
-                            const cPos = data.rawLength();
-                            try data.print("{s}", .{value});
-                            _ = try data.replaceAllFromPos(
-                                cPos,
-                                config.src_escape_characters,
-                                config.dst_escape_characters,
-                            );
-                            _ = try data.write("\u{0022}");
-                        } else {
-                            try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value });
-                        }
-                    },
-                },
-                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{any}", .{ header, value }),
-                .error_set => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
-                .@"struct", .@"union" => {
-                    if (config.stingify.escape_enabled) {
-                        try data.print("{s}\u{0022}", .{header});
-                    } else {
-                        try data.print("{s}", .{header});
-                    }
-
-                    const cPos = data.rawLength();
-
-                    var adapter = data.writer().adaptToNewApi();
-                    var write_stream: std.json.Stringify = .{
-                        .writer = &adapter.new_interface,
-                        .options = config.stingify.levelX,
-                    };
-
-                    try write_stream.write(value);
-
-                    if (config.stingify.escape_enabled) {
-                        _ = try data.replaceAllFromPos(
-                            cPos,
-                            config.src_escape_characters,
-                            config.dst_escape_characters,
-                        );
-                    }
-
-                    if (config.stingify.escape_enabled) {
-                        try data.print("\u{0022}", .{});
-                    }
-                },
-                .array, .vector => {
-                    try data.print("{s} [", .{header});
-
-                    for (value, 0..) |elem, i| {
-                        try injectValue(i == 0, buffer, config, elem);
-                    }
-
-                    try data.print("]", .{});
-                },
-                else => try data.print("{s}\u{0022}{any}\u{0022}", .{ header, value }),
-            }
-        },
-        inline .json => {
-            const header = if (first) "" else ", ";
-            switch (ty) {
-                .@"enum" => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @typeName(value) }),
-                .bool => try data.print("{s}{s}", .{ header, if (value) "true" else "false" }),
-                .pointer => |ptr_info| switch (ptr_info.size) {
-                    .slice, .many, .one, .c => {
-                        if (config.escape_enabled) {
-                            try data.print("{s}\u{0022}", .{header});
-
-                            const cPos = data.rawLength();
-                            try data.print("{s}", .{value});
-                            _ = try data.replaceAllFromPos(
-                                cPos,
-                                config.src_escape_characters,
-                                config.dst_escape_characters,
-                            );
-                            _ = try data.write("\u{0022}");
-                        } else {
-                            try data.print("{s}\u{0022}{s}\u{0022}", .{ header, value });
-                        }
-                    },
-                },
-                .comptime_int, .int, .comptime_float, .float => try data.print("{s}{any}", .{ header, value }),
-                .error_set => try data.print("{s}\u{0022}{s}\u{0022}", .{ header, @errorName(value) }),
-                .null => if (config.emit_null_optional_fields) try data.print("{s}null", .{header}),
-                .@"struct", .@"union" => {
-                    try data.print("{s}", .{header});
-
-                    var adapter = data.writer().adaptToNewApi();
-                    var write_stream: std.json.Stringify = .{
-                        .writer = &adapter.new_interface,
-                        .options = config.stingify.levelX,
-                    };
-
-                    try write_stream.write(value);
-                },
-                .array, .vector => {
-                    try data.print("{s} [", .{header});
-
-                    for (value, 0..) |elem, i| {
-                        try injectValue(i == 0, buffer, config, elem);
-                    }
-
-                    try data.print("]", .{});
-                },
-                else => try data.print("{s}\u{0022}{any}\u{0022}", .{ header, value }),
+        else => {
+            const cPos = data.rawLength();
+            try json_writer.write(value);
+            if (config.escape_enabled) {
+                _ = try data.replaceAllBoundary(
+                    cPos + 1,
+                    1,
+                    config.src_escape_characters,
+                    config.dst_escape_characters,
+                );
             }
         },
     }
