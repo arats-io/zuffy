@@ -203,6 +203,34 @@ pub noinline fn replaceAllFromPos(self: *Self, startPos: usize, src: []const u8,
     return found;
 }
 
+/// Replace all matches in the buffer the source with destination from given start and end position
+pub noinline fn replaceAllBoundary(self: *Self, startPos: usize, endRef: usize, src: []const u8, dst: []const u8) !bool {
+    var start: usize = startPos;
+    var end: usize = self.buffer.len;
+    if (endRef > 0) {
+        end = self.buffer.len - endRef;
+    }
+
+    if (start >= end) {
+        return false;
+    }
+    var found = false;
+    while (std.mem.indexOf(u8, self.buffer.ptr[start..end], src)) |index| {
+        try self.replace(start + index, src, dst);
+        found = true;
+        start += index + dst.len;
+
+        if (endRef > 0) {
+            end = self.buffer.len - endRef;
+        }
+
+        if (start >= end) {
+            break;
+        }
+    }
+    return found;
+}
+
 /// Remove last matche with the source from the buffer
 pub inline fn removeLast(self: *Self, src: []const u8) !bool {
     if (std.mem.lastIndexOfLinear(u8, self.buffer.ptr[0..self.buffer.len], src)) |index| {

@@ -147,5 +147,5 @@ pub fn main() !void {
 
     std.debug.print("\n----------------------------------------------------------------------------", .{});
     const total = max * 6;
-    std.debug.print("\n\nProcessed {} records in {} micro; Average time spent on log report is {} micro.\n\n", .{ total, (std.time.nanoTimestamp() - start), @divFloor(m, total) });
+    std.debug.print("\n\nProcessed {} records in {} nano; Average time spent on log report is {} nano.\n\n", .{ total, (std.time.nanoTimestamp() - start), @divFloor(m, total) });
 }

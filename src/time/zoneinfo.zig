@@ -332,7 +332,7 @@ fn loadLocation(allocator: std.mem.Allocator, name: []const u8, sources: std.Arr
 }
 
 fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
-    const BufferStream = @import("../lib.zig").bytes.BufferStream;
+    const BufferStream = zuffy.bytes.BufferStream;
 
     var filters = std.ArrayList([]const u8).init(allocator);
     try filters.append(name);
@@ -350,14 +350,13 @@ fn loadTzinfoFromZip(allocator: std.mem.Allocator, name: []const u8) ![]const u8
 
     try std.compress.gzip.decompress(in_stream.reader(), fbs.writer());
 
-    const archive = @import("../lib.zig").archive;
-    var zipFile = archive.zip.fromBufferStream(allocator, fbs);
+    var zipFile = zuffy.archive.zip.fromBufferStream(allocator, fbs);
     defer zipFile.deinit();
 
     const Collector = struct {
         const Self = @This();
 
-        pub const GenericContent = archive.GenericContent(*Self, receive);
+        pub const GenericContent = zuffy.archive.GenericContent(*Self, receive);
 
         arr: std.ArrayList([]const u8),
 

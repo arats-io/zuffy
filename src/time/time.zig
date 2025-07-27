@@ -231,8 +231,14 @@ pub const Time = struct {
         try self.format(&adapter.new_interface, pattern);
         std.mem.copyForwards(u8, @constCast(dst), sb.items);
 
-        //return sb.bytesInto(dst);
         return sb.items.len;
+    }
+
+    pub fn formatAsString(self: Self, allocator: std.mem.Allocator, pattern: []const u8, comptime buff_size: usize) ![:0]const u8 {
+        var buffer: [buff_size]u8 = undefined;
+        const size = try self.formatfInto(allocator, pattern, &buffer) + 1;
+        buffer[size - 1] = 0;
+        return buffer[0 .. size - 1 :0];
     }
 
     inline fn format(self: Self, writer: *std.io.Writer, pattern: []const u8) !void {
